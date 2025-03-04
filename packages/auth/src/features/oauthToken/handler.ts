@@ -19,6 +19,8 @@ export async function tokenHandler(
 ) {
   const grantType = request.query.grant_type
 
+  console.log('AUTH: ', JSON.stringify(request.query, null, 2))
+
   if (grantType === 'client_credentials') {
     return clientCredentialsHandler(request, h)
   }
