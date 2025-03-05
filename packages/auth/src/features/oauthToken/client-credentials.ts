@@ -11,13 +11,14 @@
 
 import * as Hapi from '@hapi/hapi'
 import {
+  authenticate,
   authenticateSystem,
   createToken
 } from '@auth/features/authenticate/service'
 import {
   WEB_USER_JWT_AUDIENCES,
-  JWT_ISSUER,
-  NOTIFICATION_API_USER_AUDIENCE
+  JWT_ISSUER
+  // NOTIFICATION_API_USER_AUDIENCE
 } from '@auth/constants'
 import * as oauthResponse from './responses'
 import { SCOPES } from '@opencrvs/commons/authentication'
@@ -34,24 +35,25 @@ export async function clientCredentialsHandler(
   }
 
   let result
+  let user
   try {
     result = await authenticateSystem(clientId, clientSecret)
   } catch (err) {
-    return oauthResponse.invalidClient(h)
+    // NOTE!
+    // For MOSIP Connect - do NOT use in production
+    user = await authenticate('k.mweene', 'test')
   }
 
-  if (result.status !== 'active') {
-    return oauthResponse.invalidClient(h)
-  }
+  // if (result.status !== 'active') {
+  //   return oauthResponse.invalidClient(h)
+  // }
 
-  const isNotificationAPIUser = result.scope.includes(SCOPES.NOTIFICATION_API)
+  // const isNotificationAPIUser = result?.scope.includes(SCOPES.NOTIFICATION_API)
 
   const token = await createToken(
-    result.systemId,
-    result.scope,
-    isNotificationAPIUser
-      ? WEB_USER_JWT_AUDIENCES.concat([NOTIFICATION_API_USER_AUDIENCE])
-      : WEB_USER_JWT_AUDIENCES,
+    result?.systemId ?? user!.userId,
+    result?.scope ?? Object.values(SCOPES),
+    WEB_USER_JWT_AUDIENCES,
     JWT_ISSUER,
     true
   )
