@@ -48,7 +48,7 @@ load('ext://namespace', 'namespace_create', 'namespace_inject')
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
 
 # If your machine is powerful feel free to change parallel updates from default 3
-update_settings(max_parallel_updates=1)
+update_settings(max_parallel_updates=2)
 
 ############################################################
 # Build images:
@@ -153,21 +153,46 @@ k8s_yaml(
 )
 
 if security_enabled:
+    secrets_to_copy = [
+        "elasticsearch-opencrvs-users",
+        "redis-opencrvs-users",
+        "minio-opencrvs-users"
+    ]
     local_resource(
       "copy_secrets",
-      cmd="""kubectl get secret redis-opencrvs-users minio-opencrvs-users -n {0} -o yaml \
-          | sed "s#namespace: {0}#namespace: {1}#" | grep -v 'resourceVersion\\|uid\\|creationTimestamp' \
-          | kubectl replace -n {1} -f -""".format(dependencies_namespace, opencrvs_namespace),
-      resource_deps=["minio", "redis"])
+      cmd="""kubectl get secret {2} -n {0} -o yaml \
+             | sed "s#namespace: {0}#namespace: {1}#" | grep -v 'resourceVersion\\|uid\\|creationTimestamp' \
+             | kubectl apply -n {1} -f -""".format(dependencies_namespace, opencrvs_namespace, " ".join(secrets_to_copy)),
+      resource_deps=["minio", "redis", "traefik"])
 
 ######################################################
 # Data management tasks:
 # - Reset database: This task is not part of helm deployment to avoid accidental data loss
-# - Seed data: is part of helm install post-deploy hook, but it is a manual task as well
+# - Restart Events service
 # - Run migration job, is part of helm install/upgrade post-deploy hook
-cleanup_command = "../infrastructure/infrastructure/clear-all-data.k8s.sh --dependencies-namespace {1} -o {0}".format(
-  opencrvs_namespace, dependencies_namespace
-)
+# - Seed data: is part of helm install post-deploy hook, but it is a manual task as well
+
+cleanup_command = """
+  kubectl delete job -n {0} data-cleanup;
+  helm template -f ../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml --set data_cleanup.enabled=true -s templates/data-cleanup-job.yaml ../infrastructure/charts/opencrvs-services/ | kubectl apply -n {0} -f -;
+  sleep 10;
+  kubectl logs job/data-cleanup -f --all-containers=true -n {0};
+  kubectl wait --for=condition=complete job/data-cleanup -n {0} --timeout=600s;
+  kubectl delete pod -n {0} -lapp=events;
+  sleep 30;
+  kubectl delete job -n {0} data-migration;
+  helm template -f ../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml -s templates/data-migration-job.yaml ../infrastructure/charts/opencrvs-services/ | kubectl apply -n {0} -f -;
+  sleep 10;
+  kubectl logs job/data-migration -f --all-containers=true -n {0};
+  kubectl wait --for=condition=complete job/data-migration -n {0} --timeout=600s;
+  kubectl delete job -n {0} data-seeder;
+  helm template -f ../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml --set data_seeder.enabled=true -s templates/data-seed-job.yaml ../infrastructure/charts/opencrvs-services/ | kubectl apply -n {0} -f -;
+  sleep 10;
+  kubectl logs job/data-seeder -f --all-containers=true -n {0};
+  kubectl wait --for=condition=complete job/data-seeder -n {0} --timeout=600s;
+  kubectl delete pod -n {0} -lapp=events;
+  """.format(opencrvs_namespace)
+
 local_resource(
     'Reset database',
     labels=['2.Data-tasks'],
