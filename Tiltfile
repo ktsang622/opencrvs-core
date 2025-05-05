@@ -32,7 +32,7 @@ dependencies_namespace = 'opencrvs-deps-dev'
 # - Setup MinIO admin user and password
 # - Configure Redis users
 # - Sync passwords between dependencies and OpenCRVS services
-security_enabled = True
+security_enabled = False
 
 # Checkout infrastructure directory if not exists
 if not os.path.exists('../infrastructure'):
