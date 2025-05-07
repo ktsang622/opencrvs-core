@@ -1,7 +1,7 @@
 ############################################################
 # Please check readme at: https://github.com/opencrvs/infrastructure/tree/develop
 ############################################################
-
+load('ext://namespace', 'namespace_create', 'namespace_inject')
 ############################################################
 # Variables declaration:
 ############################################################
@@ -42,10 +42,6 @@ if not os.path.exists('../infrastructure'):
 # What common Tiltfile does?
 # - Group resources by label on UI: http://localhost:10350/
 include('../infrastructure/tilt/common.tilt')
-
-# Load extensions for namespace and helm operations
-load('ext://namespace', 'namespace_create', 'namespace_inject')
-load('ext://helm_resource', 'helm_resource', 'helm_repo')
 
 # If your machine is powerful feel free to change parallel updates from default 3
 update_settings(max_parallel_updates=2)
@@ -114,16 +110,9 @@ build_services()
 # - traefik, ingress controller (https://opencrvs.localhost)
 # - opencrvs-deps-dev, dependencies namespace
 # - opencrvs-dev, main namespace
-namespace_create('traefik')
 namespace_create(dependencies_namespace)
 namespace_create(opencrvs_namespace)
 
-
-# Install Traefik GW
-helm_repo('traefik-repo', 'https://traefik.github.io/charts', labels=['3.Dependencies'])
-helm_resource(
-  'traefik', 'traefik-repo/traefik', namespace='traefik', resource_deps=['traefik-repo'],
-  flags=['--values=../infrastructure/infrastructure/localhost/traefik/values.yaml'])
 
 
 if security_enabled:
@@ -155,39 +144,12 @@ k8s_yaml(
       )
 )
 
-if security_enabled:
-    secrets_to_copy = [
-        "elasticsearch-opencrvs-users",
-        "redis-opencrvs-users",
-        "minio-opencrvs-users"
-    ]
-    local_resource(
-      "Copy secrets",
-      cmd="""kubectl get secret {2} -n {0} -o yaml \
-             | sed "s#namespace: {0}#namespace: {1}#" | grep -v 'resourceVersion\\|uid\\|creationTimestamp' \
-             | kubectl apply -n {1} -f -""".format(dependencies_namespace, opencrvs_namespace, " ".join(secrets_to_copy)),
-      resource_deps=["minio", "redis", "traefik"],
-      labels=['2.Data-tasks'])
 
-######################################################
-# Data management tasks:
-# - Reset database: This task is not part of helm deployment to avoid accidental data loss
-# - Restart Events service
-# - Run migration job, is part of helm install/upgrade post-deploy hook
-# - Seed data: is part of helm install post-deploy hook, but it is a manual task as well
-load("../infrastructure/tilt/common.tilt", "format_reset_environment_command")
-default_values_file = '../infrastructure/charts/opencrvs-services/values.yaml'
-opencrvs_tools_chart_path = '../infrastructure/charts/opencrvs-tools'
-
-local_resource(
-    'Reset database',
-    labels=['2.Data-tasks'],
-    auto_init=False,
-    cmd=format_reset_environment_command(
-        opencrvs_namespace,
-        opencrvs_configuration_file,
-        opencrvs_tools_chart_path,
-        default_values_file
-    ),
-    trigger_mode=TRIGGER_MODE_MANUAL,
+load("../infrastructure/tilt/common.tilt", "copy_secrets", "reset_environment")
+reset_environment(
+    opencrvs_namespace,
+    opencrvs_configuration_file
 )
+
+if security_enabled:
+    copy_secrets(opencrvs_namespace, dependencies_namespace)
