@@ -145,7 +145,7 @@ k8s_yaml(
 )
 
 
-load("../infrastructure/tilt/common.tilt", "copy_secrets", "reset_environment")
+load("../infrastructure/tilt/lib.tilt", "copy_secrets", "reset_environment")
 reset_environment(
     opencrvs_namespace,
     opencrvs_configuration_file
