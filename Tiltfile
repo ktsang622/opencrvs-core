@@ -32,7 +32,7 @@ dependencies_namespace = 'opencrvs-deps-dev'
 # - Setup MinIO admin user and password
 # - Configure Redis users
 # - Sync passwords between dependencies and OpenCRVS services
-security_enabled = False
+security_enabled = True
 
 # Checkout infrastructure directory if not exists
 if not os.path.exists('../infrastructure'):
@@ -41,7 +41,7 @@ if not os.path.exists('../infrastructure'):
 ############################################################
 # What common Tiltfile does?
 # - Group resources by label on UI: http://localhost:10350/
-include('../infrastructure/tilt/Tiltfile.common')
+include('../infrastructure/tilt/common.tilt')
 
 # Load extensions for namespace and helm operations
 load('ext://namespace', 'namespace_create', 'namespace_inject')
@@ -120,28 +120,31 @@ namespace_create(opencrvs_namespace)
 
 
 # Install Traefik GW
-helm_repo('traefik-repo', 'https://traefik.github.io/charts', labels=['Dependencies'])
+helm_repo('traefik-repo', 'https://traefik.github.io/charts', labels=['3.Dependencies'])
 helm_resource(
   'traefik', 'traefik-repo/traefik', namespace='traefik', resource_deps=['traefik-repo'],
   flags=['--values=../infrastructure/infrastructure/localhost/traefik/values.yaml'])
 
-######################################################
-# OpenCRVS Dependencies Deployment
-# NOTE: This helm chart can be deployed as helm release
+
 if security_enabled:
     deps_configuration_file = '../infrastructure/infrastructure/localhost/dependencies/values-dev-secure.yaml'
     opencrvs_configuration_file = '../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml'
 else:
     deps_configuration_file = '../infrastructure/infrastructure/localhost/dependencies/values-dev.yaml'
     opencrvs_configuration_file = '../infrastructure/infrastructure/localhost/opencrvs-services/values-dev.yaml'
-k8s_yaml(helm('../infrastructure/charts/dependencies',
+######################################################
+# OpenCRVS Dependencies Deployment
+# NOTE: This helm chart can be deployed as helm release
+dependencies_chart_path = '../infrastructure/charts/dependencies'
+k8s_yaml(helm(dependencies_chart_path,
   namespace=dependencies_namespace,
   values=[deps_configuration_file]))
 
 ######################################################
 # OpenCRVS Deployment
+opencrvs_chart_path = '../infrastructure/charts/opencrvs-services'
 k8s_yaml(
-  helm('../infrastructure/charts/opencrvs-services',
+  helm(opencrvs_chart_path,
        namespace=opencrvs_namespace,
        values=[opencrvs_configuration_file],
        set=[
@@ -159,11 +162,12 @@ if security_enabled:
         "minio-opencrvs-users"
     ]
     local_resource(
-      "copy_secrets",
+      "Copy secrets",
       cmd="""kubectl get secret {2} -n {0} -o yaml \
              | sed "s#namespace: {0}#namespace: {1}#" | grep -v 'resourceVersion\\|uid\\|creationTimestamp' \
              | kubectl apply -n {1} -f -""".format(dependencies_namespace, opencrvs_namespace, " ".join(secrets_to_copy)),
-      resource_deps=["minio", "redis", "traefik"])
+      resource_deps=["minio", "redis", "traefik"],
+      labels=['2.Data-tasks'])
 
 ######################################################
 # Data management tasks:
@@ -171,28 +175,28 @@ if security_enabled:
 # - Restart Events service
 # - Run migration job, is part of helm install/upgrade post-deploy hook
 # - Seed data: is part of helm install post-deploy hook, but it is a manual task as well
-
+default_values_file = '../infrastructure/charts/opencrvs-services/values.yaml'
+opencrvs_tools_chart_path = '../infrastructure/charts/opencrvs-tools'
 cleanup_command = """
   kubectl delete job -n {0} data-cleanup;
-  helm template -f ../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml --set data_cleanup.enabled=true -s templates/data-cleanup-job.yaml ../infrastructure/charts/opencrvs-services/ | kubectl apply -n {0} -f -;
+  helm template -f {3} -f {1} --set data_cleanup.enabled=true -s templates/data-cleanup-job.yaml {2} | kubectl apply -n {0} -f -;
   sleep 10;
   kubectl logs job/data-cleanup -f --all-containers=true -n {0};
   kubectl wait --for=condition=complete job/data-cleanup -n {0} --timeout=600s;
   kubectl delete pod -n {0} -lapp=events;
   sleep 30;
   kubectl delete job -n {0} data-migration;
-  helm template -f ../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml -s templates/data-migration-job.yaml ../infrastructure/charts/opencrvs-services/ | kubectl apply -n {0} -f -;
+  helm template -f {3} -f {1} -s templates/data-migration-job.yaml {2} | kubectl apply -n {0} -f -;
   sleep 10;
   kubectl logs job/data-migration -f --all-containers=true -n {0};
   kubectl wait --for=condition=complete job/data-migration -n {0} --timeout=600s;
-  kubectl delete job -n {0} data-seeder;
-  helm template -f ../infrastructure/infrastructure/localhost/opencrvs-services/values-dev-secure.yaml --set data_seeder.enabled=true -s templates/data-seed-job.yaml ../infrastructure/charts/opencrvs-services/ | kubectl apply -n {0} -f -;
+  kubectl delete job -n {0} data-seed;
+  helm template -f {3} -f {1} --set data_seed.enabled=true -s templates/data-seed-job.yaml {2} | kubectl apply -n {0} -f -;
   sleep 10;
-  kubectl logs job/data-seeder -f --all-containers=true -n {0};
-  kubectl wait --for=condition=complete job/data-seeder -n {0} --timeout=600s;
+  kubectl logs job/data-seed -f --all-containers=true -n {0};
+  kubectl wait --for=condition=complete job/data-seed -n {0} --timeout=600s;
   kubectl delete pod -n {0} -lapp=events;
-  """.format(opencrvs_namespace)
-
+  """.format(opencrvs_namespace, opencrvs_configuration_file, opencrvs_tools_chart_path, default_values_file)
 local_resource(
     'Reset database',
     labels=['2.Data-tasks'],
