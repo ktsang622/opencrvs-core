@@ -152,4 +152,4 @@ reset_environment(
 )
 
 if security_enabled:
-    copy_secrets(opencrvs_namespace, dependencies_namespace)
+    copy_secrets(dependencies_namespace, opencrvs_namespace)
