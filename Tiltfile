@@ -175,32 +175,19 @@ if security_enabled:
 # - Restart Events service
 # - Run migration job, is part of helm install/upgrade post-deploy hook
 # - Seed data: is part of helm install post-deploy hook, but it is a manual task as well
+load("../infrastructure/tilt/common.tilt", "format_reset_environment_command")
 default_values_file = '../infrastructure/charts/opencrvs-services/values.yaml'
 opencrvs_tools_chart_path = '../infrastructure/charts/opencrvs-tools'
-cleanup_command = """
-  kubectl delete job -n {0} data-cleanup;
-  helm template -f {3} -f {1} --set data_cleanup.enabled=true -s templates/data-cleanup-job.yaml {2} | kubectl apply -n {0} -f -;
-  sleep 10;
-  kubectl logs job/data-cleanup -f --all-containers=true -n {0};
-  kubectl wait --for=condition=complete job/data-cleanup -n {0} --timeout=600s;
-  kubectl delete pod -n {0} -lapp=events;
-  sleep 30;
-  kubectl delete job -n {0} data-migration;
-  helm template -f {3} -f {1} -s templates/data-migration-job.yaml {2} | kubectl apply -n {0} -f -;
-  sleep 10;
-  kubectl logs job/data-migration -f --all-containers=true -n {0};
-  kubectl wait --for=condition=complete job/data-migration -n {0} --timeout=600s;
-  kubectl delete job -n {0} data-seed;
-  helm template -f {3} -f {1} --set data_seed.enabled=true -s templates/data-seed-job.yaml {2} | kubectl apply -n {0} -f -;
-  sleep 10;
-  kubectl logs job/data-seed -f --all-containers=true -n {0};
-  kubectl wait --for=condition=complete job/data-seed -n {0} --timeout=600s;
-  kubectl delete pod -n {0} -lapp=events;
-  """.format(opencrvs_namespace, opencrvs_configuration_file, opencrvs_tools_chart_path, default_values_file)
+
 local_resource(
     'Reset database',
     labels=['2.Data-tasks'],
     auto_init=False,
-    cmd=cleanup_command,
+    cmd=format_reset_environment_command(
+        opencrvs_namespace,
+        opencrvs_configuration_file,
+        opencrvs_tools_chart_path,
+        default_values_file
+    ),
     trigger_mode=TRIGGER_MODE_MANUAL,
 )
