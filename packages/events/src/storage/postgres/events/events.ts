@@ -136,7 +136,7 @@ async function createActionInTransaction(
     status: ActionStatus
     createdBy: string
     createdByRole: string
-    createdAtLocation: string
+    createdAtLocation: UUID
     declaration?: Record<string, SerializableValue>
     annotation?: Record<string, SerializableValue>
     originalActionId?: UUID
@@ -203,7 +203,7 @@ export const getOrCreateEvent = async ({
   fieldId?: string
   createdBy: string
   createdByRole: string
-  createdAtLocation: string
+  createdAtLocation: UUID
 }) => {
   const db = await getClient()
 

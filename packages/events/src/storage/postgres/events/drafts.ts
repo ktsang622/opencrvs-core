@@ -25,7 +25,7 @@ export async function createDraft(
     eventId: UUID
     createdBy: string
     createdByRole: string
-    createdAtLocation: string
+    createdAtLocation: UUID
     token: string
     transactionId: string
   }
