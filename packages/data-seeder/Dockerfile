@@ -3,8 +3,14 @@ FROM ghcr.io/opencrvs/ocrvs-base:${BRANCH}
 
 USER node
 
-WORKDIR /app/packages/data-seeder
-COPY --chown=node:node packages/data-seeder/*.json /app/packages/data-seeder/
+WORKDIR /app
+
+# Install all dependencies with Yarn (workspace-aware)
 RUN yarn install --frozen-lockfile
-COPY --chown=node:node packages/data-seeder /app/packages/data-seeder
-ENTRYPOINT [ "yarn","seed" ]
+
+# Move into data-seeder
+WORKDIR /app/packages/data-seeder
+
+
+# Default run command with dynamic country support
+CMD ["sh", "-c", "yarn seed --country=${COUNTRY}"]

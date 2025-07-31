@@ -1,0 +1,408 @@
+services:
+  gateway:
+    image: opencrvs/ocrvs-gateway:local
+    build:
+      context: .
+      dockerfile: ./packages/gateway/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      - AUTH_URL=${AUTH_URL_INTERNAL}
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CONTENT_SECURITY_POLICY_WILDCARD=${CONTENT_SECURITY_POLICY_WILDCARD}
+      - HOSTNAME=*.opencrvs.ktsang.com
+      - LOGIN_URL=https://login.opencrvs.ktsang.com
+      - CLIENT_APP_URL=https://register.opencrvs.ktsang.com
+      - COUNTRY_CONFIG_URL=${COUNTRY_CONFIG_URL}
+      - GATEWAY_URL==${GATEWAY_URL}
+      - APPLICATION_CONFIG_URL=https://config.opencrvs.ktsang.com/
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gateway.rule=Host(`gateway.opencrvs.ktsang.com`)"
+      - "traefik.http.routers.gateway.entrypoints=web,websecure"
+      - "traefik.http.routers.gateway.tls=true"
+      - "traefik.http.routers.gateway.tls.certresolver=httpchallenge"
+      - "traefik.http.services.gateway.loadbalancer.server.port=7070"
+      - "traefik.docker.network=opencrvs-network"
+
+  client:
+    image: opencrvs/ocrvs-client:local
+    build:
+      context: .
+      dockerfile: ./packages/client/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      - GATEWAY_URL=http://gateway:7070
+      - AUTH_URL=https://auth.opencrvs.ktsang.com
+      - AUTH_HOST=http://auth:4040
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CONTENT_SECURITY_POLICY_WILDCARD=${CONTENT_SECURITY_POLICY_WILDCARD}
+      - COUNTRY_CONFIG_URL=${COUNTRY_CONFIG_URL}
+      - APPLICATION_CONFIG_URL=https://config.opencrvs.ktsang.com/publicConfig
+      - NODE_ENV=development
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.client.rule=Host(`register.opencrvs.ktsang.com`)"
+      - "traefik.http.routers.client.entrypoints=web,websecure"
+      - "traefik.http.routers.client.tls=true"
+      - "traefik.http.routers.client.tls.certresolver=httpchallenge"
+      - "traefik.http.services.client.loadbalancer.server.port=80"
+      - "traefik.docker.network=opencrvs-network"
+
+  login:
+    image: opencrvs/ocrvs-login:local
+    build:
+      context: .
+      dockerfile: ./packages/login/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      - AUTH_URL=https://auth.opencrvs.ktsang.com
+      - AUTH_HOST=http://auth:4040
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CONTENT_SECURITY_POLICY_WILDCARD=${CONTENT_SECURITY_POLICY_WILDCARD}
+      - NODE_ENV=development
+      - COUNTRY_CONFIG_URL=${COUNTRY_CONFIG_URL}
+      - CLIENT_APP_URL=https://register.opencrvs.ktsang.com
+      - APPLICATION_CONFIG_URL=https://config.opencrvs.ktsang.com/publicConfig
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.login.rule=Host(`login.opencrvs.ktsang.com`)"
+      - "traefik.http.routers.login.entrypoints=web,websecure"
+      - "traefik.http.routers.login.tls=true"
+      - "traefik.http.routers.login.tls.certresolver=httpchallenge"
+      - "traefik.http.services.login.loadbalancer.server.port=80"
+      - "traefik.docker.network=opencrvs-network"
+
+  auth:
+    image: opencrvs/ocrvs-auth:local
+    build:
+      context: .
+      dockerfile: ./packages/auth/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`auth.opencrvs.ktsang.com`)"
+      - "traefik.http.routers.auth.entrypoints=web,websecure"
+      - "traefik.http.routers.auth.tls=true"
+      - "traefik.http.routers.auth.tls.certresolver=httpchallenge"
+      - "traefik.http.services.auth.loadbalancer.server.port=4040"
+      - "traefik.docker.network=opencrvs-network"
+    environment:
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CERT_PRIVATE_KEY_PATH=${CERT_PRIVATE_KEY_PATH}
+      - CERT_PUBLIC_KEY_PATH=${CERT_PUBLIC_KEY_PATH}
+      - CLIENT_APP_URL=${CLIENT_APP_URL}
+      - COUNTRY_CONFIG_URL=${COUNTRY_CONFIG_URL}
+      - DOMAIN=${DOMAIN}
+      - LOGIN_URL=${LOGIN_URL}
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CONTENT_SECURITY_POLICY_WILDCARD=${CONTENT_SECURITY_POLICY_WILDCARD}
+      - USER_MGNT_MONGO_URL=mongodb://mongo1/user-mgnt
+      - NODE_ENV=development
+      - COUNTRY_CONFIG_URL_INTERNAL=${COUNTRY_CONFIG_URL_INTERNAL}
+      - REDIST_HOST=redis
+      - APPLICATION_CONFIG_URL=${APPLICATION_CONFIG_URL}
+
+  workflow:
+    image: opencrvs/ocrvs-workflow:local
+    build:
+      context: .
+      dockerfile: ./packages/workflow/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    environment:
+      - APPLICATION_CONFIG_URL=${APPLICATION_CONFIG_URL}
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+
+  user-mgnt:
+    image: opencrvs/ocrvs-user-mgnt:local
+    build:
+      context: .
+      dockerfile: ./packages/user-mgnt/Dockerfile
+      args:
+        BRANCH: local
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      - AUTH_URL=${AUTH_URL_INTERNAL}
+      - CERT_PUBLIC_KEY_PATH=${CERT_PUBLIC_KEY_PATH}
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CONTENT_SECURITY_POLICY_WILDCARD=${CONTENT_SECURITY_POLICY_WILDCARD}
+      - USER_MGNT_MONGO_URL=mongodb://mongo1/user-mgnt
+      - APPLICATION_CONFIG_URL=${APPLICATION_CONFIG_URL}
+    networks:
+      - opencrvs-network
+
+  config:
+    image: opencrvs/ocrvs-config:local
+    build:
+      context: .
+      dockerfile: ./packages/config/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.config.rule=Host(`config.opencrvs.ktsang.com`)"
+      - "traefik.http.routers.config.entrypoints=web,websecure"
+      - "traefik.http.routers.config.tls=true"
+      - "traefik.http.routers.config.tls.certresolver=httpchallenge"
+      - "traefik.http.services.config.loadbalancer.server.port=2021"
+      - "traefik.docker.network=opencrvs-network"
+    environment:
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+      - CONTENT_SECURITY_POLICY_WILDCARD=${CONTENT_SECURITY_POLICY_WILDCARD}
+      - APPLICATION_CONFIG_URL=https://config.opencrvs.ktsang.com/publicConfig
+
+  documents:
+    image: opencrvs/ocrvs-documents:local
+    build:
+      context: .
+      dockerfile: ./packages/documents/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      NODE_ENV: production
+      MINIO_HOST: minio
+      MINIO_PORT: 9000
+      MINIO_URL: minio.opencrvs.ktsang.com
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+      MINIO_BUCKET: ocrvs
+      MINIO_BUCKET_REGION: local
+      ELASTIC_APM_ENABLED: false
+      LOG_LEVEL: debug
+      
+  events:
+    image: opencrvs/ocrvs-events:local
+    build:
+      context: .
+      dockerfile: ./packages/events/Dockerfilevi pa 
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+
+  notification:
+    image: opencrvs/ocrvs-notification:local
+    build:
+      context: .
+      dockerfile: ./packages/notification/Dockerfile
+      args:
+        BRANCH: local
+    networks:
+      - opencrvs-network
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      NODE_ENV: development
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+      MONGO_URL: mongodb://mongo1/opencrvs
+
+  search:
+    image: opencrvs/ocrvs-search:local
+    build:
+      context: .
+      dockerfile: ./packages/search/Dockerfile
+      args:
+        BRANCH: local
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      NODE_ENV: development
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+    networks:
+      - opencrvs-network
+
+  metrics:
+    image: opencrvs/ocrvs-metrics:local
+    build:
+      context: .
+      dockerfile: ./packages/metrics/Dockerfile
+      args:
+        BRANCH: local
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+    networks:
+      - opencrvs-network
+
+  scheduler:
+    image: opencrvs/ocrvs-scheduler:local
+    build:
+      context: .
+      dockerfile: ./packages/scheduler/Dockerfile
+      args:
+        BRANCH: local
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    environment:
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+      METRICS_URL: http://metrics:1050
+      NODE_ENV: production
+    networks:
+      - opencrvs-network
+
+  webhooks:
+    image: opencrvs/ocrvs-webhooks:local
+    build:
+      context: .
+      dockerfile: ./packages/webhooks/Dockerfile
+      args:
+        BRANCH: local
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    networks:
+      - opencrvs-network
+    environment:
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+      NODE_ENV: development
+
+  dashboards:
+    image: opencrvs/ocrvs-dashboards:local
+    container_name: dashboards
+    build:
+      context: .
+      dockerfile: ./packages/dashboards/Dockerfile
+    ports:
+      - "10002:4444"
+    restart: unless-stopped
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./.secrets:/app/.secrets:ro
+    networks:
+      - opencrvs-network
+    environment:
+      NODE_ENV: development
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+      OPENCRVS_METABASE_SITE_NAME: "OpenCRVS Dashboard"
+      OPENCRVS_METABASE_SITE_URL: "https://metabase.opencrvs.ktsang.com"  # Fixed
+      OPENCRVS_METABASE_DB_HOST: mongo1
+      OPENCRVS_METABASE_DB_USER: opencrvs_user
+      OPENCRVS_METABASE_DB_PASS: opencrvs_password
+      OPENCRVS_METABASE_DB_AUTH_DB: opencrvs
+      OPENCRVS_METABASE_ADMIN_EMAIL: kevin.tsang@toppansecurity.com
+      OPENCRVS_METABASE_ADMIN_PASSWORD: WelcomeDemo1
+      OPENCRVS_METABASE_MAP_NAME: "Births by District"
+      OPENCRVS_METABASE_MAP_URL: "https://opencrvs.org/maps/districts.json"
+      OPENCRVS_METABASE_MAP_REGION_KEY: "district_id"
+      OPENCRVS_METABASE_MAP_REGION_NAME: "district_name"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboards.rule=Host(`metabase.opencrvs.ktsang.com`)"
+      - "traefik.http.routers.dashboards.entrypoints=web,websecure"
+      - "traefik.http.routers.dashboards.tls=true"
+      - "traefik.http.routers.dashboards.tls.certresolver=httpchallenge"
+      - "traefik.http.services.dashboards.loadbalancer.server.port=4444"
+      - "traefik.docker.network=opencrvs-network"
+
+  migration:
+    image: opencrvs/ocrvs-migration:local
+    build:
+      context: .
+      dockerfile: ./packages/migration/Dockerfile
+      args:
+        BRANCH: local
+    environment:
+      NODE_ENV: development
+      MINIO_HOST: minio
+      MINIO_PORT: 9000
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      WAIT_TIMEOUT: 60
+    networks:
+      - opencrvs-network
+
+  data-seeder:
+    build:
+      context: .
+      dockerfile: ./packages/data-seeder/Dockerfile
+      args:
+        BRANCH: local
+    image: opencrvs/data-seeder:local
+    environment:
+      COUNTRY: FAR
+      NODE_ENV: development
+      AUTH_URL: https://auth.opencrvs.ktsang.com
+      AUTH_HOST: http://auth:4040
+      GATEWAY_URL: http://gateway.opencrvs.ktsang.com
+      GATEWAY_HOST: http://gateway:7070
+      COUNTRY_CONFIG_URL: http://countryconfig.opencrvs.ktsang.com
+      COUNTRY_CONFIG_HOST: http://countryconfig:3040
+      APPLICATION_CONFIG_URL: http://config.opencrvs.ktsang.com
+      APPLICATION_CONFIG_HOST: http://config:2021
+      USER_MANAGEMENT_URL: http://user-mgnt:3030
+      FHIR_URL: http://hearth:3447/fhir
+      CERT_PRIVATE_KEY_PATH: /app/.secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /app/.secrets/public-key.pem
+
+      # SUPER_USER_NAME: test.admin
+      # SUPER_USER_PASSWORD: "00000000"
+      ACTIVATE_USERS: true
+
+      USER_MGNT_MONGO_URL: mongodb://mongo1/user-mgnt
+      APPLICATION_CONFIG_MONGO_URL: mongodb://mongo1/application-config
+      HEARTH_MONGO_URL: mongodb://mongo1/hearth-dev
+      DASHBOARD_MONGO_URL: mongodb://mongo1/performance
+      OPENHIM_MONGO_URL: mongodb://mongo1/openhim-dev
+      NODE_TLS_REJECT_UNAUTHORIZED: 0
+    volumes:
+      - ../opencrvs-countryconfig/src/data-seeding:/app/packages/data-seeder/src/data-seeding
+      - ./.secrets:/app/.secrets:ro
+    networks:
+      - opencrvs-network
+
+networks:
+  opencrvs-network:
+    external: true
+
+
