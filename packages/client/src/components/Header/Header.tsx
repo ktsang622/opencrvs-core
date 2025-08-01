@@ -380,6 +380,16 @@ const HeaderComponent = (props: IFullProps) => {
         <HeaderCenter>
           <ProtectedComponent scopes={RECORD_DECLARE_SCOPES}>
             <Button
+              type="iconSecondary"
+              size="medium"
+              key="searchPerson"
+              id="header_search_person"
+              onClick={() => router.navigate(routes.PERSON_SEARCH)}
+              style={{ marginRight: '8px' }}
+            >
+              <Icon name="MagnifyingGlass" size="medium" />
+            </Button>
+            <Button
               type="iconPrimary"
               size="medium"
               key="newEvent"

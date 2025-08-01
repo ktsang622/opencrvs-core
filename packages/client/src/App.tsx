@@ -75,6 +75,8 @@ import { SystemList } from './views/SysAdmin/Config/Systems/Systems'
 import { UserList } from './views/SysAdmin/Team/user/UserList'
 import VSExport from './views/SysAdmin/Vsexports/VSExport'
 import { UserAudit } from './views/UserAudit/UserAudit'
+import { PersonSearch } from './views/PersonSearch/PersonSearch'
+import { PersonDetails } from './views/PersonDetails/PersonDetails'
 import { config } from './config'
 
 // Injecting global styles for the body tag - used only once
@@ -429,6 +431,8 @@ export const routesConfig = config.FEATURES.V2_EVENTS
             )
           },
           { path: routes.USER_PROFILE, element: <UserAudit /> },
+          { path: routes.PERSON_SEARCH, element: <PersonSearch /> },
+          { path: routes.PERSON_DETAILS, element: <PersonDetails /> },
           { path: routes.VIEW_RECORD, element: <ViewRecord /> },
           {
             path: routes.PERFORMANCE_REGISTRATIONS_LIST,

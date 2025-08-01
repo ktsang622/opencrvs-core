@@ -99,3 +99,5 @@ export const VIEW_VERIFY_CERTIFICATE = '/verify-certificate/:declarationId'
 export const ORGANISATIONS_INDEX = '/organisation/:locationId?'
 
 export const PRINT_RECORD = '/print-record/:declarationId'
+export const PERSON_SEARCH = '/person-search'
+export const PERSON_DETAILS = '/person/:personId/events'

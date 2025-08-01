@@ -23,6 +23,7 @@ import sendVerifyCodeHandler, {
 } from '@gateway/routes/verifyCode/handler'
 import { trpcProxy } from '@gateway/v2-events/event-config/routes'
 import { DOCUMENTS_URL, MINIO_BUCKET } from '@gateway/constants'
+import { personSearchRoutes } from '@gateway/features/person-search'
 
 export const getRoutes = () => {
   const routes: ServerRoute[] = [
@@ -137,7 +138,8 @@ export const getRoutes = () => {
     rateLimitedAuthProxy.authenticate,
     rateLimitedAuthProxy.authenticateSuperUser,
     rateLimitedAuthProxy.verifyUser,
-    ...trpcProxy
+    ...trpcProxy,
+    ...personSearchRoutes
   ]
 
   return routes

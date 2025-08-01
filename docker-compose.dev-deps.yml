@@ -71,3 +71,73 @@ services:
       - './infrastructure/hearth-queryparam-extensions.json:/src/hearth/config/queryparam-extensions.json'
     ports:
       - '3447:3447'
+
+  family-tree:
+    build:
+      context: ../family-tree
+      dockerfile: ./docker/Dockerfile
+    env_file:
+      - ../family-tree/.env
+    depends_on:
+      - postgres
+    volumes:
+      - ../family-tree/src:/app/src
+      - ../family-tree/public:/app/public
+      - ../family-tree/.env:/app/.env
+      - family_tree_nextjs_cache:/app/.next
+    ports:
+      - '3888:3888'
+
+  postgres:
+    image: postgres:15
+    container_name: person_registry_pg
+    restart: always
+    environment:
+      POSTGRES_DB: person_registry
+      POSTGRES_USER: registry_user
+      POSTGRES_PASSWORD: registry_pass
+    ports:
+      - '5432:5432'
+    volumes:
+      - family_tree_pgdata:/var/lib/postgresql/data
+
+  opensearch:
+    build:
+      context: ../opensearch
+      dockerfile: Dockerfile.opensearch
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - plugins.security.disabled=true
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=WelcomeDemo1.23@
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+      - ../opensearch/init:/init
+    ports:
+      - '19200:9200'
+      - '19600:9600'
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:3.0.0
+    container_name: opensearch-dashboards
+    environment:
+      OPENSEARCH_HOSTS: 'http://opensearch:9200'
+      # OPENSEARCH_USERNAME: 'admin'
+      # OPENSEARCH_PASSWORD: WelcomeDemo1.23@
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: 'true'
+    depends_on:
+      - opensearch
+    ports:
+      - '5601:5601'
+
+volumes:
+  family_tree_pgdata:
+  family_tree_node_modules:
+  family_tree_nextjs_cache:
+  opensearch_data:
