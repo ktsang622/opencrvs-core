@@ -34,6 +34,7 @@ export const env = cleanEnv(process.env, {
   EVENTS_URL: url({ devDefault: 'http://localhost:5555/' }),
   COUNTRY_CONFIG_URL: url({ devDefault: 'http://localhost:3040' }),
   DOCUMENTS_URL: url({ devDefault: 'http://localhost:9050' }),
+  PERSON_SEARCH_API_URL: url({ devDefault: 'http://localhost:3888' }),
   DISABLE_RATE_LIMIT: bool({
     devDefault: true,
     default: false,

@@ -77,7 +77,7 @@ services:
       context: ../family-tree
       dockerfile: ./docker/Dockerfile
     env_file:
-      - ../family-tree/.env
+      - ../family-tree/.env.docker
     depends_on:
       - postgres
     volumes:

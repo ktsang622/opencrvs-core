@@ -11,6 +11,7 @@
 
 import * as Hapi from '@hapi/hapi'
 import fetch from 'node-fetch'
+import { PERSON_SEARCH_API_URL } from '@gateway/constants'
 
 export async function searchPersonHandler(
   request: Hapi.Request,
@@ -21,7 +22,7 @@ export async function searchPersonHandler(
   try {
     // Proxy to family-tree API
     const response = await fetch(
-      'http://localhost:3889/api/opensearch/search-person',
+      `${PERSON_SEARCH_API_URL}/api/opensearch/search-person`,
       {
         method: 'POST',
         headers: {
@@ -62,7 +63,7 @@ export async function personEventsHandler(
   console.log('Gateway: Request URL:', request.url)
 
   try {
-    const targetUrl = `http://localhost:3889/api/person/${personId}/events`
+    const targetUrl = `${PERSON_SEARCH_API_URL}/api/person/${personId}/events`
     console.log('Gateway: Calling family-tree at:', targetUrl)
 
     // Proxy to family-tree API
