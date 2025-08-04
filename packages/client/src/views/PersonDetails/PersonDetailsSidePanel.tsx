@@ -1,3 +1,7 @@
+/*
+ * Copyright (C) Toppan Security. All rights reserved.
+ */
+
 import * as React from 'react'
 import { Button } from '@opencrvs/components/lib/Button'
 import { useNavigate } from 'react-router-dom'
