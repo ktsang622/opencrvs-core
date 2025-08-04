@@ -214,8 +214,8 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
         }
 
         const data = await response.json()
-        console.log('API Response:', data)
-        console.log('First result:', data.hits?.[0] || data[0])
+        // console.log('API Response:', data)
+        // console.log('First result:', data.hits?.[0] || data[0])
         setSearchResults(data.hits || data)
         setTotalResults(data.total || (data.hits || data).length)
       } catch (error) {

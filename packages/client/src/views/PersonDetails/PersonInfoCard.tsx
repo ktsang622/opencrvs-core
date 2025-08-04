@@ -3,9 +3,12 @@
  */
 
 import * as React from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@opencrvs/components/lib/Button'
 import { Icon } from '@opencrvs/components/lib/Icon'
 import styled from 'styled-components'
+import { useSelector } from 'react-redux'
+import { getLocations } from '@client/offline/selectors'
 
 const PersonInfoContainer = styled.div`
   background: ${({ theme }) => theme.colors.grey100};
@@ -70,6 +73,15 @@ interface IPersonInfoCardProps {
   onToggleFamilyTree: () => void
 }
 
+// Utility function to get location name from offline data
+const getLocationNameFromOfflineData = (
+  locations: any,
+  uuid: string
+): string => {
+  const location = locations[uuid]
+  return location?.name || 'Unknown Location'
+}
+
 export const PersonInfoCard: React.FC<IPersonInfoCardProps> = ({
   person,
   personDetailsExpanded,
@@ -77,6 +89,21 @@ export const PersonInfoCard: React.FC<IPersonInfoCardProps> = ({
   onToggleDetails,
   onToggleFamilyTree
 }) => {
+  const locations = useSelector(getLocations)
+  const [placeOfBirthName, setPlaceOfBirthName] = useState<string>('')
+
+  // Get place of birth name from offline data
+  useEffect(() => {
+    if (person.place_of_birth_uuid) {
+      const locationName = getLocationNameFromOfflineData(
+        locations,
+        person.place_of_birth_uuid
+      )
+      setPlaceOfBirthName(locationName)
+    } else {
+      setPlaceOfBirthName('')
+    }
+  }, [person.place_of_birth_uuid, locations])
   return (
     <PersonInfoContainer>
       <PersonHeader>
@@ -154,7 +181,11 @@ export const PersonInfoCard: React.FC<IPersonInfoCardProps> = ({
               <DetailItem>
                 <DetailLabel>Place of Birth:</DetailLabel>
                 <DetailValue>
-                  {person.placeOfBirth || 'Not specified'}
+                  {person.place_of_birth_uuid &&
+                  placeOfBirthName &&
+                  placeOfBirthName !== 'Unknown Location'
+                    ? placeOfBirthName
+                    : person.placeOfBirth || 'Not specified'}
                 </DetailValue>
               </DetailItem>
             </>

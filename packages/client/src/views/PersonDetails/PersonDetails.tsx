@@ -74,7 +74,11 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
             dateOfBirth:
               personId === '50989c77-8345-4763-a12c-21f43d9e525f'
                 ? '1990-05-15'
-                : '1985-08-22'
+                : '1985-08-22',
+            place_of_birth_uuid:
+              personId === '50989c77-8345-4763-a12c-21f43d9e525f'
+                ? '9d5dbe30-8a6a-4454-b620-c6c2c55646b0'
+                : null
           },
           events: [
             {
@@ -123,6 +127,9 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
             `${config.PERSON_SEARCH_API_URL}/person/${personId}/events`
           )
           const data = await response.json()
+          console.log('Full API response:', data)
+          console.log('Person data:', data.person)
+          console.log('place_of_birth_uuid:', data.person?.place_of_birth_uuid)
           setPerson(data.person)
           setEvents(
             (data.events || []).sort(
