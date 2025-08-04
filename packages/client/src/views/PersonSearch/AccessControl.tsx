@@ -23,19 +23,25 @@ const AccessControlView: React.FC<IAccessControlProps> = ({
   if (!hasAccess) {
     return (
       <Frame
-        header={<Header title="Access Denied" />}
+        header={
+          <Header
+            title={intl.formatMessage(constantsMessages.accessDeniedTitle)}
+          />
+        }
         skipToContentText={intl.formatMessage(
           constantsMessages.skipToMainContent
         )}
         navigation={<Navigation />}
       >
-        <Content title="Access Denied" size={ContentSize.LARGE}>
+        <Content
+          title={intl.formatMessage(constantsMessages.accessDeniedTitle)}
+          size={ContentSize.LARGE}
+        >
           <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-            <h3>Access Restricted</h3>
-            <p>
-              Only users with registration permissions have access to person
-              search functionality.
-            </p>
+            <h3>
+              {intl.formatMessage(constantsMessages.accessDeniedSubtitle)}
+            </h3>
+            <p>{intl.formatMessage(constantsMessages.accessDeniedMessage)}</p>
           </div>
         </Content>
       </Frame>

@@ -984,6 +984,22 @@ const messagesToDefine: IConstantsMessages = {
     defaultMessage: `{firstName} {middleName} {lastName}`,
     description: 'A localized order of the full name',
     id: 'constants.humanName'
+  },
+  accessDeniedTitle: {
+    defaultMessage: 'Access Denied',
+    description: 'Title for access denied page',
+    id: 'constants.accessDeniedTitle'
+  },
+  accessDeniedSubtitle: {
+    defaultMessage: 'Access Restricted',
+    description: 'Subtitle for access denied page',
+    id: 'constants.accessDeniedSubtitle'
+  },
+  accessDeniedMessage: {
+    defaultMessage:
+      'Only users with registration permissions have access to person search functionality.',
+    description: 'Message for access denied page',
+    id: 'constants.accessDeniedMessage'
   }
 }
 export const constantsMessages: Record<
