@@ -25,32 +25,221 @@ import * as routes from '@client/navigation/routes'
 import { config } from '@client/config'
 
 const PersonInfoContainer = styled.div`
-  background: var(--grey-100);
-  padding: 20px;
-  border-radius: 4px;
-  margin-bottom: 20px;
+  background: ${({ theme }) => theme.colors.grey100};
+  padding: ${({ theme }) => theme.grid.margin}px;
+  border-radius: ${({ theme }) => theme.borderRadius}px;
+  margin-bottom: ${({ theme }) => theme.grid.margin}px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  border: 1px solid ${({ theme }) => theme.colors.grey300};
+`
+
+const PersonHeader = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+  margin-bottom: 20px;
 `
 
-const PersonInfoDetails = styled.div`
+const PersonName = styled.h2`
+  margin: 0 0 8px 0;
+  color: ${({ theme }) => theme.colors.copy};
+  ${({ theme }) => theme.fonts.h2};
+`
+
+const PersonSubtitle = styled.div`
+  color: ${({ theme }) => theme.colors.supportingCopy};
+  ${({ theme }) => theme.fonts.reg14};
+  margin-bottom: 20px;
+`
+
+const PersonDetailsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 24px;
+  margin-bottom: 16px;
+`
+
+const DetailItem = styled.div`
+  padding: 8px 0;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.grey300};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`
+
+const DetailLabel = styled.span`
+  ${({ theme }) => theme.fonts.bold14};
+  color: ${({ theme }) => theme.colors.copy};
+  margin-right: 8px;
+`
+
+const DetailValue = styled.span`
+  ${({ theme }) => theme.fonts.reg14};
+  color: ${({ theme }) => theme.colors.copy};
+`
+
+const MainContainer = styled.div`
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+`
+
+const LeftColumn = styled.div`
   flex: 1;
+  min-width: 300px;
 `
 
-const EventCard = styled.div`
-  border: 1px solid var(--grey-300);
+const RightColumn = styled.div`
+  flex: 2;
+  min-width: 400px;
+`
+
+const SidePanel = styled.div<{ isOpen: boolean }>`
+  position: fixed;
+  top: 0;
+  right: ${(props) => (props.isOpen ? '0' : '-400px')};
+  width: 400px;
+  height: 100vh;
+  background: ${({ theme }) => theme.colors.white};
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+  transition: right 0.3s ease;
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 20px;
+`
+
+const PanelOverlay = styled.div<{ isOpen: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  display: ${(props) => (props.isOpen ? 'block' : 'none')};
+  z-index: 999;
+`
+
+const EventActions = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 4px;
+  }
+`
+
+const ParticipantsContainer = styled.div`
+  margin-top: 15px;
   padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  background: var(--grey-0);
+  background: ${({ theme }) => theme.colors.grey100};
+  border-radius: ${({ theme }) => theme.borderRadius}px;
+  border-left: 4px solid ${({ theme }) => theme.colors.primary};
+`
+
+const ParticipantsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+`
+
+const ParticipantCard = styled.div`
+  background: ${({ theme }) => theme.colors.white};
+  padding: 10px;
+  border-radius: ${({ theme }) => theme.borderRadius}px;
+  border: 1px solid ${({ theme }) => theme.colors.grey300};
   cursor: pointer;
-  transition: background-color 0.2s;
 
   &:hover {
-    background-color: var(--grey-100);
-    border-color: var(--blue-dark);
+    border-color: ${({ theme }) => theme.colors.primary};
   }
+`
+
+const EventsTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  background: ${({ theme }) => theme.colors.white};
+  border-radius: ${({ theme }) => theme.borderRadius}px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+  @media (max-width: 768px) {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+`
+
+const EventRow = styled.tr`
+  border-bottom: 1px solid ${({ theme }) => theme.colors.grey200};
+
+  &:hover {
+    background-color: ${({ theme }) => theme.colors.grey100};
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+`
+
+const EventCell = styled.td`
+  padding: 12px 16px;
+  vertical-align: top;
+  min-width: 120px;
+
+  &:first-child {
+    min-width: 150px;
+  }
+
+  &:last-child {
+    min-width: 180px;
+  }
+
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    min-width: 100px;
+
+    &:first-child {
+      min-width: 120px;
+    }
+
+    &:last-child {
+      min-width: 140px;
+    }
+  }
+`
+
+const EventHeader = styled.th`
+  padding: 16px;
+  background: ${({ theme }) => theme.colors.grey100};
+  text-align: left;
+  ${({ theme }) => theme.fonts.bold16};
+  color: ${({ theme }) => theme.colors.copy};
+  border-bottom: 2px solid ${({ theme }) => theme.colors.grey300};
+`
+
+const EventTitle = styled.div`
+  ${({ theme }) => theme.fonts.bold14};
+  color: ${({ theme }) => theme.colors.primary};
+  margin-bottom: 4px;
+`
+
+const EventDetail = styled.div`
+  ${({ theme }) => theme.fonts.reg14};
+  color: ${({ theme }) => theme.colors.supportingCopy};
+  margin-bottom: 2px;
+`
+
+const StatusBadge = styled.span<{ status: string }>`
+  padding: 4px 8px;
+  border-radius: 12px;
+  ${({ theme }) => theme.fonts.reg12};
+  background: ${(props) =>
+    props.status === 'Registered' ? '#d4edda' : '#fff3cd'};
+  color: ${(props) => (props.status === 'Registered' ? '#155724' : '#856404')};
 `
 
 interface IPersonDetailsProps extends IntlShapeProps {}
@@ -61,8 +250,24 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
   const [person, setPerson] = useState<any>(null)
   const [events, setEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null)
+  const [eventParticipants, setEventParticipants] = useState<any>(null)
+  const [selectedParticipant, setSelectedParticipant] = useState<any>(null)
+  const [sidePanelOpen, setSidePanelOpen] = useState(false)
+  const [personDetailsExpanded, setPersonDetailsExpanded] = useState(false)
+
+  const [showFamilyTree, setShowFamilyTree] = useState(false)
 
   useEffect(() => {
+    // Reset expanded state when person changes
+    setExpandedEvent(null)
+    setEventParticipants(null)
+    setSidePanelOpen(false)
+    setSelectedParticipant(null)
+    setPersonDetailsExpanded(false)
+
+    setShowFamilyTree(false)
+
     const fetchPersonEvents = async () => {
       if (config.USE_MOCK_PERSON_DATA) {
         // Mock data
@@ -118,7 +323,11 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
 
         setTimeout(() => {
           setPerson(mockData.person)
-          setEvents(mockData.events)
+          setEvents(
+            mockData.events.sort(
+              (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+            )
+          )
           setLoading(false)
         }, 500)
       } else {
@@ -129,7 +338,12 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
           )
           const data = await response.json()
           setPerson(data.person)
-          setEvents(data.events || [])
+          setEvents(
+            (data.events || []).sort(
+              (a: any, b: any) =>
+                new Date(b.date).getTime() - new Date(a.date).getTime()
+            )
+          )
         } catch (error) {
           console.error('Person details API error:', error)
           setPerson(null)
@@ -178,86 +392,383 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
   return (
     <Frame
       header={
-        <Header title={`Person Details - ${person?.name || 'Unknown'}`} />
+        <Header
+          title={`Personal Details - ${person?.fullName || person?.name || 'Unknown'}`}
+        />
       }
       skipToContentText={intl.formatMessage(
         constantsMessages.skipToMainContent
       )}
       navigation={<Navigation />}
     >
-      <Content title="Person Events" size={ContentSize.SMALL}>
+      <Content title="Personal Details" size={ContentSize.LARGE}>
         {person && (
           <PersonInfoContainer>
-            <PersonInfoDetails>
-              <h2>{person.fullName || person.name}</h2>
-              <p>
-                <strong>National ID:</strong> {person.nationalId}
-              </p>
-              <p>
-                <strong>Date of Birth:</strong>{' '}
-                {person.dateOfBirth
-                  ? new Date(person.dateOfBirth).toLocaleDateString()
-                  : 'N/A'}
-              </p>
-              <p>
-                <strong>Gender:</strong> {person.gender || 'N/A'}
-              </p>
-              <p>
-                <strong>Status:</strong> {person.status || 'N/A'}
-              </p>
-            </PersonInfoDetails>
-            <Button
-              type="secondary"
-              size="small"
-              onClick={() => {
-                window.open(`${config.FAMILY_TREE_URL}/${personId}`, '_blank')
-              }}
-            >
-              <Icon name="Users" size="small" />
-              Family Tree
-            </Button>
+            <PersonHeader>
+              <div>
+                <PersonName>{person.fullName || person.name}</PersonName>
+                <PersonSubtitle>
+                  Person Registry • Status: {person.status || 'Active'}
+                </PersonSubtitle>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button
+                  type="tertiary"
+                  size="small"
+                  onClick={() =>
+                    setPersonDetailsExpanded(!personDetailsExpanded)
+                  }
+                >
+                  {personDetailsExpanded ? '▲ Less Details' : '▼ More Details'}
+                </Button>
+                <Button
+                  type="secondary"
+                  size="small"
+                  onClick={() => {
+                    setShowFamilyTree(!showFamilyTree)
+                  }}
+                >
+                  <Icon name="Users" size="small" />
+                  {showFamilyTree ? 'Hide Family Tree' : 'Show Family Tree'}
+                </Button>
+              </div>
+            </PersonHeader>
+
+            <PersonDetailsGrid>
+              <div>
+                <DetailItem>
+                  <DetailLabel>Gender:</DetailLabel>
+                  <DetailValue>{person.gender || 'Not specified'}</DetailValue>
+                </DetailItem>
+
+                <DetailItem>
+                  <DetailLabel>Date of Birth:</DetailLabel>
+                  <DetailValue>
+                    {person.dateOfBirth
+                      ? new Date(person.dateOfBirth).toLocaleDateString()
+                      : 'Not available'}
+                  </DetailValue>
+                </DetailItem>
+
+                {personDetailsExpanded && (
+                  <>
+                    <DetailItem>
+                      <DetailLabel>Date of Death:</DetailLabel>
+                      <DetailValue>
+                        {person.dateOfDeath
+                          ? new Date(person.dateOfDeath).toLocaleDateString()
+                          : 'N/A'}
+                      </DetailValue>
+                    </DetailItem>
+
+                    <DetailItem>
+                      <DetailLabel>Marital Status:</DetailLabel>
+                      <DetailValue>
+                        {person.maritalStatus || 'Not specified'}
+                      </DetailValue>
+                    </DetailItem>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <DetailItem>
+                  <DetailLabel>National ID:</DetailLabel>
+                  <DetailValue>
+                    {person.nationalId || 'Not assigned'}
+                  </DetailValue>
+                </DetailItem>
+                {personDetailsExpanded && (
+                  <>
+                    <DetailItem>
+                      <DetailLabel>Birth Reg. Number:</DetailLabel>
+                      <DetailValue>
+                        {person.birthRegistrationNumber || 'Not available'}
+                      </DetailValue>
+                    </DetailItem>
+                  </>
+                )}
+                <DetailItem>
+                  <DetailLabel>Age:</DetailLabel>
+                  <DetailValue>
+                    {person.dateOfBirth
+                      ? Math.floor(
+                          (new Date().getTime() -
+                            new Date(person.dateOfBirth).getTime()) /
+                            (1000 * 60 * 60 * 24 * 365.25)
+                        ) + ' years'
+                      : 'Unknown'}
+                  </DetailValue>
+                </DetailItem>
+
+                {personDetailsExpanded && (
+                  <>
+                    <DetailItem>
+                      <DetailLabel>Place of Birth:</DetailLabel>
+                      <DetailValue>
+                        {person.placeOfBirth || 'Not specified'}
+                      </DetailValue>
+                    </DetailItem>
+                  </>
+                )}
+              </div>
+            </PersonDetailsGrid>
           </PersonInfoContainer>
         )}
 
-        <h3>Events ({events.length})</h3>
-        {events.map((event, index) => (
-          <EventCard
-            key={index}
-            onClick={() => {
-              // Navigate to OpenCRVS record audit page
-              navigate(`/record-audit/search/${event.declarationId}`)
+        {showFamilyTree && (
+          <div
+            style={{
+              marginBottom: '24px',
+              border: '1px solid #dee2e6',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
             }}
-            title="Click to view full record details"
           >
-            <h4 style={{ color: '#2196F3', margin: '0 0 10px 0' }}>
-              {event.type}
-            </h4>
-            <p>
-              <strong>Date:</strong> {event.date}
-            </p>
-            <p>
-              <strong>Status:</strong>{' '}
-              <span
-                style={{
-                  color: event.status === 'Registered' ? 'green' : 'orange'
-                }}
-              >
-                {event.status}
-              </span>
-            </p>
-            <p>
-              <strong>Role:</strong> {event.role}
-            </p>
-            <p>
-              <strong>Registration ID:</strong> {event.registrationId}
-            </p>
-            <p
-              style={{ color: '#666', fontSize: '12px', margin: '10px 0 0 0' }}
+            <div
+              style={{
+                padding: '12px 16px',
+                background: '#f8f9fa',
+                borderBottom: '1px solid #dee2e6',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
             >
-              💡 Click to view full record
-            </p>
-          </EventCard>
-        ))}
+              <h4 style={{ margin: 0, color: '#2c3e50' }}>Family Tree</h4>
+              <Button
+                type="tertiary"
+                size="small"
+                onClick={() => setShowFamilyTree(false)}
+              >
+                ✕
+              </Button>
+            </div>
+            <iframe
+              src={`${config.FAMILY_TREE_URL}/${personId}`}
+              style={{
+                width: '100%',
+                height: '300px',
+                border: 'none'
+              }}
+              title="Family Tree"
+              onLoad={(e) => {
+                const iframe = e.target as HTMLIFrameElement
+                const resizeIframe = () => {
+                  try {
+                    const iframeDoc =
+                      iframe.contentDocument || iframe.contentWindow?.document
+                    if (iframeDoc) {
+                      const body = iframeDoc.body
+                      const height = body?.scrollHeight || 300
+                      iframe.style.height = height + 'px'
+                    }
+                  } catch (error) {
+                    // Cross-origin fallback - keep current height
+                  }
+                }
+
+                // Initial resize
+                setTimeout(resizeIframe, 100)
+
+                // Resize on content changes
+                const interval = setInterval(resizeIframe, 1000)
+                setTimeout(() => clearInterval(interval), 10000) // Stop after 10s
+              }}
+            />
+          </div>
+        )}
+
+        <h3 style={{ margin: '0 0 16px 0' }}>Events ({events.length})</h3>
+        <EventsTable>
+          <thead>
+            <tr>
+              <EventHeader>Event</EventHeader>
+              <EventHeader>Date & Status</EventHeader>
+              <EventHeader>Role & ID</EventHeader>
+              <EventHeader>Actions</EventHeader>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event, index) => (
+              <React.Fragment key={index}>
+                <EventRow>
+                  <EventCell>
+                    <EventTitle>{event.type}</EventTitle>
+                  </EventCell>
+                  <EventCell>
+                    <EventDetail>
+                      {new Date(event.date).toLocaleDateString()}
+                    </EventDetail>
+                    <StatusBadge status={event.status}>
+                      {event.status}
+                    </StatusBadge>
+                  </EventCell>
+                  <EventCell>
+                    <EventDetail>
+                      <strong>Role:</strong> {event.role}
+                    </EventDetail>
+                    <EventDetail>
+                      <strong>ID:</strong> {event.registrationId}
+                    </EventDetail>
+                  </EventCell>
+                  <EventCell>
+                    <EventActions>
+                      <Button
+                        type="primary"
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          navigate(
+                            `/record-audit/search/${event.declarationId}`
+                          )
+                        }}
+                      >
+                        <Icon name="Eye" size="small" />
+                        Details
+                      </Button>
+
+                      <Button
+                        type="secondary"
+                        size="small"
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          if (expandedEvent === event.declarationId) {
+                            setExpandedEvent(null)
+                            setEventParticipants(null)
+                          } else {
+                            try {
+                              const response = await fetch(
+                                `${config.PERSON_SEARCH_API_URL}/event/${event.declarationId}/participants`
+                              )
+                              const data = await response.json()
+                              setEventParticipants(data)
+                              setExpandedEvent(event.declarationId)
+                            } catch (error) {
+                              console.error(
+                                'Failed to fetch participants:',
+                                error
+                              )
+                            }
+                          }
+                        }}
+                      >
+                        <Icon name="Users" size="small" />
+                        {expandedEvent === event.declarationId
+                          ? 'Hide'
+                          : 'Participants'}
+                      </Button>
+
+                      <Button
+                        type="tertiary"
+                        size="small"
+                        disabled
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                      >
+                        <Icon name="X" size="small" />
+                        Revoke
+                      </Button>
+                    </EventActions>
+                  </EventCell>
+                </EventRow>
+
+                {expandedEvent === event.declarationId && eventParticipants && (
+                  <>
+                    <EventRow style={{ backgroundColor: '#f8f9fa' }}>
+                      <EventCell
+                        colSpan={4}
+                        style={{
+                          padding: '8px 16px',
+                          fontWeight: 600,
+                          color: '#2196F3'
+                        }}
+                      >
+                        Event Participants
+                      </EventCell>
+                    </EventRow>
+                    {eventParticipants.participants?.map(
+                      (participant: any, pIndex: number) => (
+                        <EventRow
+                          key={pIndex}
+                          style={{
+                            cursor: 'pointer',
+                            backgroundColor: '#fafbfc'
+                          }}
+                          onClick={() => {
+                            setSelectedParticipant(participant)
+                            setSidePanelOpen(true)
+                          }}
+                          title="Click to view person details"
+                        >
+                          <EventCell>
+                            <div
+                              style={{
+                                paddingLeft: '20px',
+                                borderLeft: '3px solid #2196F3',
+                                marginLeft: '10px'
+                              }}
+                            >
+                              <strong>{participant.person.fullName}</strong>
+                              <div
+                                style={{ fontSize: '12px', color: '#2196F3' }}
+                              >
+                                ({participant.role})
+                              </div>
+                            </div>
+                          </EventCell>
+                          <EventCell>
+                            <EventDetail>
+                              DOB:{' '}
+                              {participant.person.dateOfBirth
+                                ? new Date(
+                                    participant.person.dateOfBirth
+                                  ).toLocaleDateString()
+                                : 'N/A'}
+                            </EventDetail>
+                            <EventDetail>
+                              Gender: {participant.person.gender || 'N/A'}
+                            </EventDetail>
+                          </EventCell>
+                          <EventCell>
+                            <EventDetail>
+                              ID: {participant.person.nationalId}
+                            </EventDetail>
+                            <EventDetail>
+                              Status: {participant.person.status}
+                            </EventDetail>
+                          </EventCell>
+                          <EventCell>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                color: '#2196F3',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                backgroundColor: '#e3f2fd',
+                                border: '1px solid #bbdefb',
+                                width: 'fit-content'
+                              }}
+                            >
+                              <span>→</span>
+                              <span>View Details</span>
+                            </div>
+                          </EventCell>
+                        </EventRow>
+                      )
+                    )}
+                  </>
+                )}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </EventsTable>
 
         {events.length === 0 && (
           <p style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}>
@@ -265,6 +776,233 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
           </p>
         )}
       </Content>
+
+      <PanelOverlay
+        isOpen={sidePanelOpen}
+        onClick={() => setSidePanelOpen(false)}
+      />
+
+      <SidePanel isOpen={sidePanelOpen}>
+        {selectedParticipant && (
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px'
+              }}
+            >
+              <h3 style={{ margin: 0 }}>Personal Details</h3>
+              <Button
+                type="tertiary"
+                size="small"
+                onClick={() => setSidePanelOpen(false)}
+              >
+                ✕
+              </Button>
+            </div>
+
+            <div
+              style={{
+                marginBottom: '24px',
+                padding: '24px',
+                background: '#ffffff',
+                borderRadius: '8px',
+                border: '1px solid #e1e5e9',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+              }}
+            >
+              <h4
+                style={{
+                  margin: '0 0 20px 0',
+                  color: '#1a1a1a',
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  letterSpacing: '-0.01em'
+                }}
+              >
+                {selectedParticipant.person.fullName}
+              </h4>
+
+              <div style={{ display: 'grid', gap: '16px' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Role
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#1f2937',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {selectedParticipant.role}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}
+                  >
+                    National ID
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#1f2937',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {selectedParticipant.person.nationalId}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Date of Birth
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#1f2937',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {selectedParticipant.person.dateOfBirth
+                      ? new Date(
+                          selectedParticipant.person.dateOfBirth
+                        ).toLocaleDateString()
+                      : 'N/A'}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid #f0f0f0'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Gender
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#1f2937',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {selectedParticipant.person.gender || 'N/A'}
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#6b7280',
+                      fontWeight: '500'
+                    }}
+                  >
+                    Status
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      color: '#1f2937',
+                      fontWeight: '600'
+                    }}
+                  >
+                    {selectedParticipant.person.status || 'N/A'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Button
+                type="primary"
+                size="small"
+                onClick={() => {
+                  navigate(`/person/${selectedParticipant.person.id}/events`)
+                  setSidePanelOpen(false)
+                }}
+              >
+                View Full Events
+              </Button>
+
+              <Button
+                type="secondary"
+                size="small"
+                onClick={() => {
+                  window.open(
+                    `${config.FAMILY_TREE_URL}/${selectedParticipant.person.id}?fulldetails=true`,
+                    '_blank'
+                  )
+                }}
+              >
+                Family Tree
+              </Button>
+            </div>
+          </div>
+        )}
+      </SidePanel>
     </Frame>
   )
 }

@@ -27,6 +27,7 @@
     "compose:deps:detached": "docker compose -p opencrvs -f docker-compose.deps.yml -f docker-compose.dev-deps.yml up -d",
     "compose:down:deps": "docker compose -p opencrvs -f docker-compose.deps.yml -f docker-compose.dev-deps.yml down",
     "compose:family-tree": "docker compose -p opencrvs -f docker-compose.deps.yml -f docker-compose.dev-deps.yml up family-tree postgres -d",
+    "rebuild:family-tree": "docker compose -p opencrvs -f docker-compose.deps.yml -f docker-compose.dev-deps.yml up family-tree postgres --build -d",
     "compose:opensearch": "docker compose -p opencrvs -f docker-compose.deps.yml -f docker-compose.dev-deps.yml up opensearch opensearch-dashboards -d",
     "cov:client": "cd packages/client && yarn open:cov",
     "cov:login": "cd packages/login && yarn open:cov",

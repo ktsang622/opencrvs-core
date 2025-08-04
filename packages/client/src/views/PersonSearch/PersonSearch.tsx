@@ -23,32 +23,145 @@ import { Icon } from '@opencrvs/components/lib/Icon'
 import styled from 'styled-components'
 import { useNavigate } from 'react-router-dom'
 import { config } from '@client/config'
+import { useSelector } from 'react-redux'
+import { getScope } from '@client/profile/profileSelectors'
 
 const SearchButton = styled(Button)`
   margin-top: 16px;
 `
 
-const PersonCard = styled.div`
-  border: 1px solid var(--grey-300);
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 4px;
-  cursor: pointer;
+const ResultsTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  background: ${({ theme }) => theme.colors.white};
+  border-radius: ${({ theme }) => theme.borderRadius}px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 20px;
+
+  @media (max-width: 768px) {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+`
+
+const ResultRow = styled.tr`
+  border-bottom: 1px solid ${({ theme }) => theme.colors.grey200};
+
   &:hover {
-    background-color: var(--grey-100);
+    background-color: ${({ theme }) => theme.colors.grey100};
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+`
+
+const ResultCell = styled.td`
+  padding: 12px 16px;
+  vertical-align: top;
+  min-width: 120px;
+
+  &:first-child {
+    min-width: 200px;
+  }
+
+  &:last-child {
+    min-width: 180px;
+  }
+
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    min-width: 100px;
+
+    &:first-child {
+      min-width: 150px;
+    }
+
+    &:last-child {
+      min-width: 140px;
+    }
+  }
+`
+
+const ResultHeader = styled.th`
+  padding: 16px;
+  background: ${({ theme }) => theme.colors.grey100};
+  text-align: left;
+  ${({ theme }) => theme.fonts.bold16};
+  color: ${({ theme }) => theme.colors.copy};
+  border-bottom: 2px solid ${({ theme }) => theme.colors.grey300};
+`
+
+const PersonName = styled.div`
+  ${({ theme }) => theme.fonts.bold14};
+  color: ${({ theme }) => theme.colors.primary};
+  margin-bottom: 4px;
+`
+
+const PersonDetail = styled.div`
+  ${({ theme }) => theme.fonts.reg14};
+  color: ${({ theme }) => theme.colors.supportingCopy};
+  margin-bottom: 2px;
+`
+
+const ActionButtons = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 4px;
   }
 `
 
 interface IPersonSearchProps extends IntlShapeProps {}
 
 const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [idNumber, setIdNumber] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const scope = useSelector(getScope)
   const navigate = useNavigate()
 
-  const handleSearch = async () => {
+  // Check if user has registrar permissions
+  const hasRegistrarAccess =
+    scope &&
+    (scope.includes('record.register') ||
+      scope.includes('record.validate') ||
+      scope.includes('record.certify'))
+
+  if (!hasRegistrarAccess) {
+    return (
+      <Frame
+        header={<Header title="Access Denied" />}
+        skipToContentText={intl.formatMessage(
+          constantsMessages.skipToMainContent
+        )}
+        navigation={<Navigation />}
+      >
+        <Content title="Access Denied" size={ContentSize.LARGE}>
+          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+            <h3>Access Restricted</h3>
+            <p>
+              Only users with registration permissions have access to person
+              search functionality.
+            </p>
+          </div>
+        </Content>
+      </Frame>
+    )
+  }
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [idNumber, setIdNumber] = useState('')
+  const [searchMode, setSearchMode] = useState('relaxer')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
+  const [totalResults, setTotalResults] = useState(0)
+
+  const handleSearch = async (page = currentPage) => {
     setLoading(true)
 
     if (config.USE_MOCK_PERSON_DATA) {
@@ -58,30 +171,36 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
           uuid: '50989c77-8345-4763-a12c-21f43d9e525f',
           name: 'John Doe',
           nationalId: 'ID123456',
-          phone: '+1234567890'
+          dateOfBirth: '1990-05-15',
+          score: 0.95
         },
         {
           uuid: '98765-43210',
           name: 'Jane Smith',
           nationalId: 'ID654321',
-          phone: '+0987654321'
+          dateOfBirth: '1985-08-22',
+          score: 0.87
         },
         {
           uuid: '11111-22222',
           name: 'Bob Johnson',
           nationalId: 'ID789012',
-          phone: '+1122334455'
+          dateOfBirth: '1978-12-03',
+          score: 0.73
         }
-      ].filter(
-        (person) =>
-          person.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          person.nationalId.includes(searchQuery) ||
-          person.phone.includes(searchQuery) ||
-          (idNumber && person.nationalId.includes(idNumber))
-      )
+      ]
+        .filter(
+          (person) =>
+            person.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            person.nationalId.includes(searchQuery) ||
+            person.dateOfBirth.includes(searchQuery) ||
+            (idNumber && person.nationalId.includes(idNumber))
+        )
+        .sort((a, b) => b.score - a.score)
 
       setTimeout(() => {
         setSearchResults(mockResults)
+        setTotalResults(mockResults.length)
         setLoading(false)
       }, 500)
     } else {
@@ -95,9 +214,9 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
           dob: '',
           age: '',
           identifier: idNumber,
-          searchMode: 'relaxer',
-          page: 1,
-          pageSize: 20
+          searchMode: searchMode,
+          page: page,
+          pageSize: pageSize
         }
 
         const response = await fetch(apiUrl, {
@@ -114,7 +233,10 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
         }
 
         const data = await response.json()
-        setSearchResults(data)
+        console.log('API Response:', data)
+        console.log('First result:', data.hits?.[0] || data[0])
+        setSearchResults(data.hits || data)
+        setTotalResults(data.total || (data.hits || data).length)
       } catch (error) {
         setSearchResults([])
       } finally {
@@ -139,7 +261,7 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
     >
       <Content
         title="Search Person"
-        size={ContentSize.SMALL}
+        size={ContentSize.LARGE}
         subtitle="Search for existing persons in the database"
       >
         <input
@@ -173,51 +295,257 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
           }}
         />
 
-        <SearchButton
-          id="search"
-          type="primary"
-          size="large"
-          fullWidth
-          disabled={loading || (!searchQuery.trim() && !idNumber.trim())}
-          onClick={handleSearch}
+        <fieldset
+          style={{
+            marginBottom: '16px',
+            padding: '16px',
+            backgroundColor: '#f8f9fa',
+            borderRadius: '8px',
+            border: '1px solid #e9ecef'
+          }}
         >
-          <Icon name="MagnifyingGlass" />
-          {loading ? 'Searching...' : 'Search'}
-        </SearchButton>
+          <legend
+            style={{
+              fontSize: '14px',
+              fontWeight: '600',
+              color: '#495057',
+              marginBottom: '12px'
+            }}
+          >
+            Search Mode
+          </legend>
+          <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
+            {['strict', 'relaxer', 'most_relaxed'].map((mode) => (
+              <label
+                key={mode}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  backgroundColor:
+                    searchMode === mode ? '#e3f2fd' : 'transparent',
+                  border:
+                    searchMode === mode
+                      ? '1px solid #2196F3'
+                      : '1px solid transparent',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <input
+                  type="radio"
+                  name="searchMode"
+                  value={mode}
+                  checked={searchMode === mode}
+                  onChange={(e) => setSearchMode(e.target.value)}
+                  style={{ marginRight: '8px', accentColor: '#2196F3' }}
+                />
+                <span
+                  style={{
+                    textTransform: 'capitalize',
+                    fontWeight: searchMode === mode ? '600' : '400',
+                    color: searchMode === mode ? '#1976D2' : '#6c757d'
+                  }}
+                >
+                  {mode.replace('_', ' ')}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
-        {searchResults.map((person, index) => (
-          <PersonCard key={index}>
-            <h3>{person.name}</h3>
-            <p>ID: {person.nationalId}</p>
-            <p>Phone: {person.phone}</p>
-            <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
-              <button
-                onClick={() => selectPerson(person)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px'
-                }}
-              >
-                Create Registration
-              </button>
-              <button
-                onClick={() => navigate(`/person/${person.uuid}/events`)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#2196F3',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px'
-                }}
-              >
-                View Events
-              </button>
+        <div
+          style={{
+            display: 'flex',
+            gap: '10px',
+            alignItems: 'end',
+            marginTop: '16px'
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <SearchButton
+              id="search"
+              type="primary"
+              size="large"
+              fullWidth
+              disabled={loading || (!searchQuery.trim() && !idNumber.trim())}
+              onClick={() => {
+                setCurrentPage(1)
+                handleSearch()
+              }}
+            >
+              <Icon name="MagnifyingGlass" />
+              {loading ? 'Searching...' : 'Search'}
+            </SearchButton>
+          </div>
+          <select
+            value={pageSize}
+            onChange={(e) => {
+              const newPageSize = Number(e.target.value)
+              setPageSize(newPageSize)
+              setCurrentPage(1)
+              if (searchResults.length > 0) {
+                handleSearch(1)
+              }
+            }}
+            style={{
+              padding: '12px',
+              border: '1px solid #ccc',
+              borderRadius: '4px',
+              fontSize: '14px'
+            }}
+          >
+            <option value={10}>10 results</option>
+            <option value={20}>20 results</option>
+            <option value={50}>50 results</option>
+            <option value={100}>100 results</option>
+          </select>
+        </div>
+
+        {searchResults.length > 0 && (
+          <>
+            <div style={{ marginTop: '20px', marginBottom: '10px' }}>
+              <span style={{ color: '#666', fontSize: '14px' }}>
+                Results ({totalResults}):
+              </span>
             </div>
-          </PersonCard>
-        ))}
+            <ResultsTable>
+              <thead>
+                <tr>
+                  <ResultHeader>Person</ResultHeader>
+                  <ResultHeader>Date of Birth</ResultHeader>
+                  <ResultHeader>Match Score</ResultHeader>
+                  <ResultHeader>Actions</ResultHeader>
+                </tr>
+              </thead>
+              <tbody>
+                {searchResults.map((person, index) => (
+                  <ResultRow key={index}>
+                    <ResultCell>
+                      <PersonName>{person.name}</PersonName>
+                      <PersonDetail>
+                        <strong>ID:</strong> {person.nationalId}
+                      </PersonDetail>
+                    </ResultCell>
+                    <ResultCell>
+                      <PersonDetail>
+                        {person.dateOfBirth
+                          ? new Date(person.dateOfBirth).toLocaleDateString()
+                          : 'N/A'}
+                      </PersonDetail>
+                    </ResultCell>
+                    <ResultCell>
+                      <PersonDetail>
+                        {person.score ? person.score.toFixed(3) : 'N/A'}
+                      </PersonDetail>
+                    </ResultCell>
+                    <ResultCell>
+                      <ActionButtons>
+                        <Button
+                          type="secondary"
+                          size="small"
+                          disabled
+                          onClick={() => selectPerson(person)}
+                        >
+                          <Icon name="Plus" size="small" />
+                          Merge Records
+                        </Button>
+
+                        <Button
+                          type="primary"
+                          size="small"
+                          onClick={() =>
+                            navigate(`/person/${person.uuid}/events`)
+                          }
+                        >
+                          <Icon name="Eye" size="small" />
+                          View Details
+                        </Button>
+                      </ActionButtons>
+                    </ResultCell>
+                  </ResultRow>
+                ))}
+              </tbody>
+            </ResultsTable>
+            {Math.ceil(totalResults / pageSize) > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '16px',
+                  fontSize: '14px'
+                }}
+              >
+                <div>
+                  Page {currentPage} of {Math.ceil(totalResults / pageSize)}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <Button
+                    type="tertiary"
+                    size="small"
+                    disabled={currentPage === 1}
+                    onClick={() => {
+                      const newPage = currentPage - 1
+                      setCurrentPage(newPage)
+                      handleSearch(newPage)
+                    }}
+                  >
+                    Prev
+                  </Button>
+                  <input
+                    type="number"
+                    value={currentPage}
+                    min={1}
+                    max={Math.ceil(totalResults / pageSize)}
+                    onChange={(e) => {
+                      const newPage = parseInt(e.target.value)
+                      if (
+                        newPage >= 1 &&
+                        newPage <= Math.ceil(totalResults / pageSize) &&
+                        newPage !== currentPage
+                      ) {
+                        setCurrentPage(newPage)
+                        handleSearch(newPage)
+                      }
+                    }}
+                    style={{
+                      width: '60px',
+                      padding: '4px 8px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      textAlign: 'center',
+                      fontSize: '14px'
+                    }}
+                  />
+                  <Button
+                    type="tertiary"
+                    size="small"
+                    disabled={currentPage >= Math.ceil(totalResults / pageSize)}
+                    onClick={() => {
+                      const newPage = currentPage + 1
+                      setCurrentPage(newPage)
+                      handleSearch(newPage)
+                    }}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {searchResults.length === 0 &&
+          !loading &&
+          (searchQuery.trim() || idNumber.trim()) && (
+            <p
+              style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}
+            >
+              No persons found matching your search criteria.
+            </p>
+          )}
       </Content>
     </Frame>
   )

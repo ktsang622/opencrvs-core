@@ -44,10 +44,11 @@ export async function searchPersonHandler(
         uuid: hit.id,
         name: hit.full_name,
         nationalId: hit.identifiers?.[0]?.value || 'N/A',
-        phone: hit.phone || 'N/A'
+        dateOfBirth: hit.dob || 'N/A',
+        score: hit._score
       })) || []
 
-    return h.response(results).code(200)
+    return h.response({ hits: results, total: data.total }).code(200)
   } catch (error) {
     console.error('Person search error:', error)
     return h.response({ error: 'Search failed' }).code(500)
@@ -84,5 +85,35 @@ export async function personEventsHandler(
   } catch (error) {
     console.error('Person events error:', error)
     return h.response({ error: 'Events fetch failed' }).code(500)
+  }
+}
+
+export async function eventParticipantsHandler(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit
+) {
+  const { eventId } = request.params
+
+  try {
+    const targetUrl = `${PERSON_SEARCH_API_URL}/api/event/${eventId}/participants`
+    console.log('Gateway: Calling family-tree at:', targetUrl)
+
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Family-tree API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    return h.response(data).code(200)
+  } catch (error) {
+    console.error('Event participants error:', error)
+    return h.response({ error: 'Participants fetch failed' }).code(500)
   }
 }

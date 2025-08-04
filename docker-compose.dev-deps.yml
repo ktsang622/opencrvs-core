@@ -83,7 +83,6 @@ services:
     volumes:
       - ../family-tree/src:/app/src
       - ../family-tree/public:/app/public
-      - ../family-tree/.env:/app/.env
       - family_tree_nextjs_cache:/app/.next
     ports:
       - '3888:3888'

@@ -9,7 +9,11 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
-import { searchPersonHandler, personEventsHandler } from './handler'
+import {
+  searchPersonHandler,
+  personEventsHandler,
+  eventParticipantsHandler
+} from './handler'
 
 export const personSearchRoutes = [
   {
@@ -30,6 +34,16 @@ export const personSearchRoutes = [
       auth: false,
       tags: ['api'],
       description: 'Get person events via family-tree API'
+    }
+  },
+  {
+    method: 'GET',
+    path: '/event/{eventId}/participants',
+    handler: eventParticipantsHandler,
+    options: {
+      auth: false,
+      tags: ['api'],
+      description: 'Get event participants via family-tree API'
     }
   }
 ]
