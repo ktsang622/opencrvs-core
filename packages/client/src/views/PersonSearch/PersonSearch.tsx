@@ -25,6 +25,9 @@ import { useNavigate } from 'react-router-dom'
 import { config } from '@client/config'
 import { useSelector } from 'react-redux'
 import { getScope } from '@client/profile/profileSelectors'
+import { SearchForm } from './SearchForm'
+import { SearchResults } from './SearchResults'
+import { AccessControl } from './AccessControl'
 
 const SearchButton = styled(Button)`
   margin-top: 16px;
@@ -130,28 +133,6 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
       scope.includes('record.validate') ||
       scope.includes('record.certify'))
 
-  if (!hasRegistrarAccess) {
-    return (
-      <Frame
-        header={<Header title="Access Denied" />}
-        skipToContentText={intl.formatMessage(
-          constantsMessages.skipToMainContent
-        )}
-        navigation={<Navigation />}
-      >
-        <Content title="Access Denied" size={ContentSize.LARGE}>
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-            <h3>Access Restricted</h3>
-            <p>
-              Only users with registration permissions have access to person
-              search functionality.
-            </p>
-          </div>
-        </Content>
-      </Frame>
-    )
-  }
-
   const [searchQuery, setSearchQuery] = useState('')
   const [idNumber, setIdNumber] = useState('')
   const [searchMode, setSearchMode] = useState('relaxer')
@@ -252,302 +233,69 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
   }
 
   return (
-    <Frame
-      header={<Header title="Search Person" />}
-      skipToContentText={intl.formatMessage(
-        constantsMessages.skipToMainContent
-      )}
-      navigation={<Navigation />}
-    >
-      <Content
-        title="Search Person"
-        size={ContentSize.LARGE}
-        subtitle="Search for existing persons in the database"
+    <AccessControl hasAccess={hasRegistrarAccess}>
+      <Frame
+        header={<Header title="Search Person" />}
+        skipToContentText={intl.formatMessage(
+          constantsMessages.skipToMainContent
+        )}
+        navigation={<Navigation />}
       >
-        <input
-          id="search-input"
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Enter full name..."
-          style={{
-            width: '100%',
-            padding: '12px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '16px',
-            marginBottom: '10px'
-          }}
-        />
-
-        <input
-          id="id-input"
-          type="text"
-          value={idNumber}
-          onChange={(e) => setIdNumber(e.target.value)}
-          placeholder="Enter ID number (optional)..."
-          style={{
-            width: '100%',
-            padding: '12px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            fontSize: '16px'
-          }}
-        />
-
-        <fieldset
-          style={{
-            marginBottom: '16px',
-            padding: '16px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '8px',
-            border: '1px solid #e9ecef'
-          }}
+        <Content
+          title="Search Person"
+          size={ContentSize.LARGE}
+          subtitle="Search for existing persons in the database"
         >
-          <legend
-            style={{
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#495057',
-              marginBottom: '12px'
-            }}
-          >
-            Search Mode
-          </legend>
-          <div style={{ display: 'flex', gap: '20px', fontSize: '14px' }}>
-            {['strict', 'relaxer', 'most_relaxed'].map((mode) => (
-              <label
-                key={mode}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  backgroundColor:
-                    searchMode === mode ? '#e3f2fd' : 'transparent',
-                  border:
-                    searchMode === mode
-                      ? '1px solid #2196F3'
-                      : '1px solid transparent',
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <input
-                  type="radio"
-                  name="searchMode"
-                  value={mode}
-                  checked={searchMode === mode}
-                  onChange={(e) => setSearchMode(e.target.value)}
-                  style={{ marginRight: '8px', accentColor: '#2196F3' }}
-                />
-                <span
-                  style={{
-                    textTransform: 'capitalize',
-                    fontWeight: searchMode === mode ? '600' : '400',
-                    color: searchMode === mode ? '#1976D2' : '#6c757d'
-                  }}
-                >
-                  {mode.replace('_', ' ')}
-                </span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-
-        <div
-          style={{
-            display: 'flex',
-            gap: '10px',
-            alignItems: 'end',
-            marginTop: '16px'
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <SearchButton
-              id="search"
-              type="primary"
-              size="large"
-              fullWidth
-              disabled={loading || (!searchQuery.trim() && !idNumber.trim())}
-              onClick={() => {
-                setCurrentPage(1)
-                handleSearch()
-              }}
-            >
-              <Icon name="MagnifyingGlass" />
-              {loading ? 'Searching...' : 'Search'}
-            </SearchButton>
-          </div>
-          <select
-            value={pageSize}
-            onChange={(e) => {
-              const newPageSize = Number(e.target.value)
+          <SearchForm
+            searchQuery={searchQuery}
+            idNumber={idNumber}
+            searchMode={searchMode}
+            pageSize={pageSize}
+            loading={loading}
+            onSearchQueryChange={setSearchQuery}
+            onIdNumberChange={setIdNumber}
+            onSearchModeChange={setSearchMode}
+            onPageSizeChange={(newPageSize) => {
               setPageSize(newPageSize)
               setCurrentPage(1)
               if (searchResults.length > 0) {
                 handleSearch(1)
               }
             }}
-            style={{
-              padding: '12px',
-              border: '1px solid #ccc',
-              borderRadius: '4px',
-              fontSize: '14px'
+            onSearch={() => {
+              setCurrentPage(1)
+              handleSearch()
             }}
-          >
-            <option value={10}>10 results</option>
-            <option value={20}>20 results</option>
-            <option value={50}>50 results</option>
-            <option value={100}>100 results</option>
-          </select>
-        </div>
+          />
 
-        {searchResults.length > 0 && (
-          <>
-            <div style={{ marginTop: '20px', marginBottom: '10px' }}>
-              <span style={{ color: '#666', fontSize: '14px' }}>
-                Results ({totalResults}):
-              </span>
-            </div>
-            <ResultsTable>
-              <thead>
-                <tr>
-                  <ResultHeader>Person</ResultHeader>
-                  <ResultHeader>Date of Birth</ResultHeader>
-                  <ResultHeader>Match Score</ResultHeader>
-                  <ResultHeader>Actions</ResultHeader>
-                </tr>
-              </thead>
-              <tbody>
-                {searchResults.map((person, index) => (
-                  <ResultRow key={index}>
-                    <ResultCell>
-                      <PersonName>{person.name}</PersonName>
-                      <PersonDetail>
-                        <strong>ID:</strong> {person.nationalId}
-                      </PersonDetail>
-                    </ResultCell>
-                    <ResultCell>
-                      <PersonDetail>
-                        {person.dateOfBirth
-                          ? new Date(person.dateOfBirth).toLocaleDateString()
-                          : 'N/A'}
-                      </PersonDetail>
-                    </ResultCell>
-                    <ResultCell>
-                      <PersonDetail>
-                        {person.score ? person.score.toFixed(3) : 'N/A'}
-                      </PersonDetail>
-                    </ResultCell>
-                    <ResultCell>
-                      <ActionButtons>
-                        <Button
-                          type="secondary"
-                          size="small"
-                          disabled
-                          onClick={() => selectPerson(person)}
-                        >
-                          <Icon name="Plus" size="small" />
-                          Merge Records
-                        </Button>
+          <SearchResults
+            searchResults={searchResults}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            totalResults={totalResults}
+            onPageChange={(newPage) => {
+              setCurrentPage(newPage)
+              handleSearch(newPage)
+            }}
+            onPersonSelect={selectPerson}
+          />
 
-                        <Button
-                          type="primary"
-                          size="small"
-                          onClick={() =>
-                            navigate(`/person/${person.uuid}/events`)
-                          }
-                        >
-                          <Icon name="Eye" size="small" />
-                          View Details
-                        </Button>
-                      </ActionButtons>
-                    </ResultCell>
-                  </ResultRow>
-                ))}
-              </tbody>
-            </ResultsTable>
-            {Math.ceil(totalResults / pageSize) > 1 && (
-              <div
+          {searchResults.length === 0 &&
+            !loading &&
+            (searchQuery.trim() || idNumber.trim()) && (
+              <p
                 style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginTop: '16px',
-                  fontSize: '14px'
+                  textAlign: 'center',
+                  color: '#666',
+                  marginTop: '40px'
                 }}
               >
-                <div>
-                  Page {currentPage} of {Math.ceil(totalResults / pageSize)}
-                </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <Button
-                    type="tertiary"
-                    size="small"
-                    disabled={currentPage === 1}
-                    onClick={() => {
-                      const newPage = currentPage - 1
-                      setCurrentPage(newPage)
-                      handleSearch(newPage)
-                    }}
-                  >
-                    Prev
-                  </Button>
-                  <input
-                    type="number"
-                    value={currentPage}
-                    min={1}
-                    max={Math.ceil(totalResults / pageSize)}
-                    onChange={(e) => {
-                      const newPage = parseInt(e.target.value)
-                      if (
-                        newPage >= 1 &&
-                        newPage <= Math.ceil(totalResults / pageSize) &&
-                        newPage !== currentPage
-                      ) {
-                        setCurrentPage(newPage)
-                        handleSearch(newPage)
-                      }
-                    }}
-                    style={{
-                      width: '60px',
-                      padding: '4px 8px',
-                      border: '1px solid #ccc',
-                      borderRadius: '4px',
-                      textAlign: 'center',
-                      fontSize: '14px'
-                    }}
-                  />
-                  <Button
-                    type="tertiary"
-                    size="small"
-                    disabled={currentPage >= Math.ceil(totalResults / pageSize)}
-                    onClick={() => {
-                      const newPage = currentPage + 1
-                      setCurrentPage(newPage)
-                      handleSearch(newPage)
-                    }}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+                No persons found matching your search criteria.
+              </p>
             )}
-          </>
-        )}
-
-        {searchResults.length === 0 &&
-          !loading &&
-          (searchQuery.trim() || idNumber.trim()) && (
-            <p
-              style={{ textAlign: 'center', color: '#666', marginTop: '40px' }}
-            >
-              No persons found matching your search criteria.
-            </p>
-          )}
-      </Content>
-    </Frame>
+        </Content>
+      </Frame>
+    </AccessControl>
   )
 }
 
