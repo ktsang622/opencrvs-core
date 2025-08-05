@@ -1537,8 +1537,16 @@ export async function findTaskFromIdentifier(
     }
   )
   if (!res.ok) {
+    const errorText = await res.text()
+    if (res.status === 500 && errorText.includes('Not yet supported')) {
+      console.warn(
+        'FHIR search not supported by Hearth, returning empty results for identifier:',
+        identifier
+      )
+      return { resourceType: 'Bundle', type: 'searchset', entry: [] }
+    }
     throw new Error(
-      `Fetching task history from Hearth failed with [${res.status}] body: ${res.statusText}`
+      `Fetching task history from Hearth failed with [${res.status}] body: ${errorText}`
     )
   }
 

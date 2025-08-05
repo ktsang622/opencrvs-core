@@ -180,6 +180,114 @@ async function createRecord(
   duplicateIds: Array<{ id: UUID; trackingId: string }>
 ): Promise<InProgressRecord | ReadyForReviewRecord> {
   const inputBundle = buildFHIRBundle(recordDetails, event)
+
+  // Extract eventLocation for placeOfBirth extension
+  let eventLocationValue = null
+  if (recordDetails.eventLocation) {
+    if (recordDetails.eventLocation._fhirID) {
+      eventLocationValue = recordDetails.eventLocation._fhirID
+    } else if (recordDetails.eventLocation.address?.district) {
+      eventLocationValue = recordDetails.eventLocation.address.district
+    }
+  }
+
+  // Add placeOfBirth extension to child Patient (birth events only)
+  if (event === 'BIRTH' && eventLocationValue) {
+    const childPatient = inputBundle.entry.find(
+      (e) => e.resource.resourceType === 'Patient' && (e.resource as any).gender
+    )?.resource as any
+
+    if (childPatient) {
+      if (!childPatient.extension) {
+        childPatient.extension = []
+      }
+      childPatient.extension.push({
+        url: 'http://opencrvs.org/specs/extension/placeOfBirth',
+        valueReference: {
+          reference: `Location/${eventLocationValue}`
+        }
+      })
+    }
+  }
+
+  // Add external UUID to mother and father Patient in FHIR bundle (birth events only)
+  if (event === 'BIRTH') {
+    const birthRecord = recordDetails as any
+    const motherExternalUuid =
+      birthRecord.mother?.identifier?.find(
+        (id: any) => id.type === 'EXTERNAL_PERSON_ID'
+      )?.id || 'external-mother-uuid-12345'
+    const fatherExternalUuid =
+      birthRecord.father?.identifier?.find(
+        (id: any) => id.type === 'EXTERNAL_PERSON_ID'
+      )?.id || 'external-father-uuid-12345'
+
+    const patients = inputBundle.entry.filter(
+      (e) => e.resource.resourceType === 'Patient'
+    )
+
+    // Find mother and father by RelatedPerson references
+    const motherRelation = inputBundle.entry.find(
+      (e) =>
+        e.resource.resourceType === 'RelatedPerson' &&
+        (e.resource as any).relationship?.coding?.some(
+          (c: any) => c.code === 'MOTHER'
+        )
+    )?.resource as any
+
+    const fatherRelation = inputBundle.entry.find(
+      (e) =>
+        e.resource.resourceType === 'RelatedPerson' &&
+        (e.resource as any).relationship?.coding?.some(
+          (c: any) => c.code === 'FATHER'
+        )
+    )?.resource as any
+
+    const motherPatient = motherRelation
+      ? (patients.find(
+          (e) =>
+            e.resource.id === motherRelation.patient?.reference?.split('/')?.[1]
+        )?.resource as any)
+      : null
+
+    const fatherPatient = fatherRelation
+      ? (patients.find(
+          (e) =>
+            e.resource.id === fatherRelation.patient?.reference?.split('/')?.[1]
+        )?.resource as any)
+      : null
+
+    if (motherPatient) {
+      if (!motherPatient.identifier) motherPatient.identifier = []
+      motherPatient.identifier.push({
+        value: motherExternalUuid,
+        type: {
+          coding: [
+            {
+              system: 'http://opencrvs.org/specs/identifier-type',
+              code: 'EXTERNAL_PERSON_ID'
+            }
+          ]
+        }
+      })
+    }
+
+    if (fatherPatient) {
+      if (!fatherPatient.identifier) fatherPatient.identifier = []
+      fatherPatient.identifier.push({
+        value: fatherExternalUuid,
+        type: {
+          coding: [
+            {
+              system: 'http://opencrvs.org/specs/identifier-type',
+              code: 'EXTERNAL_PERSON_ID'
+            }
+          ]
+        }
+      })
+    }
+  }
+
   const trackingId = await generateTrackingIdForEvents(
     event,
     inputBundle,
@@ -304,6 +412,68 @@ export default async function createRecordHandler(
     requestSchema,
     request.payload
   )
+
+  // Add custom external UUID to mother's identifier array (birth events only)
+  if (event === 'BIRTH' && 'mother' in recordDetails && recordDetails.mother) {
+    // Option 1: Use actual form field (replace 'externalUuid' with your field name)
+    // const motherExternalUuid = (recordDetails.mother as any).externalUuid
+
+    // Option 2: Generate UUID from existing data (example)
+    // const motherExternalUuid = `ext-mother-${recordDetails.mother.identifier?.[0]?.id || 'unknown'}`
+
+    // Option 3: Hardcoded for testing
+    const motherExternalUuid = 'external-mother-uuid-12345'
+
+    console.log('=== Mother external UUID:', motherExternalUuid)
+    if (motherExternalUuid) {
+      if (!recordDetails.mother.identifier) {
+        recordDetails.mother.identifier = []
+      }
+      recordDetails.mother.identifier.push({
+        id: motherExternalUuid,
+        type: 'EXTERNAL_PERSON_ID'
+      })
+      console.log('=== Added external UUID to mother identifier')
+    }
+  }
+
+  // Add custom external UUID to father's identifier array (birth events only)
+  if (
+    event === 'BIRTH' &&
+    'father' in recordDetails &&
+    recordDetails.father &&
+    recordDetails.father.detailsExist
+  ) {
+    // Option 1: Use actual form field (replace 'externalUuid' with your field name)
+    // const fatherExternalUuid = (recordDetails.father as any).externalUuid
+
+    // Option 2: Generate UUID from existing data (example)
+    // const fatherExternalUuid = `ext-father-${recordDetails.father.identifier?.[0]?.id || 'unknown'}`
+
+    // Option 3: Hardcoded for testing
+    const fatherExternalUuid = 'external-father-uuid-12345'
+
+    if (fatherExternalUuid) {
+      if (!recordDetails.father.identifier) {
+        recordDetails.father.identifier = []
+      }
+      recordDetails.father.identifier.push({
+        id: fatherExternalUuid,
+        type: 'EXTERNAL_PERSON_ID'
+      })
+    }
+  }
+
+  // Extract and store eventLocation for webhook access
+  let eventLocationValue = null
+  if (recordDetails.eventLocation) {
+    if (recordDetails.eventLocation._fhirID) {
+      eventLocationValue = recordDetails.eventLocation._fhirID
+    } else if (recordDetails.eventLocation.address?.district) {
+      eventLocationValue = recordDetails.eventLocation.address.district
+    }
+  }
+  ;(global as any).lastEventLocation = eventLocationValue
 
   const existingDeclarationIds =
     recordDetails.registration?.draftId &&

@@ -33,7 +33,11 @@ export async function birthRegisteredHandler(
   request: Hapi.Request,
   h: Hapi.ResponseToolkit
 ) {
-  const bundle = request.payload as RegisteredRecord
+  const payload = request.payload as
+    | { bundle: RegisteredRecord; placeOfBirth?: string }
+    | RegisteredRecord
+  const bundle = 'bundle' in payload ? payload.bundle : payload
+
   const authHeader: IAuthHeader = {
     Authorization: request.headers.authorization,
     'x-correlation-id': request.headers['x-correlation-id']
@@ -74,7 +78,7 @@ export async function birthRegisteredHandler(
           finalBundle = bundle
         }
         if (webhookToNotify.trigger === TRIGGERS[TRIGGERS.BIRTH_REGISTERED]) {
-          const payload = {
+          const webhookPayload = {
             timestamp: new Date().toISOString(),
             id: webhookToNotify.webhookId,
             event: {
@@ -86,23 +90,23 @@ export async function birthRegisteredHandler(
           }
           logger.info(
             `Dispatching BIRTH_REGISTERED webhook: ${JSON.stringify({
-              timestamp: payload.timestamp,
-              id: payload.id,
-              event: { hub: { topic: payload.event.hub.topic } },
+              timestamp: webhookPayload.timestamp,
+              id: webhookPayload.id,
+              event: { hub: { topic: webhookPayload.event.hub.topic } },
               context: ['<<redacted>>']
             })}`
           )
           const hmac = createRequestSignature(
             'sha256',
             webhookToNotify.sha_secret,
-            JSON.stringify(payload)
+            JSON.stringify(webhookPayload)
           )
           webhookQueue.add(
             `${webhookToNotify.webhookId}_${
               TRIGGERS[TRIGGERS.BIRTH_REGISTERED]
             }`,
             {
-              payload,
+              payload: webhookPayload,
               url: webhookToNotify.address,
               hmac
             },

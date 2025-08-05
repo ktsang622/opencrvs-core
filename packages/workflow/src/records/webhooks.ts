@@ -30,9 +30,14 @@ export const invokeWebhooks = async ({
   token: string
   event: EVENT_TYPE
 }) => {
+  const payload = {
+    bundle,
+    placeOfBirth: (global as any).lastEventLocation
+  }
+
   const request = await fetch(WEBHOOK_URLS[event], {
     method: 'POST',
-    body: JSON.stringify(bundle),
+    body: JSON.stringify(payload),
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`
