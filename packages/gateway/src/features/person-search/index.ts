@@ -11,6 +11,7 @@
 
 import {
   searchPersonHandler,
+  detailedPersonSearchHandler,
   personEventsHandler,
   eventParticipantsHandler
 } from './handler'
@@ -24,6 +25,16 @@ export const personSearchRoutes = [
       auth: false,
       tags: ['api'],
       description: 'Search for persons via family-tree API'
+    }
+  },
+  {
+    method: 'POST',
+    path: '/person-search/detailed',
+    handler: detailedPersonSearchHandler,
+    options: {
+      auth: false,
+      tags: ['api'],
+      description: 'Search for persons with detailed data via family-tree API'
     }
   },
   {

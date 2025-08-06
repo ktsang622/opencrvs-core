@@ -8,5 +8,10 @@
  *
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
-export * from '@client/components/form/FormFieldGenerator'
-export * from '@client/components/form/PersonSearchButton'
+module.exports = {
+  extends: ['../../.eslintrc.js'],
+  parserOptions: {
+    project: './tsconfig.eslint.json',
+    tsconfigRootDir: __dirname
+  }
+}

@@ -81,6 +81,7 @@ export const LINK_BUTTON = 'LINK_BUTTON'
 export const ID_READER = 'ID_READER'
 export const ID_VERIFICATION_BANNER = 'ID_VERIFICATION_BANNER'
 export const LOADER = 'LOADER'
+export const PERSON_SEARCH_BUTTON = 'PERSON_SEARCH_BUTTON'
 
 export enum SubmissionAction {
   SUBMIT_FOR_REVIEW = 'submit for review',
@@ -702,6 +703,12 @@ export interface ILoaderButton extends IFormFieldBase {
   errorTitle: MessageDescriptor
 }
 
+export interface IPersonSearchButton extends IFormFieldBase {
+  type: typeof PERSON_SEARCH_BUTTON
+  modalTitle: MessageDescriptor
+  onPersonSelect?: (person: any) => void
+}
+
 interface ITimeFormFIeld extends IFormFieldBase {
   type: typeof TIME
   ignorePlaceHolder?: boolean
@@ -817,6 +824,7 @@ export type IFormField =
   | ILink
   | IDynamicListFormField
   | ILoaderButton
+  | IPersonSearchButton
   | ISimpleDocumentUploaderFormField
   | ILocationSearchInputFormField
   | IDateRangePickerFormField
@@ -1254,6 +1262,12 @@ interface Ii18nLoaderButtonField extends Ii18nFormFieldBase {
   networkErrorText: string
 }
 
+interface Ii18nPersonSearchButtonField extends Ii18nFormFieldBase {
+  type: typeof PERSON_SEARCH_BUTTON
+  modalTitle: string
+  onPersonSelect?: (person: any) => void
+}
+
 interface I18nDividerField extends Ii18nFormFieldBase {
   type: typeof DIVIDER
 }
@@ -1355,6 +1369,7 @@ export type Ii18nFormField =
   | Ii18nWarningField
   | Ii18nLinkField
   | Ii18nLoaderButtonField
+  | Ii18nPersonSearchButtonField
   | Ii18nSimpleDocumentUploaderFormField
   | Ii18nLocationSearchInputFormField
   | Ii18nDateRangePickerFormField

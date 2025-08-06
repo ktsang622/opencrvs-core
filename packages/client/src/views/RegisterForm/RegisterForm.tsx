@@ -797,6 +797,149 @@ class RegisterFormView extends React.Component<FullProps, State> {
     })
   }
 
+  // Helper function to format date to YYYY-MM-DD format
+  formatDateToYYYYMMDD = (dateValue: any): string | undefined => {
+    if (!dateValue) return undefined
+
+    try {
+      let date: Date
+
+      // Handle different date input formats
+      if (typeof dateValue === 'string') {
+        // If it's already in YYYY-MM-DD format, return as is
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
+          return dateValue
+        }
+        date = new Date(dateValue)
+      } else if (dateValue instanceof Date) {
+        date = dateValue
+      } else if (typeof dateValue === 'number') {
+        date = new Date(dateValue)
+      } else {
+        return undefined
+      }
+
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return undefined
+      }
+
+      // Format to YYYY-MM-DD
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+
+      return `${year}-${month}-${day}`
+    } catch (error) {
+      console.warn('Error formatting date:', error)
+      return undefined
+    }
+  }
+
+  onPersonSelect = (person: any) => {
+    // Handle person selection - auto-populate form fields based on the selected person
+    console.log('Person selected in RegisterForm:', person)
+
+    if (person && this.props.activeSection) {
+      const activeSection = this.props.activeSection
+      const sectionId = activeSection.id
+      const currentSectionData = this.props.declaration.data[sectionId] || {}
+
+      let updatedSectionData = { ...currentSectionData }
+
+      // Section-specific field mappings
+      switch (sectionId) {
+        case 'father':
+          updatedSectionData = {
+            ...currentSectionData,
+            fatherFirstNames:
+              person.given_name || currentSectionData.fatherFirstNames,
+            fatherFamilyName:
+              person.given_name || currentSectionData.fatherFamilyName,
+            fatherFirstNamesEng:
+              person.given_name || currentSectionData.fatherFirstNamesEng,
+            fatherFamilyNameEng:
+              person.given_name || currentSectionData.fatherFamilyNameEng,
+            gender: person.gender || currentSectionData.gender,
+            fatherBirthDate:
+              this.formatDateToYYYYMMDD(person.dob) ||
+              currentSectionData.fatherBirthDate,
+            searchPersonId: person.id || currentSectionData.searchPersonId
+          }
+          break
+
+        case 'mother':
+          updatedSectionData = {
+            ...currentSectionData,
+            motherFirstNames:
+              person.given_name || currentSectionData.motherFirstNames,
+            motherFamilyName:
+              person.family_name || currentSectionData.motherFamilyName,
+            motherFirstNamesEng:
+              person.given_name || currentSectionData.motherFirstNamesEng,
+            motherFamilyNameEng:
+              person.f_na || currentSectionData.motherFamilyNameEng,
+
+            firstNames: person.given_name || currentSectionData.firstNames,
+            familyName: person.family_name || currentSectionData.familyName,
+            firstNamesEng:
+              person.given_name || currentSectionData.firstNamesEng,
+            familyNameEng:
+              person.family_name || currentSectionData.familyNameEng,
+            gender: person.gender || currentSectionData.gender,
+            motherBirthDate:
+              this.formatDateToYYYYMMDD(person.dob) ||
+              currentSectionData.motherBirthDate,
+            searchPersonId: person.id || currentSectionData.searchPersonId
+          }
+          break
+
+        case 'child':
+          updatedSectionData = {
+            ...currentSectionData,
+            firstNames: person.given_name || currentSectionData.firstNames,
+            familyName: person.family_name || currentSectionData.familyName,
+            firstNamesEng:
+              person.given_name || currentSectionData.firstNamesEng,
+            familyNameEng:
+              person.family_name || currentSectionData.familyNameEng,
+            gender: person.gender || currentSectionData.gender,
+            childBirthDate:
+              this.formatDateToYYYYMMDD(person.dob) ||
+              currentSectionData.childBirthDate,
+            searchPersonId: person.id || currentSectionData.searchPersonId
+          }
+          break
+
+        default:
+          // For other sections, use generic field names
+          updatedSectionData = {
+            ...currentSectionData,
+            firstName: person.given_name || currentSectionData.firstName,
+            familyName: person.family_name || currentSectionData.familyName,
+            firstNamesEng:
+              person.given_name || currentSectionData.firstNamesEng,
+            familyNameEng:
+              person.family_name || currentSectionData.familyNameEng,
+            gender: person.gender || currentSectionData.gender
+          }
+          break
+      }
+
+      // Use the existing modifyDeclaration method to update the form
+      this.modifyDeclaration(
+        updatedSectionData,
+        activeSection,
+        this.props.declaration
+      )
+
+      // Force re-render to show updated values
+      this.setState({
+        formFieldKey: `${sectionId}-${Date.now()}`
+      })
+    }
+  }
+
   modifyDeclaration = (
     sectionData: IFormSectionData,
     activeSection: IFormSection,
@@ -1300,6 +1443,7 @@ class RegisterFormView extends React.Component<FullProps, State> {
                                 onUploadingStateChanged={
                                   this.onUploadingStateChanged
                                 }
+                                onPersonSelect={this.onPersonSelect}
                               />
                             </form>
                           </>

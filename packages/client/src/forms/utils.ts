@@ -47,6 +47,8 @@ import {
   ILoaderButton,
   ILoaderFormField,
   INFORMATIVE_RADIO_GROUP,
+  PERSON_SEARCH_BUTTON,
+  IPersonSearchButton,
   InitialValue,
   IQuery,
   IRadioGroupFormField,
@@ -205,6 +207,16 @@ export const internationaliseFieldObject = (
     ;(base as any).errorTitle = intl.formatMessage(
       (field as ILoaderButton).errorTitle
     )
+  }
+
+  if (base.type === PERSON_SEARCH_BUTTON) {
+    ;(base as any).modalTitle = intl.formatMessage(
+      (field as IPersonSearchButton).modalTitle
+    )
+    // Preserve the onPersonSelect callback function
+    ;(base as any).onPersonSelect = (
+      field as IPersonSearchButton
+    ).onPersonSelect
   }
 
   if (isFieldButton(field)) {

@@ -96,8 +96,11 @@ import {
   ID_VERIFICATION_BANNER,
   IDocumentUploaderWithOptionsFormField,
   ILocationSearchInputFormField,
-  LOADER
+  LOADER,
+  PERSON_SEARCH_BUTTON,
+  IPersonSearchButton
 } from '@client/forms'
+import { PersonSearchButtonField } from '@client/components/form/PersonSearchButton'
 import { getValidationErrorsForForm, Errors } from '@client/forms/validation'
 import { InputField } from '@client/components/form/InputField'
 import { FetchButtonField } from '@client/components/form/FetchButton'
@@ -187,6 +190,7 @@ type GeneratedInputFieldProps = {
   fields: IFormField[]
   values: IFormSectionData
   setFieldValue: (name: string, value: IFormFieldValue) => void
+  setValues?: (values: IFormSectionData) => void
   onClick?: () => void
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onChange: (e: React.ChangeEvent<any>) => void
@@ -201,6 +205,7 @@ type GeneratedInputFieldProps = {
   draftData: IFormData
   disabled?: boolean
   onUploadingStateChanged?: (isUploading: boolean) => void
+  onPersonSelect?: (person: any) => void
   requiredErrorMessage?: MessageDescriptor
   setFieldTouched: FormikProps<IFormSectionData>['setFieldTouched']
 } & Omit<IDispatchProps, 'writeDeclaration'>
@@ -211,6 +216,7 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
     onChange,
     onBlur,
     setFieldValue,
+    setValues,
     resetDependentSelectValues,
     resetNestedInputValues,
     error,
@@ -221,6 +227,7 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
     disabled,
     dynamicDispatch,
     onUploadingStateChanged,
+    onPersonSelect,
     setFieldTouched,
     requiredErrorMessage,
     fields,
@@ -697,6 +704,40 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
       )
     }
 
+    // if (fieldDefinition.type === PERSON_SEARCH_BUTTON) {
+    //   const personSearchField = fieldDefinition as IPersonSearchButton
+    //   return (
+    //     <PersonSearchButtonField
+    //       id={personSearchField.name}
+    //       label={personSearchField.label}
+    //       modalTitle={personSearchField.modalTitle}
+    //       onPersonSelect={personSearchField.onPersonSelect || onPersonSelect}
+    //       isDisabled={disabled}
+    //     />
+    //   )
+    // }
+
+    if (fieldDefinition.type === PERSON_SEARCH_BUTTON) {
+      const personSearchField = fieldDefinition as IPersonSearchButton
+      return (
+        <PersonSearchButtonField
+          id={personSearchField.name}
+          label={
+            typeof personSearchField.label === 'string'
+              ? personSearchField.label
+              : intl.formatMessage(personSearchField.label)
+          }
+          modalTitle={
+            typeof personSearchField.modalTitle === 'string'
+              ? personSearchField.modalTitle
+              : intl.formatMessage(personSearchField.modalTitle)
+          }
+          onPersonSelect={personSearchField.onPersonSelect}
+          isDisabled={disabled}
+        />
+      )
+    }
+
     if (fieldDefinition.type === HIDDEN) {
       const { error, touched, ...allowedInputProps } = inputProps
 
@@ -706,6 +747,27 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
           {...allowedInputProps}
           value={inputProps.value as string}
         />
+      )
+    }
+
+    if (
+      fieldDefinition.type === TEXT &&
+      fieldDefinition.name === 'searchPersonId'
+    ) {
+      return (
+        <InputField {...inputFieldProps}>
+          <TextInput
+            type="text"
+            {...inputProps}
+            value={inputProps.value as string}
+            maxLength={(fieldDefinition as Ii18nTextFormField).maxLength}
+            isDisabled={disabled}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              console.log('🔧 searchPersonId field onChange:', e.target.value)
+              setFieldValue(fieldDefinition.name, e.target.value)
+            }}
+          />
+        </InputField>
       )
     }
     if (fieldDefinition.type === SIGNATURE) {
@@ -846,6 +908,7 @@ interface IFormSectionProps {
   onSetTouched?: (func: ISetTouchedFunction) => void
   requiredErrorMessage?: MessageDescriptor
   onUploadingStateChanged?: (isUploading: boolean) => void
+  onPersonSelect?: (person: any) => void
   initialValues?: IAdvancedSearchFormState
 }
 
@@ -1202,6 +1265,7 @@ export class FormSectionComponent extends React.Component<Props> {
 
           if (
             field.type === FETCH_BUTTON ||
+            field.type === PERSON_SEARCH_BUTTON ||
             field.type === FIELD_WITH_DYNAMIC_DEFINITIONS ||
             field.type === SELECT_WITH_DYNAMIC_OPTIONS ||
             field.type === BUTTON
@@ -1220,6 +1284,7 @@ export class FormSectionComponent extends React.Component<Props> {
                         withDynamicallyGeneratedFields
                       )}
                       setFieldValue={this.setFieldValuesWithDependency}
+                      setValues={setValues}
                       setFieldTouched={setFieldTouched}
                       resetDependentSelectValues={
                         this.resetDependentSelectValues
@@ -1232,6 +1297,20 @@ export class FormSectionComponent extends React.Component<Props> {
                       draftData={draftData}
                       disabled={isFieldDisabled}
                       dynamicDispatch={dynamicDispatch}
+                      onPersonSelect={(person: any) => {
+                        // Store the selected person's UUID in searchPersonId field
+                        if (person.uuid) {
+                          this.props.setFieldValue(
+                            'searchPersonId',
+                            person.uuid
+                          )
+                        }
+
+                        // Call the original callback
+                        if (this.props.onPersonSelect) {
+                          this.props.onPersonSelect(person)
+                        }
+                      }}
                     />
                   )}
                 </Field>
@@ -1389,6 +1468,38 @@ export class FormSectionComponent extends React.Component<Props> {
                 <Field name={field.name}>
                   {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                   {(formikFieldProps: FieldProps<any>) => {
+                    // Debug log for searchPersonId field
+                    if (field.name === 'searchPersonId') {
+                      console.log(
+                        '🔧 searchPersonId Field wrapper - formikFieldProps:',
+                        formikFieldProps
+                      )
+                      console.log(
+                        '🔧 searchPersonId Field wrapper - current value:',
+                        formikFieldProps.field.value
+                      )
+                      console.log(
+                        '🔧 searchPersonId Field wrapper - form values:',
+                        formikFieldProps.form.values
+                      )
+                      console.log(
+                        '🔧 searchPersonId Field wrapper - field definition:',
+                        field
+                      )
+
+                      // Force set the value if it's undefined but exists in form values
+                      if (
+                        formikFieldProps.field.value === undefined &&
+                        formikFieldProps.form.values.searchPersonId
+                      ) {
+                        console.log('🔧 Force setting searchPersonId value')
+                        formikFieldProps.form.setFieldValue(
+                          'searchPersonId',
+                          formikFieldProps.form.values.searchPersonId
+                        )
+                      }
+                    }
+
                     return (
                       <GeneratedInputField
                         fieldDefinition={internationaliseFieldObject(

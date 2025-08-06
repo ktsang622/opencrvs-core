@@ -38,13 +38,63 @@ export async function searchPersonHandler(
 
     const data = await response.json()
 
-    // Transform the response to match expected format
+    // Transform the response to minimal format
     const results =
       data.hits?.map((hit: any) => ({
         uuid: hit.id,
         name: hit.full_name,
         nationalId: hit.identifiers?.[0]?.value || 'N/A',
         dateOfBirth: hit.dob || 'N/A',
+        score: hit._score
+      })) || []
+
+    return h.response({ hits: results, total: data.total }).code(200)
+  } catch (error) {
+    console.error('Person search error:', error)
+    return h.response({ error: 'Search failed' }).code(500)
+  }
+}
+
+export async function detailedPersonSearchHandler(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit
+) {
+  const payload = request.payload as any
+
+  try {
+    // Proxy to family-tree API
+    const response = await fetch(
+      `${PERSON_SEARCH_API_URL}/api/opensearch/search-person`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Family-tree API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    // Transform the response to detailed format
+    const results =
+      data.hits?.map((hit: any) => ({
+        uuid: hit.id,
+        name: hit.full_name,
+        given_name: hit.given_name,
+        family_name: hit.family_name,
+        nationalId:
+          hit.identifiers?.find((id: any) => id.type === 'NATIONAL_ID')
+            ?.value || 'N/A',
+        dateOfBirth: hit.dob || 'N/A',
+        dob: hit.dob,
+        gender: hit.gender,
+        place_of_birth: hit.place_of_birth,
+        identifiers: hit.identifiers,
         score: hit._score
       })) || []
 

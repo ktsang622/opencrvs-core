@@ -113,6 +113,9 @@ const LinkButtonField = base.extend({ type: z.literal('LINK_BUTTON') })
 const IDReaderField = base.extend({ type: z.literal('ID_READER') })
 const BannerField = base.extend({ type: z.literal('ID_VERIFICATION_BANNER') })
 const LoaderField = base.extend({ type: z.literal('LOADER') })
+const PersonSearchButtonField = base.extend({
+  type: z.literal('PERSON_SEARCH_BUTTON')
+})
 
 // completed types
 const HttpField = base.extend({
@@ -173,7 +176,8 @@ export const field = z.discriminatedUnion('type', [
   LinkButtonField,
   IDReaderField,
   BannerField,
-  LoaderField
+  LoaderField,
+  PersonSearchButtonField
 ])
 
 type Field = z.infer<typeof field>

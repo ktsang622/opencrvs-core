@@ -16,6 +16,7 @@ import {
   DATE,
   DIVIDER,
   FETCH_BUTTON,
+  PERSON_SEARCH_BUTTON,
   FIELD_WITH_DYNAMIC_DEFINITIONS,
   HIDDEN,
   IAttachmentValue,
@@ -747,6 +748,7 @@ export function isViewOnly(field: IFormField) {
     TEXTAREA,
     SUBSECTION_HEADER,
     FETCH_BUTTON,
+    PERSON_SEARCH_BUTTON,
     DIVIDER
   ].find((type) => type === field.type)
 }
