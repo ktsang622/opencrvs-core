@@ -150,19 +150,21 @@ async function resolveLocationsForEncounter(
   if (encounter.location == null) {
     return null
   }
-  const locationIds: Array<string> = []
-  for (const { location } of encounter.location) {
-    locationIds.push(location.reference.split('/')[1])
-  }
+  const locationIds = encounter.location.map(
+    ({ location }) => location.reference.split('/')[1]
+  )
   return getLocationsById(locationIds)
 }
 
 function bundleIncludesLocationResources(record: Saved<Bundle>) {
   const encounter = findEncounterFromRecord(record)
-  const encounterLocationIds =
-    encounter?.location?.map(
-      ({ location }) => location.reference.split('/')[1]
-    ) || []
+  if (!encounter?.location) {
+    return true
+  }
+
+  const encounterLocationIds = encounter.location.map(
+    ({ location }) => location.reference.split('/')[1]
+  )
 
   const bundleLocations = record.entry.filter(
     ({ resource }) => resource.resourceType == 'Location'
@@ -210,22 +212,9 @@ async function createRecord(
     }
   }
 
-  // Add external UUID to mother and father Patient in FHIR bundle (birth events only)
+  // Store mother and father Patient IDs using RelatedPerson references (birth events only)
+  let parentIds = { motherId: null, fatherId: null }
   if (event === 'BIRTH') {
-    const birthRecord = recordDetails as any
-    const motherExternalUuid =
-      birthRecord.mother?.identifier?.find(
-        (id: any) => id.type === 'EXTERNAL_PERSON_ID'
-      )?.id || 'external-mother-uuid-12345'
-    const fatherExternalUuid =
-      birthRecord.father?.identifier?.find(
-        (id: any) => id.type === 'EXTERNAL_PERSON_ID'
-      )?.id || 'external-father-uuid-12345'
-
-    const patients = inputBundle.entry.filter(
-      (e) => e.resource.resourceType === 'Patient'
-    )
-
     // Find mother and father by RelatedPerson references
     const motherRelation = inputBundle.entry.find(
       (e) =>
@@ -243,50 +232,13 @@ async function createRecord(
         )
     )?.resource as any
 
-    const motherPatient = motherRelation
-      ? (patients.find(
-          (e) =>
-            e.resource.id === motherRelation.patient?.reference?.split('/')?.[1]
-        )?.resource as any)
-      : null
-
-    const fatherPatient = fatherRelation
-      ? (patients.find(
-          (e) =>
-            e.resource.id === fatherRelation.patient?.reference?.split('/')?.[1]
-        )?.resource as any)
-      : null
-
-    if (motherPatient) {
-      if (!motherPatient.identifier) motherPatient.identifier = []
-      motherPatient.identifier.push({
-        value: motherExternalUuid,
-        type: {
-          coding: [
-            {
-              system: 'http://opencrvs.org/specs/identifier-type',
-              code: 'EXTERNAL_PERSON_ID'
-            }
-          ]
-        }
-      })
-    }
-
-    if (fatherPatient) {
-      if (!fatherPatient.identifier) fatherPatient.identifier = []
-      fatherPatient.identifier.push({
-        value: fatherExternalUuid,
-        type: {
-          coding: [
-            {
-              system: 'http://opencrvs.org/specs/identifier-type',
-              code: 'EXTERNAL_PERSON_ID'
-            }
-          ]
-        }
-      })
+    parentIds = {
+      motherId: motherRelation?.patient?.reference?.split('/')?.[1] || null,
+      fatherId: fatherRelation?.patient?.reference?.split('/')?.[1] || null
     }
   }
+  ;(global as any).lastParentIds = parentIds
+  console.log('=== Stored parent IDs for webhook:', parentIds)
 
   const trackingId = await generateTrackingIdForEvents(
     event,
@@ -415,26 +367,16 @@ export default async function createRecordHandler(
 
   // Add custom external UUID to mother's identifier array (birth events only)
   if (event === 'BIRTH' && 'mother' in recordDetails && recordDetails.mother) {
-    // Option 1: Use actual form field (replace 'externalUuid' with your field name)
-    // const motherExternalUuid = (recordDetails.mother as any).externalUuid
+    const motherExternalUuid = '07252207-df82-40f2-8a5c-66c4bbaa5821'
 
-    // Option 2: Generate UUID from existing data (example)
-    // const motherExternalUuid = `ext-mother-${recordDetails.mother.identifier?.[0]?.id || 'unknown'}`
-
-    // Option 3: Hardcoded for testing
-    const motherExternalUuid = 'external-mother-uuid-12345'
-
-    console.log('=== Mother external UUID:', motherExternalUuid)
-    if (motherExternalUuid) {
-      if (!recordDetails.mother.identifier) {
-        recordDetails.mother.identifier = []
-      }
-      recordDetails.mother.identifier.push({
-        id: motherExternalUuid,
-        type: 'EXTERNAL_PERSON_ID'
-      })
-      console.log('=== Added external UUID to mother identifier')
+    if (!recordDetails.mother.identifier) {
+      recordDetails.mother.identifier = []
     }
+    recordDetails.mother.identifier.push({
+      id: motherExternalUuid,
+      type: 'EXTERNAL_PERSON_ID'
+    })
+    console.log('=== Added external UUID to mother identifier')
   }
 
   // Add custom external UUID to father's identifier array (birth events only)
@@ -451,7 +393,7 @@ export default async function createRecordHandler(
     // const fatherExternalUuid = `ext-father-${recordDetails.father.identifier?.[0]?.id || 'unknown'}`
 
     // Option 3: Hardcoded for testing
-    const fatherExternalUuid = 'external-father-uuid-12345'
+    const fatherExternalUuid = null //'1a7684f1-a2bf-4bd1-afc7-1ddcdb922e48'
 
     if (fatherExternalUuid) {
       if (!recordDetails.father.identifier) {

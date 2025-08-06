@@ -162,11 +162,6 @@ export const EventsTableComponent: React.FC<IEventsTableProps> = ({
                         ? 'Hide'
                         : 'Participants'}
                     </Button>
-
-                    <Button type="tertiary" size="small" disabled>
-                      <Icon name="X" size="small" />
-                      Revoke
-                    </Button>
                   </EventActions>
                 </EventCell>
               </EventRow>
