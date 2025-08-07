@@ -98,9 +98,9 @@ import {
   ILocationSearchInputFormField,
   LOADER,
   EXT_LOOKUP_BUTTON,
-  IExtLookupButton
+  IPersonPicker
 } from '@client/forms'
-import { ExtLookupButtonField } from '@client/components/form/PersonSearchButton'
+import { ExtLookupButtonField } from '@client/components/form/PersonPicker'
 import { UnlinkButton } from '@client/components/form/UnlinkButton'
 import { getValidationErrorsForForm, Errors } from '@client/forms/validation'
 import { InputField } from '@client/components/form/InputField'
@@ -719,7 +719,7 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
     // }
 
     if (fieldDefinition.type === EXT_LOOKUP_BUTTON) {
-      const personSearchField = fieldDefinition as IExtLookupButton
+      const personSearchField = fieldDefinition as IPersonPicker
       return (
         <ExtLookupButtonField
           id={personSearchField.name}

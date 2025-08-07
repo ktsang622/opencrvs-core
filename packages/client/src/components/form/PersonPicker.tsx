@@ -25,7 +25,7 @@ import { useSelector } from 'react-redux'
 import { getScope } from '@client/profile/profileSelectors'
 import { usePersonSearch } from '@client/hooks/usePersonSearch'
 
-interface IExtLookupButtonProps {
+interface IPersonPickerProps {
   id: string
   label: string
   className?: string
@@ -35,7 +35,7 @@ interface IExtLookupButtonProps {
   setFieldValue?: (name: string, value: any) => void
 }
 
-type IFullProps = IExtLookupButtonProps & IntlShapeProps
+type IFullProps = IPersonPickerProps & IntlShapeProps
 
 const Container = styled.div`
   display: flex;
@@ -93,7 +93,7 @@ const StyledPrimaryButton = styled(PrimaryButton)`
   }}
 `
 
-const ExtLookupButton = (
+const PersonPicker = (
   props: IFullProps & { setFieldValue?: (name: string, value: any) => void }
 ) => {
   const { intl, label, modalTitle, isDisabled, onPersonSelect, setFieldValue } =
@@ -116,7 +116,7 @@ const ExtLookupButton = (
 
   // Debug: Log when component mounts
   React.useEffect(() => {
-    console.log('🔧 PersonSearchButton mounted with Formik context:', {
+    console.log('🔧 PersonPicker mounted with Formik context:', {
       id: props.id,
       label: props.label,
       formikAvailable: !!formik
@@ -132,6 +132,20 @@ const ExtLookupButton = (
     if (formik) {
       console.log('✅ Using Formik context to set field values')
 
+      // Auto-detect which section (mother/father) this picker is used in
+      // by checking existing form field names
+      const isMotherSection = Object.keys(formik.values).some((key) =>
+        key.startsWith('mother')
+      )
+      const isFatherSection = Object.keys(formik.values).some((key) =>
+        key.startsWith('father')
+      )
+      const sectionPrefix = isMotherSection
+        ? 'mother'
+        : isFatherSection
+          ? 'father'
+          : 'mother'
+
       if (personData.uuid) {
         formik.setFieldValue('searchPersonId', personData.uuid)
       }
@@ -141,28 +155,37 @@ const ExtLookupButton = (
       if (personData.family_name) {
         formik.setFieldValue('familyNameEng', personData.family_name)
       }
+
+      // Populate birth date field (motherBirthDate or fatherBirthDate)
       if (personData.dob) {
-        const formattedDob = personData.dob.split('T')[0] // "YYYY-MM-DD"
-        formik.setFieldValue('motherBirthDate', formattedDob)
+        const formattedDob = personData.dob.split('T')[0] // Convert ISO to YYYY-MM-DD
+        formik.setFieldValue(`${sectionPrefix}BirthDate`, formattedDob)
       }
 
-      // Handle identifiers dynamically
-      const validIdTypes = [
-        'NATIONAL_ID',
-        'PASSPORT',
-        'BIRTH_REGISTRATION_NUMBER'
-      ]
-      const identifier = personData.identifiers?.find((id: any) =>
-        validIdTypes.includes(id.type)
+      // Populate ID type and number fields based on person's identifiers
+      // Skip 'crvs' type as it's internal, use NATIONAL_ID, PASSPORT, etc.
+      const identifier = personData.identifiers?.find(
+        (id: any) => id.type !== 'crvs'
       )
       if (identifier) {
-        formik.setFieldValue('motherIdType', identifier.type)
-        const fieldName = `mother${identifier.type
-          .split('_')
-          .map((word: string) => word.charAt(0) + word.slice(1).toLowerCase())
-          .join('')}`
-        formik.setFieldValue(fieldName, identifier.value)
+        // Set ID type (motherIdType or fatherIdType)
+        formik.setFieldValue(`${sectionPrefix}IdType`, identifier.type)
+
+        // Set ID number in the corresponding field based on type
+        if (identifier.type === 'NATIONAL_ID') {
+          formik.setFieldValue(`${sectionPrefix}NationalId`, identifier.value)
+        } else if (identifier.type === 'PASSPORT') {
+          formik.setFieldValue(`${sectionPrefix}Passport`, identifier.value)
+        } else if (identifier.type === 'BIRTH_REGISTRATION_NUMBER') {
+          formik.setFieldValue(
+            `${sectionPrefix}BirthRegistrationNumber`,
+            identifier.value
+          )
+        }
       }
+
+      // Mark that person details exist (enables form fields)
+      formik.setFieldValue('detailsExist', true)
     }
 
     // Also call parent callback
@@ -346,6 +369,4 @@ const ExtLookupButton = (
   )
 }
 
-export const ExtLookupButtonField = injectIntl<'intl', IFullProps>(
-  ExtLookupButton
-)
+export const ExtLookupButtonField = injectIntl<'intl', IFullProps>(PersonPicker)

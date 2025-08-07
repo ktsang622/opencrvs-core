@@ -703,7 +703,7 @@ export interface ILoaderButton extends IFormFieldBase {
   errorTitle: MessageDescriptor
 }
 
-export interface IExtLookupButton extends IFormFieldBase {
+export interface IPersonPicker extends IFormFieldBase {
   type: typeof EXT_LOOKUP_BUTTON
   modalTitle: MessageDescriptor
   successTitle?: MessageDescriptor
@@ -828,7 +828,7 @@ export type IFormField =
   | ILink
   | IDynamicListFormField
   | ILoaderButton
-  | IExtLookupButton
+  | IPersonPicker
   | ISimpleDocumentUploaderFormField
   | ILocationSearchInputFormField
   | IDateRangePickerFormField
@@ -1266,7 +1266,7 @@ interface Ii18nLoaderButtonField extends Ii18nFormFieldBase {
   networkErrorText: string
 }
 
-interface Ii18nExtLookupButtonField extends Ii18nFormFieldBase {
+interface Ii18nPersonPickerField extends Ii18nFormFieldBase {
   type: typeof EXT_LOOKUP_BUTTON
   modalTitle: string
   onPersonSelect?: (person: any) => void
@@ -1373,7 +1373,7 @@ export type Ii18nFormField =
   | Ii18nWarningField
   | Ii18nLinkField
   | Ii18nLoaderButtonField
-  | Ii18nExtLookupButtonField
+  | Ii18nPersonPickerField
   | Ii18nSimpleDocumentUploaderFormField
   | Ii18nLocationSearchInputFormField
   | Ii18nDateRangePickerFormField
