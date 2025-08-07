@@ -385,10 +385,16 @@ const form = z.object({
           (sec) => {
             const fieldsInSection = sec.groups.flatMap((group) => group.fields)
             const buttonFields = fieldsInSection.filter(isButtonField)
-            return buttonFields.every((button) =>
-              fieldsInSection.some(
-                (field) => button.options.trigger === field.name
-              )
+            const allowedTriggers = [
+              'custom',
+              'unlinkPerson',
+              'clearLinkedData'
+            ]
+            return buttonFields.every(
+              (button) =>
+                fieldsInSection.some(
+                  (field) => button.options.trigger === field.name
+                ) || allowedTriggers.includes(button.options.trigger)
             )
           },
           (sec) => {

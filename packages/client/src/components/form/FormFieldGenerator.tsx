@@ -97,10 +97,11 @@ import {
   IDocumentUploaderWithOptionsFormField,
   ILocationSearchInputFormField,
   LOADER,
-  PERSON_SEARCH_BUTTON,
-  IPersonSearchButton
+  EXT_LOOKUP_BUTTON,
+  IExtLookupButton
 } from '@client/forms'
-import { PersonSearchButtonField } from '@client/components/form/PersonSearchButton'
+import { ExtLookupButtonField } from '@client/components/form/PersonSearchButton'
+import { UnlinkButton } from '@client/components/form/UnlinkButton'
 import { getValidationErrorsForForm, Errors } from '@client/forms/validation'
 import { InputField } from '@client/components/form/InputField'
 import { FetchButtonField } from '@client/components/form/FetchButton'
@@ -704,10 +705,10 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
       )
     }
 
-    // if (fieldDefinition.type === PERSON_SEARCH_BUTTON) {
-    //   const personSearchField = fieldDefinition as IPersonSearchButton
+    // if (fieldDefinition.type === EXT_LOOKUP_BUTTON) {
+    //   const personSearchField = fieldDefinition as IExtLookupButton
     //   return (
-    //     <PersonSearchButtonField
+    //     <ExtLookupButtonField
     //       id={personSearchField.name}
     //       label={personSearchField.label}
     //       modalTitle={personSearchField.modalTitle}
@@ -717,10 +718,10 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
     //   )
     // }
 
-    if (fieldDefinition.type === PERSON_SEARCH_BUTTON) {
-      const personSearchField = fieldDefinition as IPersonSearchButton
+    if (fieldDefinition.type === EXT_LOOKUP_BUTTON) {
+      const personSearchField = fieldDefinition as IExtLookupButton
       return (
-        <PersonSearchButtonField
+        <ExtLookupButtonField
           id={personSearchField.name}
           label={
             typeof personSearchField.label === 'string'
@@ -807,11 +808,15 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
     }
 
     if (fieldDefinition.type === BUTTON) {
+      const buttonField = fieldDefinition as Ii18nButtonFormField
+      if ((buttonField as any).options?.trigger === 'clearLinkedData') {
+        return <UnlinkButton id={buttonField.name} label={buttonField.label} />
+      }
       return (
         <InputField {...inputFieldProps}>
           <ButtonField
             fields={fields}
-            fieldDefinition={fieldDefinition as Ii18nButtonFormField}
+            fieldDefinition={buttonField}
             values={values}
             draftData={draftData}
             setFieldValue={setFieldValue}
@@ -1265,7 +1270,7 @@ export class FormSectionComponent extends React.Component<Props> {
 
           if (
             field.type === FETCH_BUTTON ||
-            field.type === PERSON_SEARCH_BUTTON ||
+            field.type === EXT_LOOKUP_BUTTON ||
             field.type === FIELD_WITH_DYNAMIC_DEFINITIONS ||
             field.type === SELECT_WITH_DYNAMIC_OPTIONS ||
             field.type === BUTTON

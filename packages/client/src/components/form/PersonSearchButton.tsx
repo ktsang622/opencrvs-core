@@ -20,8 +20,11 @@ import { buttonMessages } from '@client/i18n/messages'
 import { useOnlineStatus } from '@client/utils'
 import { config } from '@client/config'
 import { useFormikContext } from 'formik'
+import { useSelector } from 'react-redux'
+import { getScope } from '@client/profile/profileSelectors'
+import { hasScope } from '@client/utils/authUtils'
 
-interface IPersonSearchButtonProps {
+interface IExtLookupButtonProps {
   id: string
   label: string
   className?: string
@@ -31,31 +34,24 @@ interface IPersonSearchButtonProps {
   setFieldValue?: (name: string, value: any) => void
 }
 
-type IFullProps = IPersonSearchButtonProps & IntlShapeProps
+type IFullProps = IExtLookupButtonProps & IntlShapeProps
 
 const Container = styled.div`
   display: flex;
 `
 
 const SearchContainer = styled.div`
-  padding: 20px 0;
-  min-height: 400px;
-
-  @media (min-width: ${({ theme }) => theme.grid.breakpoints.lg}px) {
-    min-width: 550px;
-    min-height: 500px;
-  }
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 `
 
 const SearchResults = styled.div`
-  max-height: 300px;
+  flex: 1;
   overflow-y: auto;
   margin-top: 16px;
-
-  @media (min-width: ${({ theme }) => theme.grid.breakpoints.lg}px) {
-    max-height: 400px;
-    min-height: 200px;
-  }
 `
 
 const PersonItem = styled.div`
@@ -96,7 +92,7 @@ const StyledPrimaryButton = styled(PrimaryButton)`
   }}
 `
 
-const PersonSearchButton = (
+const ExtLookupButton = (
   props: IFullProps & { setFieldValue?: (name: string, value: any) => void }
 ) => {
   const { intl, label, modalTitle, isDisabled, onPersonSelect, setFieldValue } =
@@ -167,7 +163,7 @@ const PersonSearchButton = (
       if (searchTerm.trim().length >= 3) {
         handleSearch(searchTerm)
       }
-    }, 300)
+    }, 500)
 
     return () => clearTimeout(delayDebounce)
   }, [searchTerm, handleSearch])
@@ -219,6 +215,11 @@ const PersonSearchButton = (
       onPersonSelect(personData)
     }
 
+    // Trigger validation to clear any existing errors
+    setTimeout(() => {
+      formik.validateForm()
+    }, 100)
+
     setShowModal(false)
     setSearchTerm('')
     setSearchResults([])
@@ -244,41 +245,62 @@ const PersonSearchButton = (
         {label}
       </StyledPrimaryButton>
 
-      <ResponsiveModal
-        id="person-search-modal"
-        title={modalTitle}
-        show={showModal}
-        handleClose={handleCloseModal}
-        width={600}
-        actions={[
-          <TertiaryButton
-            key="cancel"
-            id="person-search-cancel"
-            onClick={handleCloseModal}
+      {showModal && (
+        <>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: window.innerWidth < 1024 ? 0 : 'auto',
+              right: 0,
+              width: window.innerWidth < 1024 ? '100vw' : '40%',
+              height: '100vh',
+              backgroundColor: 'white',
+              boxShadow:
+                window.innerWidth < 1024
+                  ? 'none'
+                  : '-2px 0 8px rgba(0,0,0,0.1)',
+              zIndex: 1000,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
           >
-            {intl.formatMessage(buttonMessages.cancel)}
-          </TertiaryButton>
-        ]}
-      >
-        <SearchContainer>
-          <InputField
-            id="person-search-input-field"
-            touched={true}
-            required={true}
-            optionalLabel=""
-            label={intl.formatMessage(buttonMessages.search)}
-          >
-            <TextInput
-              id="person-search-input"
-              value={searchTerm}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setSearchTerm(e.target.value)
-              }
-              placeholder="Search by name..."
-            />
-          </InputField>
+            <div
+              style={{
+                padding: '16px 24px',
+                borderBottom: '1px solid #e0e0e0',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <h3 style={{ margin: 0 }}>{modalTitle}</h3>
+              <TertiaryButton
+                id="person-search-cancel"
+                onClick={handleCloseModal}
+              >
+                ✕
+              </TertiaryButton>
+            </div>
+            <SearchContainer>
+              <InputField
+                id="person-search-input-field"
+                touched={true}
+                required={true}
+                optionalLabel=""
+                label={intl.formatMessage(buttonMessages.search)}
+              >
+                <TextInput
+                  id="person-search-input"
+                  value={searchTerm}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setSearchTerm(e.target.value)
+                  }
+                  placeholder="Search by name..."
+                />
+              </InputField>
 
-          {/* Optional manual search button
+              {/* Optional manual search button
           <PrimaryButton
             id="search-person-button"
             type="button"
@@ -288,53 +310,58 @@ const PersonSearchButton = (
             Search
           </PrimaryButton> */}
 
-          <SearchResults>
-            {isSearching && (
-              <div style={{ textAlign: 'center', padding: '20px' }}>
-                <Spinner id="person-search-spinner" size={24} />
-              </div>
-            )}
+              <SearchResults>
+                {isSearching && (
+                  <div style={{ textAlign: 'center', padding: '20px' }}>
+                    <Spinner id="person-search-spinner" size={24} />
+                  </div>
+                )}
 
-            {!isSearching &&
-              searchResults.map((hit, index) => {
-                const person = hit.source || hit
-                return (
-                  <PersonItem
-                    key={person.uuid || person.id || index}
-                    onClick={() => handlePersonSelect(person)}
-                  >
-                    <PersonName>{person.full_name || person.name}</PersonName>
+                {!isSearching &&
+                  searchResults.map((hit, index) => {
+                    const person = hit.source || hit
+                    return (
+                      <PersonItem
+                        key={person.uuid || person.id || index}
+                        onClick={() => handlePersonSelect(person)}
+                      >
+                        <PersonName>
+                          {person.full_name || person.name}
+                        </PersonName>
+                        <PersonDetails>
+                          DOB:{' '}
+                          {person.dob?.substring(0, 10) || person.dateOfBirth} |
+                          Gender: {person.gender}
+                          <br />
+                          ID:{' '}
+                          {person.identifiers?.[0]?.value ||
+                            person.nationalId ||
+                            'N/A'}{' '}
+                          | Place of Birth: {person.place_of_birth}
+                        </PersonDetails>
+                      </PersonItem>
+                    )
+                  })}
+
+                {!isSearching &&
+                  searchResults.length === 0 &&
+                  searchTerm.trim().length >= 3 &&
+                  !error && (
                     <PersonDetails>
-                      DOB: {person.dob?.substring(0, 10) || person.dateOfBirth}{' '}
-                      | Gender: {person.gender}
-                      <br />
-                      ID:{' '}
-                      {person.identifiers?.[0]?.value ||
-                        person.nationalId ||
-                        'N/A'}{' '}
-                      | Place of Birth: {person.place_of_birth}
+                      No persons found matching your search.
                     </PersonDetails>
-                  </PersonItem>
-                )
-              })}
+                  )}
 
-            {!isSearching &&
-              searchResults.length === 0 &&
-              searchTerm.trim().length >= 3 &&
-              !error && (
-                <PersonDetails>
-                  No persons found matching your search.
-                </PersonDetails>
-              )}
-
-            {error && <ErrorMessage>{error}</ErrorMessage>}
-          </SearchResults>
-        </SearchContainer>
-      </ResponsiveModal>
+                {error && <ErrorMessage>{error}</ErrorMessage>}
+              </SearchResults>
+            </SearchContainer>
+          </div>
+        </>
+      )}
     </Container>
   )
 }
 
-export const PersonSearchButtonField = injectIntl<'intl', IFullProps>(
-  PersonSearchButton
+export const ExtLookupButtonField = injectIntl<'intl', IFullProps>(
+  ExtLookupButton
 )

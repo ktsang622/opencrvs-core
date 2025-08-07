@@ -81,7 +81,7 @@ export const LINK_BUTTON = 'LINK_BUTTON'
 export const ID_READER = 'ID_READER'
 export const ID_VERIFICATION_BANNER = 'ID_VERIFICATION_BANNER'
 export const LOADER = 'LOADER'
-export const PERSON_SEARCH_BUTTON = 'PERSON_SEARCH_BUTTON'
+export const EXT_LOOKUP_BUTTON = 'EXT_LOOKUP_BUTTON'
 
 export enum SubmissionAction {
   SUBMIT_FOR_REVIEW = 'submit for review',
@@ -703,9 +703,13 @@ export interface ILoaderButton extends IFormFieldBase {
   errorTitle: MessageDescriptor
 }
 
-export interface IPersonSearchButton extends IFormFieldBase {
-  type: typeof PERSON_SEARCH_BUTTON
+export interface IExtLookupButton extends IFormFieldBase {
+  type: typeof EXT_LOOKUP_BUTTON
   modalTitle: MessageDescriptor
+  successTitle?: MessageDescriptor
+  errorTitle?: MessageDescriptor
+  queryMap?: any
+  querySelectorInput?: any
   onPersonSelect?: (person: any) => void
 }
 
@@ -824,7 +828,7 @@ export type IFormField =
   | ILink
   | IDynamicListFormField
   | ILoaderButton
-  | IPersonSearchButton
+  | IExtLookupButton
   | ISimpleDocumentUploaderFormField
   | ILocationSearchInputFormField
   | IDateRangePickerFormField
@@ -1262,8 +1266,8 @@ interface Ii18nLoaderButtonField extends Ii18nFormFieldBase {
   networkErrorText: string
 }
 
-interface Ii18nPersonSearchButtonField extends Ii18nFormFieldBase {
-  type: typeof PERSON_SEARCH_BUTTON
+interface Ii18nExtLookupButtonField extends Ii18nFormFieldBase {
+  type: typeof EXT_LOOKUP_BUTTON
   modalTitle: string
   onPersonSelect?: (person: any) => void
 }
@@ -1369,7 +1373,7 @@ export type Ii18nFormField =
   | Ii18nWarningField
   | Ii18nLinkField
   | Ii18nLoaderButtonField
-  | Ii18nPersonSearchButtonField
+  | Ii18nExtLookupButtonField
   | Ii18nSimpleDocumentUploaderFormField
   | Ii18nLocationSearchInputFormField
   | Ii18nDateRangePickerFormField

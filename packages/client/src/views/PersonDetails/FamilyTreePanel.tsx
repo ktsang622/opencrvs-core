@@ -15,6 +15,8 @@ export const FamilyTreePanel: React.FC<IFamilyTreePanelProps> = ({
   personId,
   onClose
 }) => {
+  const [isLoading, setIsLoading] = React.useState(true)
+
   return (
     <div
       style={{
@@ -40,15 +42,22 @@ export const FamilyTreePanel: React.FC<IFamilyTreePanelProps> = ({
           ✕
         </Button>
       </div>
+      {isLoading && (
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          Loading Family Tree...
+        </div>
+      )}
       <iframe
         src={`${config.FAMILY_TREE_URL}/${personId}`}
         style={{
           width: '100%',
           height: '300px',
-          border: 'none'
+          border: 'none',
+          display: isLoading ? 'none' : 'block'
         }}
         title="Family Tree"
         onLoad={(e) => {
+          setIsLoading(false)
           const iframe = e.target as HTMLIFrameElement
           const resizeIframe = () => {
             try {

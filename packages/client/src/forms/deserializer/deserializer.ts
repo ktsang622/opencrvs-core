@@ -32,8 +32,8 @@ import {
   IMutationDescriptor,
   MutationFactoryOperation,
   FETCH_BUTTON,
-  PERSON_SEARCH_BUTTON,
-  IPersonSearchButton,
+  EXT_LOOKUP_BUTTON,
+  IExtLookupButton,
   IQueryMap,
   ISerializedQueryMap,
   ILoaderButton,
@@ -363,13 +363,13 @@ function deserializeFormField(
     } as ILoaderButton
   }
 
-  if (field.type === PERSON_SEARCH_BUTTON) {
-    return baseFields as IPersonSearchButton
+  if (field.type === EXT_LOOKUP_BUTTON) {
+    return baseFields as IExtLookupButton
   }
 
   return baseFields as Exclude<
     IFormField,
-    IFormFieldWithDynamicDefinitions | ILoaderButton | IPersonSearchButton
+    IFormFieldWithDynamicDefinitions | ILoaderButton | IExtLookupButton
   >
 }
 

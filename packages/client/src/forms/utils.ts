@@ -47,8 +47,8 @@ import {
   ILoaderButton,
   ILoaderFormField,
   INFORMATIVE_RADIO_GROUP,
-  PERSON_SEARCH_BUTTON,
-  IPersonSearchButton,
+  EXT_LOOKUP_BUTTON,
+  IExtLookupButton,
   InitialValue,
   IQuery,
   IRadioGroupFormField,
@@ -209,14 +209,12 @@ export const internationaliseFieldObject = (
     )
   }
 
-  if (base.type === PERSON_SEARCH_BUTTON) {
+  if (base.type === EXT_LOOKUP_BUTTON) {
     ;(base as any).modalTitle = intl.formatMessage(
-      (field as IPersonSearchButton).modalTitle
+      (field as IExtLookupButton).modalTitle
     )
     // Preserve the onPersonSelect callback function
-    ;(base as any).onPersonSelect = (
-      field as IPersonSearchButton
-    ).onPersonSelect
+    ;(base as any).onPersonSelect = (field as IExtLookupButton).onPersonSelect
   }
 
   if (isFieldButton(field)) {
