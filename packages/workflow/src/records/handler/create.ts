@@ -387,21 +387,12 @@ export default async function createRecordHandler(
     }
   }
 
-  // Add custom external UUID to father's identifier array (birth events only)
-  if (
-    event === 'BIRTH' &&
-    'father' in recordDetails &&
-    recordDetails.father &&
-    recordDetails.father.detailsExist
-  ) {
-    // Option 1: Use actual form field (replace 'externalUuid' with your field name)
-    // const fatherExternalUuid = (recordDetails.father as any).externalUuid
-
-    // Option 2: Generate UUID from existing data (example)
-    // const fatherExternalUuid = `ext-father-${recordDetails.father.identifier?.[0]?.id || 'unknown'}`
-
-    // Option 3: Hardcoded for testing
-    const fatherExternalUuid = null //'1a7684f1-a2bf-4bd1-afc7-1ddcdb922e48'
+  // Add external UUID from questionnaire to father's identifier (birth events only)
+  if (event === 'BIRTH' && 'father' in recordDetails && recordDetails.father) {
+    const searchPersonIdEntry = recordDetails.questionnaire?.find(
+      (q: any) => q.fieldId === 'birth.father.father-view-group.searchPersonId'
+    )
+    const fatherExternalUuid = searchPersonIdEntry?.value
 
     if (fatherExternalUuid) {
       if (!recordDetails.father.identifier) {
@@ -411,6 +402,10 @@ export default async function createRecordHandler(
         id: fatherExternalUuid,
         type: 'EXTERNAL_PERSON_ID'
       })
+      console.log(
+        '=== Added external UUID to father identifier:',
+        fatherExternalUuid
+      )
     }
   }
 
