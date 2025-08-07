@@ -15,6 +15,7 @@ import { PrimaryButton, TertiaryButton } from '@opencrvs/components/lib/buttons'
 import { ResponsiveModal } from '@opencrvs/components/lib/ResponsiveModal'
 import { InputField } from '@opencrvs/components/lib/InputField'
 import { TextInput } from '@opencrvs/components/lib/TextInput'
+import { Select } from '@opencrvs/components/lib/Select'
 import { Spinner } from '@opencrvs/components/lib/Spinner'
 import { buttonMessages } from '@client/i18n/messages'
 import { useOnlineStatus } from '@client/utils'
@@ -22,7 +23,6 @@ import { config } from '@client/config'
 import { useFormikContext } from 'formik'
 import { useSelector } from 'react-redux'
 import { getScope } from '@client/profile/profileSelectors'
-import { hasScope } from '@client/utils/authUtils'
 
 interface IExtLookupButtonProps {
   id: string
@@ -99,6 +99,7 @@ const ExtLookupButton = (
     props
   const [showModal, setShowModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedGender, setSelectedGender] = useState('')
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,47 +117,54 @@ const ExtLookupButton = (
     })
   }, [props.id, props.label, formik])
 
-  const handleSearch = useCallback(async (term: string) => {
-    if (!term || term.trim().length < 3) return
+  const handleSearch = useCallback(
+    async (term: string) => {
+      if (!term || term.trim().length < 3) return
 
-    setIsSearching(true)
-    setError(null)
-    try {
-      const apiUrl = `${config.API_GATEWAY_URL}person-search/detailed`
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          full_name: term.trim(),
-          gender: '',
-          dob: '',
-          age: '',
-          identifier: '',
-          searchMode: 'relaxer',
-          page: 1,
-          pageSize: 10
+      setIsSearching(true)
+      setError(null)
+      try {
+        const apiUrl = `${config.API_GATEWAY_URL}person-search/detailed`
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            full_name: isNaN(Number(term.trim())) ? term.trim() : '',
+            gender: selectedGender.toLowerCase(),
+            dob: '',
+            age: '',
+            identifier: isNaN(Number(term.trim())) ? '' : term.trim(),
+            searchMode: 'relaxer',
+            page: 1,
+            pageSize: 10
+          })
         })
-      })
 
-      if (!response.ok) {
-        throw new Error(`Server responded with ${response.status}`)
+        if (!response.ok) {
+          throw new Error(`Server responded with ${response.status}`)
+        }
+
+        const data = await response.json()
+        const results = data.hits || data
+        console.log('🔍 Search API response:', JSON.stringify(data, null, 2))
+        console.log('🔍 Processed results:', JSON.stringify(results, null, 2))
+        // Sort by score (highest first)
+        const sortedResults = results.sort(
+          (a: any, b: any) => (b.score || 0) - (a.score || 0)
+        )
+        setSearchResults(sortedResults)
+      } catch (error) {
+        console.error('Search error:', error)
+        setSearchResults([])
+        setError('Failed to fetch search results. Please try again later.')
+      } finally {
+        setIsSearching(false)
       }
-
-      const data = await response.json()
-      const results = data.hits || data
-      console.log('🔍 Search API response:', JSON.stringify(data, null, 2))
-      console.log('🔍 Processed results:', JSON.stringify(results, null, 2))
-      setSearchResults(results)
-    } catch (error) {
-      console.error('Search error:', error)
-      setSearchResults([])
-      setError('Failed to fetch search results. Please try again later.')
-    } finally {
-      setIsSearching(false)
-    }
-  }, [])
+    },
+    [selectedGender]
+  )
 
   useEffect(() => {
     const delayDebounce = setTimeout(() => {
@@ -166,7 +174,7 @@ const ExtLookupButton = (
     }, 500)
 
     return () => clearTimeout(delayDebounce)
-  }, [searchTerm, handleSearch])
+  }, [searchTerm, selectedGender, handleSearch])
 
   const handlePersonSelect = (person: any) => {
     const personData = person.source || person
@@ -296,9 +304,30 @@ const ExtLookupButton = (
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                     setSearchTerm(e.target.value)
                   }
-                  placeholder="Search by name..."
+                  placeholder="Search by name or ID number..."
                 />
               </InputField>
+
+              <div style={{ marginTop: '16px' }}>
+                <InputField
+                  id="gender-filter-field"
+                  touched={true}
+                  required={false}
+                  optionalLabel=""
+                  label="Gender (optional)"
+                >
+                  <Select
+                    id="gender-filter"
+                    value={selectedGender}
+                    onChange={(val: string) => setSelectedGender(val)}
+                    options={[
+                      { value: '', label: 'All' },
+                      { value: 'male', label: 'Male' },
+                      { value: 'female', label: 'Female' }
+                    ]}
+                  />
+                </InputField>
+              </div>
 
               {/* Optional manual search button
           <PrimaryButton
@@ -325,19 +354,31 @@ const ExtLookupButton = (
                         key={person.uuid || person.id || index}
                         onClick={() => handlePersonSelect(person)}
                       >
-                        <PersonName>
-                          {person.full_name || person.name}
-                        </PersonName>
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <PersonName>
+                            {person.full_name || person.name}
+                          </PersonName>
+                          <div style={{ fontSize: '12px', color: '#999' }}>
+                            {person.score?.toFixed(1)}
+                          </div>
+                        </div>
                         <PersonDetails>
                           DOB:{' '}
                           {person.dob?.substring(0, 10) || person.dateOfBirth} |
                           Gender: {person.gender}
                           <br />
                           ID:{' '}
-                          {person.identifiers?.[0]?.value ||
+                          {person.identifiers?.find(
+                            (id: any) => id.type !== 'crvs'
+                          )?.value ||
                             person.nationalId ||
-                            'N/A'}{' '}
-                          | Place of Birth: {person.place_of_birth}
+                            'N/A'}
                         </PersonDetails>
                       </PersonItem>
                     )
