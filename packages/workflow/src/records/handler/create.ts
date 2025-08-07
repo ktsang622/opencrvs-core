@@ -365,18 +365,26 @@ export default async function createRecordHandler(
     request.payload
   )
 
-  // Add custom external UUID to mother's identifier array (birth events only)
+  // Add external UUID from questionnaire to mother's identifier (birth events only)
   if (event === 'BIRTH' && 'mother' in recordDetails && recordDetails.mother) {
-    const motherExternalUuid = '07252207-df82-40f2-8a5c-66c4bbaa5821'
+    const searchPersonIdEntry = recordDetails.questionnaire?.find(
+      (q: any) => q.fieldId === 'birth.mother.mother-view-group.searchPersonId'
+    )
+    const motherExternalUuid = searchPersonIdEntry?.value
 
-    if (!recordDetails.mother.identifier) {
-      recordDetails.mother.identifier = []
+    if (motherExternalUuid) {
+      if (!recordDetails.mother.identifier) {
+        recordDetails.mother.identifier = []
+      }
+      recordDetails.mother.identifier.push({
+        id: motherExternalUuid,
+        type: 'EXTERNAL_PERSON_ID'
+      })
+      console.log(
+        '=== Added external UUID to mother identifier:',
+        motherExternalUuid
+      )
     }
-    recordDetails.mother.identifier.push({
-      id: motherExternalUuid,
-      type: 'EXTERNAL_PERSON_ID'
-    })
-    console.log('=== Added external UUID to mother identifier')
   }
 
   // Add custom external UUID to father's identifier array (birth events only)
