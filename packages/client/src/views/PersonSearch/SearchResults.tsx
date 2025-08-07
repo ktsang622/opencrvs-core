@@ -82,6 +82,7 @@ interface ISearchResultsProps {
   currentPage: number
   pageSize: number
   totalResults: number
+  totalPages: number
   onPageChange: (page: number) => void
   onPersonSelect: (person: any) => void
 }
@@ -91,6 +92,7 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
   currentPage,
   pageSize,
   totalResults,
+  totalPages,
   onPageChange,
   onPersonSelect
 }) => {
@@ -106,12 +108,6 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
 
   return (
     <>
-      <div style={{ marginTop: '20px', marginBottom: '10px' }}>
-        <span style={{ color: '#666', fontSize: '14px' }}>
-          Results ({totalResults}):
-        </span>
-      </div>
-
       <ResultsTable>
         <thead>
           <tr>
@@ -169,7 +165,7 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
         </tbody>
       </ResultsTable>
 
-      {Math.ceil(totalResults / pageSize) > 1 && (
+      {totalPages > 1 && (
         <div
           style={{
             display: 'flex',
@@ -180,7 +176,7 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
           }}
         >
           <div>
-            Page {currentPage} of {Math.ceil(totalResults / pageSize)}
+            Page {currentPage} of {totalPages}
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <Button
@@ -195,12 +191,12 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
               type="number"
               value={currentPage}
               min={1}
-              max={Math.ceil(totalResults / pageSize)}
+              max={totalPages}
               onChange={(e) => {
                 const newPage = parseInt(e.target.value)
                 if (
                   newPage >= 1 &&
-                  newPage <= Math.ceil(totalResults / pageSize) &&
+                  newPage <= totalPages &&
                   newPage !== currentPage
                 ) {
                   onPageChange(newPage)
@@ -218,7 +214,7 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
             <Button
               type="tertiary"
               size="small"
-              disabled={currentPage >= Math.ceil(totalResults / pageSize)}
+              disabled={currentPage >= totalPages}
               onClick={() => onPageChange(currentPage + 1)}
             >
               Next

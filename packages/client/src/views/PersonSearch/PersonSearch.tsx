@@ -28,6 +28,7 @@ import { getScope } from '@client/profile/profileSelectors'
 import { SearchForm } from './SearchForm'
 import { SearchResults } from './SearchResults'
 import { AccessControl } from './AccessControl'
+import { usePersonSearch } from '@client/hooks/usePersonSearch'
 
 const SearchButton = styled(Button)`
   margin-top: 16px;
@@ -37,7 +38,7 @@ const ResultsTable = styled.table`
   width: 100%;
   border-collapse: collapse;
   background: ${({ theme }) => theme.colors.white};
-  border-radius: ${({ theme }) => theme.borderRadius}px;
+  border-radius: 4px;
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   margin-top: 20px;
@@ -133,98 +134,23 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
       scope.includes('record.validate') ||
       scope.includes('record.certify'))
 
-  const [searchQuery, setSearchQuery] = useState('')
-  const [idNumber, setIdNumber] = useState('')
-  const [searchMode, setSearchMode] = useState('relaxer')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
-  const [totalResults, setTotalResults] = useState(0)
-
-  const handleSearch = async (page = currentPage) => {
-    setLoading(true)
-
-    if (config.USE_MOCK_PERSON_DATA) {
-      // Mock data
-      const mockResults = [
-        {
-          uuid: '50989c77-8345-4763-a12c-21f43d9e525f',
-          name: 'John Doe',
-          nationalId: 'ID123456',
-          dateOfBirth: '1990-05-15',
-          score: 0.95
-        },
-        {
-          uuid: '98765-43210',
-          name: 'Jane Smith',
-          nationalId: 'ID654321',
-          dateOfBirth: '1985-08-22',
-          score: 0.87
-        },
-        {
-          uuid: '11111-22222',
-          name: 'Bob Johnson',
-          nationalId: 'ID789012',
-          dateOfBirth: '1978-12-03',
-          score: 0.73
-        }
-      ]
-        .filter(
-          (person) =>
-            person.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            person.nationalId.includes(searchQuery) ||
-            person.dateOfBirth.includes(searchQuery) ||
-            (idNumber && person.nationalId.includes(idNumber))
-        )
-        .sort((a, b) => b.score - a.score)
-
-      setTimeout(() => {
-        setSearchResults(mockResults)
-        setTotalResults(mockResults.length)
-        setLoading(false)
-      }, 500)
-    } else {
-      // Real API call
-      try {
-        const apiUrl = `${config.API_GATEWAY_URL}person-search`
-
-        const requestBody = {
-          full_name: searchQuery,
-          gender: '',
-          dob: '',
-          age: '',
-          identifier: idNumber,
-          searchMode: searchMode,
-          page: page,
-          pageSize: pageSize
-        }
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`HTTP ${response.status}: ${errorText}`)
-        }
-
-        const data = await response.json()
-        // console.log('API Response:', data)
-        // console.log('First result:', data.hits?.[0] || data[0])
-        setSearchResults(data.hits || data)
-        setTotalResults(data.total || (data.hits || data).length)
-      } catch (error) {
-        setSearchResults([])
-      } finally {
-        setLoading(false)
-      }
-    }
-  }
+  const {
+    searchTerm,
+    setSearchTerm,
+    selectedGender,
+    setSelectedGender,
+    searchMode,
+    setSearchMode,
+    searchResults,
+    paginatedResults,
+    isSearching,
+    error,
+    currentPage,
+    pageSize,
+    totalResults,
+    totalPages,
+    goToPage
+  } = usePersonSearch(20)
 
   const selectPerson = (person: any) => {
     navigate('/events/birth/registration', {
@@ -233,7 +159,7 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
   }
 
   return (
-    <AccessControl hasAccess={hasRegistrarAccess}>
+    <AccessControl hasAccess={!!hasRegistrarAccess}>
       <Frame
         header={<Header title="Search Person" />}
         skipToContentText={intl.formatMessage(
@@ -247,52 +173,33 @@ const PersonSearchView: React.FC<IPersonSearchProps> = ({ intl }) => {
           subtitle="Search for existing persons in the database"
         >
           <SearchForm
-            searchQuery={searchQuery}
-            idNumber={idNumber}
+            searchQuery={searchTerm}
+            selectedGender={selectedGender}
             searchMode={searchMode}
-            pageSize={pageSize}
-            loading={loading}
-            onSearchQueryChange={setSearchQuery}
-            onIdNumberChange={setIdNumber}
+            loading={isSearching}
+            onSearchQueryChange={setSearchTerm}
+            onGenderChange={setSelectedGender}
             onSearchModeChange={setSearchMode}
-            onPageSizeChange={(newPageSize) => {
-              setPageSize(newPageSize)
-              setCurrentPage(1)
-              if (searchResults.length > 0) {
-                handleSearch(1)
-              }
-            }}
-            onSearch={() => {
-              setCurrentPage(1)
-              handleSearch()
-            }}
           />
 
+          {searchTerm.trim() && totalResults > 0 && (
+            <div
+              style={{ marginBottom: '16px', fontSize: '14px', color: '#666' }}
+            >
+              Results: {(currentPage - 1) * pageSize + 1}-
+              {Math.min(currentPage * pageSize, totalResults)} of {totalResults}
+            </div>
+          )}
+
           <SearchResults
-            searchResults={searchResults}
+            searchResults={paginatedResults}
             currentPage={currentPage}
             pageSize={pageSize}
             totalResults={totalResults}
-            onPageChange={(newPage) => {
-              setCurrentPage(newPage)
-              handleSearch(newPage)
-            }}
+            totalPages={totalPages}
+            onPageChange={goToPage}
             onPersonSelect={selectPerson}
           />
-
-          {searchResults.length === 0 &&
-            !loading &&
-            (searchQuery.trim() || idNumber.trim()) && (
-              <p
-                style={{
-                  textAlign: 'center',
-                  color: '#666',
-                  marginTop: '40px'
-                }}
-              >
-                No persons found matching your search criteria.
-              </p>
-            )}
         </Content>
       </Frame>
     </AccessControl>

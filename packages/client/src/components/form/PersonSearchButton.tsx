@@ -23,6 +23,7 @@ import { config } from '@client/config'
 import { useFormikContext } from 'formik'
 import { useSelector } from 'react-redux'
 import { getScope } from '@client/profile/profileSelectors'
+import { usePersonSearch } from '@client/hooks/usePersonSearch'
 
 interface IExtLookupButtonProps {
   id: string
@@ -98,12 +99,17 @@ const ExtLookupButton = (
   const { intl, label, modalTitle, isDisabled, onPersonSelect, setFieldValue } =
     props
   const [showModal, setShowModal] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedGender, setSelectedGender] = useState('')
-  const [searchResults, setSearchResults] = useState<any[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const isOnline = useOnlineStatus()
+  const {
+    searchTerm,
+    setSearchTerm,
+    selectedGender,
+    setSelectedGender,
+    searchResults,
+    isSearching,
+    error,
+    clearSearch
+  } = usePersonSearch(10)
 
   // ✅ Inject Formik context
   const formik = useFormikContext<any>()
@@ -116,65 +122,6 @@ const ExtLookupButton = (
       formikAvailable: !!formik
     })
   }, [props.id, props.label, formik])
-
-  const handleSearch = useCallback(
-    async (term: string) => {
-      if (!term || term.trim().length < 3) return
-
-      setIsSearching(true)
-      setError(null)
-      try {
-        const apiUrl = `${config.API_GATEWAY_URL}person-search/detailed`
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            full_name: isNaN(Number(term.trim())) ? term.trim() : '',
-            gender: selectedGender.toLowerCase(),
-            dob: '',
-            age: '',
-            identifier: isNaN(Number(term.trim())) ? '' : term.trim(),
-            searchMode: 'relaxer',
-            page: 1,
-            pageSize: 10
-          })
-        })
-
-        if (!response.ok) {
-          throw new Error(`Server responded with ${response.status}`)
-        }
-
-        const data = await response.json()
-        const results = data.hits || data
-        console.log('🔍 Search API response:', JSON.stringify(data, null, 2))
-        console.log('🔍 Processed results:', JSON.stringify(results, null, 2))
-        // Sort by score (highest first)
-        const sortedResults = results.sort(
-          (a: any, b: any) => (b.score || 0) - (a.score || 0)
-        )
-        setSearchResults(sortedResults)
-      } catch (error) {
-        console.error('Search error:', error)
-        setSearchResults([])
-        setError('Failed to fetch search results. Please try again later.')
-      } finally {
-        setIsSearching(false)
-      }
-    },
-    [selectedGender]
-  )
-
-  useEffect(() => {
-    const delayDebounce = setTimeout(() => {
-      if (searchTerm.trim().length >= 3) {
-        handleSearch(searchTerm)
-      }
-    }, 500)
-
-    return () => clearTimeout(delayDebounce)
-  }, [searchTerm, selectedGender, handleSearch])
 
   const handlePersonSelect = (person: any) => {
     const personData = person.source || person
@@ -229,16 +176,12 @@ const ExtLookupButton = (
     }, 100)
 
     setShowModal(false)
-    setSearchTerm('')
-    setSearchResults([])
-    setError(null)
+    clearSearch()
   }
 
   const handleCloseModal = () => {
     setShowModal(false)
-    setSearchTerm('')
-    setSearchResults([])
-    setError(null)
+    clearSearch()
   }
 
   const { className } = props
