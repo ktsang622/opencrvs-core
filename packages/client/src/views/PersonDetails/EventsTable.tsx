@@ -201,7 +201,12 @@ export const EventsTableComponent: React.FC<IEventsTableProps> = ({
                           >
                             <strong>{participant.person.fullName}</strong>
                             <div style={{ fontSize: '12px', color: '#2196F3' }}>
-                              ({participant.role})
+                              (
+                              {participant.role === 'informant' &&
+                              participant.relationshipDetails?.relationship
+                                ? `Informant - ${participant.relationshipDetails.relationship.toLowerCase()}`
+                                : participant.role}
+                              )
                             </div>
                           </div>
                         </EventCell>

@@ -1,0 +1,42 @@
+{
+  "name": "@opencrvs/toppan",
+  "version": "1.0.0",
+  "description": "Toppan customizations for OpenCRVS",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "cross-env NODE_ENV=development nodemon --exec ts-node -r tsconfig-paths/register src/index.ts",
+    "start:prod": "TS_NODE_BASEURL=./build/dist/src node -r tsconfig-paths/register build/dist/src/index.js",
+    "build": "tsc -b",
+    "test": "jest",
+    "build:clean": "rimraf build && tsc -b --clean || true && tsc -b",
+    "lint": "eslint . --ext .ts,.js",
+    "format": "prettier -w ."
+  },
+  "dependencies": {
+    "@hapi/hapi": "^20.2.1",
+    "@opencrvs/commons": "^1.0.0",
+    "joi": "^17.6.0",
+    "pg": "^8.11.0",
+    "@hapi/boom": "^10.0.1"
+  },
+  "devDependencies": {
+    "@types/hapi": "^18.0.0",
+    "@types/node": "^18.0.0",
+    "@types/pg": "^8.10.0",
+    "cross-env": "^7.0.0",
+    "nodemon": "^2.0.0",
+    "ts-node": "^10.0.0",
+    "tsconfig-paths": "^4.0.0",
+    "typescript": "^4.7.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^5.0.7"
+  },
+  "type": "commonjs",
+  "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

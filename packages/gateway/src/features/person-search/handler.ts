@@ -90,7 +90,7 @@ export async function detailedPersonSearchHandler(
         nationalId:
           hit.identifiers?.find((id: any) => id.type === 'NATIONAL_ID')
             ?.value || 'N/A',
-        dob: hit.dob,
+        dateOfBirth: hit.dob || 'N/A',
         gender: hit.gender,
         place_of_birth: hit.place_of_birth,
         identifiers: hit.identifiers,

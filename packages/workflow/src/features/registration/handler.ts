@@ -21,6 +21,7 @@ import {
 } from '@workflow/records/notification'
 import { invokeWebhooks } from '@workflow/records/webhooks'
 import { SupportedPatientIdentifierCode } from '@opencrvs/commons/types'
+import { syncBirthRecordCreation } from '@workflow/integrations/toppan'
 
 export interface EventRegistrationPayload {
   trackingId: string
@@ -74,6 +75,10 @@ export async function markEventAsRegisteredCallbackHandler(
   }
 
   await invokeWebhooks({ bundle, token, event })
+
+  // Sync with Toppan after successful registration
+  console.log('🔍 About to call syncBirthRecordCreation after registration')
+  await syncBirthRecordCreation(bundle, token)
 
   return h.response(bundle).code(200)
 }

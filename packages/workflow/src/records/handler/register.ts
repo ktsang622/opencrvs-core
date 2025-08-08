@@ -63,6 +63,8 @@ export const registerRoute = createRoute({
     if (isRejected(rejectedOrWaitingValidationRecord)) {
       await indexBundle(rejectedOrWaitingValidationRecord, token)
       await auditEvent('sent-for-updates', record, token)
+    } else {
+      // Registration successful - Toppan sync will happen later after registration number is generated
     }
 
     return rejectedOrWaitingValidationRecord

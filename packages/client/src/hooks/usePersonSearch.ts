@@ -18,7 +18,7 @@ export interface PersonSearchResult {
   given_name: string
   family_name: string
   nationalId: string
-  dob: string
+  dateOfBirth: string
   gender: string
   identifiers: Array<{ type: string; value: string }>
   score: number
@@ -59,7 +59,7 @@ export const usePersonSearch = (
           body: JSON.stringify({
             full_name: isNaN(Number(term.trim())) ? term.trim() : '',
             gender: selectedGender.toLowerCase(),
-            dob: '',
+            dateOfBirth: '',
             age: '',
             identifier: isNaN(Number(term.trim())) ? '' : term.trim(),
             searchMode: searchMode,

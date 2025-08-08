@@ -37,6 +37,7 @@ import { findActiveCorrectionRequest, updateFullUrl } from './utils'
 import { SCOPES } from '@opencrvs/commons/authentication'
 import { getRecordSpecificToken } from '@workflow/records/token-exchange'
 import { notifyForAction } from '@workflow/utils/country-config-api'
+import { syncBirthRecordCorrection } from '@workflow/integrations/toppan'
 
 export const makeCorrectionRoute = createRoute({
   method: 'POST',
@@ -150,6 +151,10 @@ export const makeCorrectionRoute = createRoute({
         authorization: `Bearer ${recordSpecificToken.access_token}`
       }
     })
+
+    // Sync correction with external database
+    console.log('🔍 About to call syncBirthRecordCorrection')
+    await syncBirthRecordCorrection(recordInput, getEventType(record), token)
 
     return unassignedRecord
   }

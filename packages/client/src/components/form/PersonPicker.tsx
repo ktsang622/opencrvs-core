@@ -157,8 +157,8 @@ const PersonPicker = (
       }
 
       // Populate birth date field (motherBirthDate or fatherBirthDate)
-      if (personData.dob) {
-        const formattedDob = personData.dob.split('T')[0] // Convert ISO to YYYY-MM-DD
+      if (personData.dateOfBirth) {
+        const formattedDob = personData.dateOfBirth.split('T')[0] // Convert ISO to YYYY-MM-DD
         formik.setFieldValue(`${sectionPrefix}BirthDate`, formattedDob)
       }
 
@@ -335,8 +335,7 @@ const PersonPicker = (
                           </div>
                         </div>
                         <PersonDetails>
-                          DOB:{' '}
-                          {person.dob?.substring(0, 10) || person.dateOfBirth} |
+                          DOB: {person.dateOfBirth?.substring(0, 10) || 'N/A'} |
                           Gender: {person.gender}
                           <br />
                           ID:{' '}

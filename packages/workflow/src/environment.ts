@@ -26,5 +26,7 @@ export const env = cleanEnv(process.env, {
   USER_MANAGEMENT_URL: url({ devDefault: 'http://localhost:3030/' }),
   SENTRY_DSN: str({ default: undefined }),
   AUTH_URL: url({ devDefault: 'http://localhost:4040/' }),
-  LANGUAGES: str({ default: 'en,fr' })
+  LANGUAGES: str({ default: 'en,fr' }),
+  TOPPAN_URL: url({ devDefault: 'http://localhost:9998' }),
+  TOPPAN_ENABLED: str({ default: 'true' })
 })
