@@ -246,11 +246,19 @@ function mapBundleToSql(record: any) {
     shouldInsertFather = !fatherExternalUuid
   }
 
+  // Generate National ID for child (10 digits)
+  const childNationalId = Math.floor(Math.random() * 10000000000).toString().padStart(10, '0')
+  
   const childIdentifiers = [
-    { type: 'NATIONAL_ID', value: registrationNumber },
+    { type: 'NATIONAL_ID', value: childNationalId },
     { type: 'BIRTH_REGISTRATION_NUMBER', value: registrationNumber },
     ...(child.identifier || [])
       .filter((i: any) => i.value?.trim())
+      .filter((i: any) => {
+        const type = i.type?.coding?.[0]?.code
+        // Skip if it's already covered above
+        return type !== 'NATIONAL_ID' && type !== 'BIRTH_REGISTRATION_NUMBER'
+      })
       .map((i: any) => ({
         type: i.type?.coding?.[0]?.code || 'UNKNOWN',
         value: i.value

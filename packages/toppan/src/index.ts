@@ -2,8 +2,18 @@
 import * as Hapi from '@hapi/hapi'
 
 import { getPersonDbSyncRoutes } from './person-db-sync/routes'
+import { runMigrations } from './run-migrations'
 
 async function start() {
+  // Run database migrations first
+  console.log('🔄 Initializing Toppan service...')
+  try {
+    await runMigrations()
+  } catch (error) {
+    console.error('❌ Failed to run migrations:', error)
+    process.exit(1)
+  }
+
   const server = Hapi.server({
     port: process.env.PORT ? Number(process.env.PORT) : 9998,
     host: '0.0.0.0',

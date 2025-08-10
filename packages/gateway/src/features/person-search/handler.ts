@@ -43,7 +43,13 @@ export async function searchPersonHandler(
       data.hits?.map((hit: any) => ({
         uuid: hit.id,
         name: hit.full_name,
-        nationalId: hit.identifiers?.[0]?.value || 'N/A',
+        nationalId:
+          hit.identifiers?.find((id: any) => id.type === 'NATIONAL_ID')
+            ?.value ||
+          hit.identifiers?.find(
+            (id: any) => id.value?.trim() && id.type !== 'crvs'
+          )?.value ||
+          '',
         dateOfBirth: hit.dob || 'N/A',
         score: hit._score
       })) || []
@@ -89,7 +95,7 @@ export async function detailedPersonSearchHandler(
         family_name: hit.family_name,
         nationalId:
           hit.identifiers?.find((id: any) => id.type === 'NATIONAL_ID')
-            ?.value || 'N/A',
+            ?.value || '',
         dateOfBirth: hit.dob || 'N/A',
         gender: hit.gender,
         place_of_birth: hit.place_of_birth,

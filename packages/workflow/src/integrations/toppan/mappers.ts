@@ -25,10 +25,6 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
     (cv: any) => cv.section === 'father' && cv.fieldName === 'searchPersonId'
   )
 
-  const relevantSearchPersonId = fatherChange.newValue
-    ? searchPersonIdChange?.newValue
-    : searchPersonIdChange?.oldValue
-
   const correctionReason = [
     correction?.reason,
     correction?.otherReason,
@@ -37,23 +33,61 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
     .filter(Boolean)
     .join(' - ')
 
-  // For ADD_FATHER, searchPersonId is the person picker selection (external person ID)
-  // For person picker, we should use fatherCRVSUuid instead of fatherId
-  const fatherData = fatherChange.newValue
-    ? {
-        fatherCRVSUuid: recordInput.father?._fhirID
-        // Don't send fatherId for person picker - let the correction handler resolve it
+  // Determine action based on correction values
+  let action: string
+  let fatherData: any = {}
+
+  if (fatherChange.oldValue === false && fatherChange.newValue === true) {
+    // Adding father
+    action = 'ADD_FATHER'
+    if (searchPersonIdChange?.newValue) {
+      // Person picker selection
+      fatherData.fatherId = searchPersonIdChange.newValue
+    } else if (recordInput.father?._fhirID) {
+      // Manual entry or FHIR data
+      fatherData.fatherCRVSUuid = recordInput.father._fhirID
+      if (recordInput.father?.name?.[0]) {
+        fatherData.manual = {
+          given_name: recordInput.father.name[0].firstNames,
+          family_name: recordInput.father.name[0].familyName,
+          gender: recordInput.father.gender,
+          dob: recordInput.father.birthDate,
+          national_id: recordInput.father.identifier?.find(
+            (id: any) => id.type === 'NATIONAL_ID'
+          )?.id
+        }
       }
-    : {
-        expectedPersonId: searchPersonIdChange?.oldValue,
-        expectedCRVSUuid: recordInput.father?._fhirID
-      }
+    }
+  } else if (
+    fatherChange.oldValue === true &&
+    fatherChange.newValue === false
+  ) {
+    // Removing father
+    action = 'REMOVE_FATHER'
+  } else if (fatherChange.oldValue === true && fatherChange.newValue === true) {
+    // Updating or replacing father
+    if (
+      searchPersonIdChange &&
+      searchPersonIdChange.oldValue !== searchPersonIdChange.newValue
+    ) {
+      action = 'REPLACE_FATHER'
+      fatherData.fatherId = searchPersonIdChange.newValue
+      fatherData.expectedPersonId = searchPersonIdChange.oldValue
+    } else {
+      action = 'UPDATE_FATHER_SAME'
+      fatherData.expectedPersonId = searchPersonIdChange?.oldValue
+      fatherData.expectedCRVSUuid = recordInput.father?._fhirID
+    }
+  } else {
+    return null // No valid correction detected
+  }
 
   return {
-    action: fatherChange.newValue ? 'ADD_FATHER' : 'REMOVE_FATHER',
+    action,
     eventId: recordInput._fhirIDMap?.composition,
     fatherData,
     reason: correctionReason,
-    correctionType: correction?.reason
+    correctionType: correction?.reason,
+    bundle: recordInput // Pass the full bundle for FHIR father detection
   }
 }

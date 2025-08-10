@@ -135,7 +135,29 @@ export const PersonDetailsSidePanel: React.FC<IPersonDetailsSidePanelProps> = ({
                       fontWeight: '500'
                     }}
                   >
-                    National ID
+                    {(() => {
+                      // Parse identifiers if it's a JSON string
+                      const identifiers =
+                        typeof selectedParticipant.person.identifiers ===
+                        'string'
+                          ? JSON.parse(selectedParticipant.person.identifiers)
+                          : selectedParticipant.person.identifiers || []
+
+                      // Find National ID
+                      const nationalId = identifiers.find(
+                        (id: any) => id.type === 'NATIONAL_ID'
+                      )?.value
+
+                      if (nationalId) return 'National ID'
+
+                      // If no National ID, use first available identifier type
+                      const firstId = identifiers.find(
+                        (id: any) => id.value?.trim() && id.type !== 'crvs'
+                      )
+                      if (firstId?.type === 'PASSPORT') return 'Passport Number'
+                      if (firstId?.type) return firstId.type
+                      return 'ID'
+                    })()}
                   </span>
                   <span
                     style={{
@@ -144,7 +166,31 @@ export const PersonDetailsSidePanel: React.FC<IPersonDetailsSidePanelProps> = ({
                       fontWeight: '600'
                     }}
                   >
-                    {selectedParticipant.person.nationalId}
+                    {(() => {
+                      // Parse identifiers if it's a JSON string
+                      const identifiers =
+                        typeof selectedParticipant.person.identifiers ===
+                        'string'
+                          ? JSON.parse(selectedParticipant.person.identifiers)
+                          : selectedParticipant.person.identifiers || []
+
+                      // Find National ID
+                      const nationalId = identifiers.find(
+                        (id: any) => id.type === 'NATIONAL_ID'
+                      )?.value
+
+                      if (nationalId) return nationalId
+
+                      // If no National ID, show first available identifier value
+                      const firstId = identifiers.find(
+                        (id: any) => id.value?.trim() && id.type !== 'crvs'
+                      )
+                      return (
+                        firstId?.value ||
+                        selectedParticipant.person.nationalId ||
+                        'Not assigned'
+                      )
+                    })()}
                   </span>
                 </div>
 

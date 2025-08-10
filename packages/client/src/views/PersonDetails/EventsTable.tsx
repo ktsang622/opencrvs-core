@@ -225,7 +225,35 @@ export const EventsTableComponent: React.FC<IEventsTableProps> = ({
                         </EventCell>
                         <EventCell>
                           <EventDetail>
-                            ID: {participant.person.nationalId}
+                            ID:{' '}
+                            {(() => {
+                              // Try to parse identifiers if available
+                              if (participant.person.identifiers) {
+                                const identifiers =
+                                  typeof participant.person.identifiers ===
+                                  'string'
+                                    ? JSON.parse(participant.person.identifiers)
+                                    : participant.person.identifiers || []
+
+                                // Find National ID
+                                const nationalId = identifiers.find(
+                                  (id: any) => id.type === 'NATIONAL_ID'
+                                )?.value
+                                if (nationalId) return nationalId
+
+                                // If no National ID, show first available identifier
+                                const firstId = identifiers.find(
+                                  (id: any) =>
+                                    id.value?.trim() && id.type !== 'crvs'
+                                )
+                                if (firstId?.value) return firstId.value
+                              }
+
+                              // Fallback to nationalId field or Not assigned
+                              return (
+                                participant.person.nationalId || 'Not assigned'
+                              )
+                            })()}
                           </EventDetail>
                           <EventDetail>
                             Status: {participant.person.status}

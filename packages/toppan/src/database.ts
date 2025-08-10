@@ -69,6 +69,7 @@ export async function findExistingFatherParticipant(
        WHERE event_id = $1
          AND role = 'father'
          AND status = 'active'
+         AND ended_at IS NULL
     `
     if (personId) {
       q += ` AND person_id = $2`
@@ -183,15 +184,16 @@ export async function createDummyPerson(p: {
   status: 'review' | 'active'
   identifiers: Array<{ type: string; value: string }>
 }, tx?: PoolClient): Promise<void> {
+  const now = new Date().toISOString()
   const q = `
     INSERT INTO person
-      (id, given_name, family_name, gender, dob, place_of_birth, status, identifiers)
+      (id, given_name, family_name, gender, dob, place_of_birth, status, identifiers, created_at, updated_at)
     VALUES
-      ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
+      ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
   `
   await (tx ?? pool).query(q, [
     p.id, p.given_name, p.family_name, p.gender, p.dob, p.place_of_birth, p.status,
-    JSON.stringify(p.identifiers)
+    JSON.stringify(p.identifiers), now, now
   ])
 }
 
@@ -331,8 +333,8 @@ export async function insertSyncRequest(data: {
   payload: any
 }): Promise<string> {
   const result = await pool.query(
-    `INSERT INTO sync_request (event_type, action, crvs_event_uuid, payload, status)
-     VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
+    `INSERT INTO sync_request (event_type, action, crvs_event_uuid, payload, status, error_message)
+     VALUES ($1, $2, $3, $4, 'pending', 'missing_event') RETURNING id`,
     [data.event_type, data.action, data.crvs_event_uuid, JSON.stringify(data.payload)]
   )
   return result.rows[0].id
@@ -356,6 +358,39 @@ export async function clearSyncRequestPayload(id: string): Promise<void> {
     `UPDATE sync_request SET payload = NULL WHERE id = $1`,
     [id]
   )
+}
+
+// Update family_link when event_participant is deactivated
+export async function updateFamilyLinkOnParticipantChange(
+  eventId: string,
+  personId: string,
+  role: string,
+  status: 'active' | 'inactive',
+  endedAt: string | null,
+  tx?: PoolClient
+): Promise<void> {
+  if (role !== 'father' && role !== 'mother') return
+  
+  // Get child from this event
+  const { rows: childRows } = await (tx ?? pool).query(
+    `SELECT person_id FROM event_participant 
+     WHERE event_id = $1 AND role = 'subject' AND status = 'active'`,
+    [eventId]
+  )
+  
+  if (!childRows[0]) return
+  const childId = childRows[0].person_id
+  
+  if (status === 'inactive' && endedAt) {
+    // End the family relationship - child is person_id, parent is related_person_id
+    await (tx ?? pool).query(
+      `UPDATE family_link 
+       SET end_date = $1::date 
+       WHERE person_id = $2 AND related_person_id = $3 AND relationship_type = $4 
+         AND source_event_id = $5 AND end_date IS NULL`,
+      [endedAt.split('T')[0], childId, personId, role, eventId]
+    )
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
