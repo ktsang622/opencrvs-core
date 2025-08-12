@@ -1,6 +1,9 @@
 {
   "name": "@opencrvs/toppan-ui",
   "version": "1.0.0",
+  "description": "Toppan UI components for OpenCRVS",
+  "author": "Toppan Security",
+  "license": "UNLICENSED",
   "private": true,
   "scripts": {
     "start": "vite preview --port=3889 --host",

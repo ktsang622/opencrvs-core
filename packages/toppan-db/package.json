@@ -2,6 +2,8 @@
   "name": "@opencrvs/toppan-db",
   "version": "1.0.0",
   "description": "Database queries and utilities for Toppan family tree",
+  "author": "Toppan Security",
+  "license": "UNLICENSED",
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc",

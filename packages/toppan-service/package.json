@@ -2,6 +2,8 @@
   "name": "@opencrvs/toppan-service",
   "version": "1.0.0",
   "description": "Toppan family tree service for OpenCRVS",
+  "author": "Toppan Security",
+  "license": "UNLICENSED",
   "main": "src/index.ts",
   "scripts": {
     "start": "node dist/index.js",

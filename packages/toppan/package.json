@@ -2,6 +2,8 @@
   "name": "@opencrvs/toppan",
   "version": "1.0.0",
   "description": "Toppan customizations for OpenCRVS",
+  "author": "Toppan Security",
+  "license": "UNLICENSED",
   "main": "src/index.ts",
   "scripts": {
     "start": "cross-env NODE_ENV=development nodemon --exec ts-node -r tsconfig-paths/register src/index.ts",
