@@ -1,0 +1,7 @@
+Copyright (C) Toppan Security. All rights reserved.
+
+This software and associated documentation files (the "Software") are proprietary
+to Toppan Security and are protected by copyright law and international treaties.
+
+Unauthorized reproduction, distribution, or use of this Software, in whole or in
+part, is strictly prohibited without the express written permission of Toppan Security.
