@@ -255,9 +255,19 @@ export const EventsTableComponent: React.FC<IEventsTableProps> = ({
                               )
                             })()}
                           </EventDetail>
-                          <EventDetail>
-                            Status: {participant.person.status}
-                          </EventDetail>
+                          {participant.person.status !== 'active' && (
+                            <EventDetail>
+                              Status: {participant.person.status}
+                            </EventDetail>
+                          )}
+                          {participant.relationshipEndDate && (
+                            <EventDetail style={{ color: '#dc3545' }}>
+                              Relationship Ended:{' '}
+                              {new Date(
+                                participant.relationshipEndDate
+                              ).toLocaleDateString()}
+                            </EventDetail>
+                          )}
                         </EventCell>
                         <EventCell>
                           <div

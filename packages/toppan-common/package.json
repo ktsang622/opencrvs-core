@@ -1,0 +1,13 @@
+{
+  "name": "@opencrvs/toppan-common",
+  "version": "1.0.0",
+  "description": "Common types and utilities for Toppan family tree",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.2.2"
+  }
+}

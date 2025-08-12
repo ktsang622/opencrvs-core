@@ -98,7 +98,7 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
       await upsertEvent({
         crvs_event_uuid: mapped.eventPayload.crvs_event_uuid,
         last_update_at: now,
-        remarks: 'Birth event initialized from UI create'
+        remarks: 'CREATION: UI'
       }, tx)
     })
 
@@ -329,7 +329,7 @@ function mapBundleToSql(record: any) {
       }),
       crvs_person_id: mother.id,
       status: 'active',
-      remarks: shouldInsertMother ? 'New person created from CRVS webhook' : null,
+      remarks: shouldInsertMother ? 'Creation: UI' : null,
       created_at: now
     }
   ]
@@ -347,7 +347,7 @@ function mapBundleToSql(record: any) {
       }),
       crvs_person_id: father?.id || 'unknown-father-crvs-id',
       status: shouldInsertFather ? 'review' : 'active',
-      remarks: shouldInsertFather ? 'New person created from CRVS webhook' : null,
+      remarks: shouldInsertFather ? 'Creation: UI' : null,
       created_at: now
     })
   }
@@ -391,8 +391,8 @@ function mapBundleToSql(record: any) {
       crvs_event_uuid: randomUUID(),
       duplicates: null,
       status: null,
-      last_update_at: null,
-      remarks: 'invalid crvs_event_uuid',
+      last_update_at: now,
+      remarks: 'Mocked event: Invalid crvs_event_uuid',
       created_at: now
     })
 
@@ -457,7 +457,7 @@ function mapBundleToSql(record: any) {
       duplicates: null,
       status: null,
       last_update_at: null,
-      remarks: 'invalid crvs_event_uuid',
+      remarks: 'Mocked event: Invalid crvs_event_uuid',
       created_at: now
     })
 
@@ -506,7 +506,7 @@ function mapBundleToSql(record: any) {
       duplicates: null,
       status: null,
       last_update_at: null,
-      remarks: 'invalid crvs_event_uuid',
+      remarks: 'Mocked event: Invalid crvs_event_uuid',
       created_at: now
     })
 

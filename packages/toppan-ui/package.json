@@ -1,0 +1,34 @@
+{
+  "name": "@opencrvs/toppan-ui",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "vite preview --port=3889 --host",
+    "start:prod": "vite preview --port=3889 --host",
+    "dev": "vite --port=3889 --host",
+    "build": "vite build",
+    "lint": "eslint src --ext ts,tsx",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@opencrvs/toppan-common": "^1.0.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "^6.28.1",
+    "styled-components": "^5.2.0",
+    "axios": "^1.10.0",
+    "react-tooltip": "^4.2.21"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.1",
+    "@types/react-dom": "18.3.0",
+    "@types/styled-components": "^5.1.3",
+    "@vitejs/plugin-react": "^4.2.1",
+    "typescript": "5.6.3",
+    "vite": "^5.4.8",
+    "eslint": "^9.22.0",
+    "@typescript-eslint/eslint-plugin": "8.28.0",
+    "@typescript-eslint/parser": "^8.28.0",
+    "vitest": "0.25.5"
+  }
+}

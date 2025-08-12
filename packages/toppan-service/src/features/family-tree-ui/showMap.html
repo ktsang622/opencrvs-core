@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Tree</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            background-color: #f8f9fa;
+        }
+        .main-container {
+            width: 100%;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+        }
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .tree-area {
+            position: relative;
+            overflow: visible;
+            padding: 24px;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            font-size: 16px;
+            color: #666;
+        }
+        .error {
+            padding: 12px 16px;
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+            margin-bottom: 16px;
+        }
+        .level-header {
+            position: absolute;
+            top: 0;
+            width: 150px;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6c757d;
+            background-color: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .person-box {
+            position: absolute;
+            width: 150px;
+            height: 60px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 12px;
+            background: #fdfdfd;
+            font-size: 13px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            z-index: 2;
+        }
+        .person-box.root {
+            border-color: #4caf50;
+        }
+        .person-box.clicked {
+            background-color: #bbdefb;
+        }
+        .person-box.new {
+            background-color: #fff9c4;
+        }
+        .person-box.clicked.new {
+            background-color: #ffccbc;
+        }
+        .person-name {
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 4px;
+        }
+        .person-id {
+            font-size: 11px;
+            color: #6c757d;
+        }
+        .side-panel {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100vh;
+            background-color: white;
+            border-left: 1px solid #e9ecef;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.1);
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        .side-panel.show {
+            transform: translateX(0);
+        }
+        .panel-header {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: #212529;
+        }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            color: #6c757d;
+            border-radius: 4px;
+        }
+        .close-btn:hover {
+            background-color: #e9ecef;
+        }
+        .panel-content {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+        .person-info {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        .person-info h4 {
+            margin: 0 0 15px 0;
+            color: #1a1a1a;
+            font-size: 18px;
+        }
+        .info-grid {
+            display: grid;
+            gap: 8px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+        }
+        .info-label {
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .info-value {
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .events-section h4 {
+            margin-bottom: 15px;
+        }
+        .event-item {
+            background-color: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        .event-type {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        .event-details {
+            font-size: 14px;
+            color: #666;
+        }
+        .event-details p {
+            margin: 4px 0;
+        }
+        .relationship-ended {
+            color: #dc3545;
+        }
+        .tooltip {
+            position: absolute;
+            background: #333;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            max-width: 250px;
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .tooltip.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="main-container">
+        <div class="loading">Loading family tree...</div>
+    </div>
+
+    <!-- Side Panel -->
+    <div id="sidePanel" class="side-panel">
+        <div class="panel-header">
+            <h3 class="panel-title">Person Details</h3>
+            <button class="close-btn" onclick="closeSidePanel()">×</button>
+        </div>
+        <div class="panel-content" id="panelContent">
+            <!-- Content will be populated by JavaScript -->
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div id="tooltip" class="tooltip"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:3888';
+        const boxWidth = 150;
+        const boxHeight = 60;
+        const levelSpacing = 240;
+        const rowSpacing = 120;
+
+        let treeData = { nodes: [], links: [], expanded: '' };
+        let clickedNode = null;
+        let addedNodeIds = new Set();
+        let locationNames = {};
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const personId = window.location.pathname.split('/').pop();
+        const fullDetails = urlParams.get('fulldetails') === 'true';
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '—';
+            // Handle date strings that might be in YYYY-MM-DD format already
+            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                return dateStr;
+            }
+            const date = new Date(dateStr);
+            return isNaN(date.getTime()) ? '—' : date.toISOString().split('T')[0];
+        }
+
+        async function initTree() {
+            try {
+                const response = await fetch(`${API_BASE}/tree/init/${personId}`);
+                const data = await response.json();
+                treeData = data;
+                renderTree();
+            } catch (error) {
+                console.error('Failed to load tree:', error);
+                document.getElementById('app').innerHTML = '<div class="error">Could not load tree</div>';
+            }
+        }
+
+        async function expandNode(nodeId) {
+            try {
+                const response = await fetch(`${API_BASE}/tree/expand`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nodeId,
+                        nodes: treeData.nodes,
+                        links: treeData.links
+                    })
+                });
+                const { deltaNodes, deltaLinks } = await response.json();
+
+                // Merge nodes and links
+                const nodeMap = new Map();
+                [...treeData.nodes, ...deltaNodes].forEach(n => nodeMap.set(n.id, n));
+                const mergedNodes = Array.from(nodeMap.values());
+
+                const linkKey = l => `${l.from}-${l.to}-${l.relationship}`;
+                const linkMap = new Map();
+                [...treeData.links, ...deltaLinks].forEach(l => linkMap.set(linkKey(l), l));
+                const mergedLinks = Array.from(linkMap.values());
+
+                addedNodeIds = new Set(deltaNodes.map(n => n.id));
+                treeData = { nodes: mergedNodes, links: mergedLinks, expanded: nodeId };
+                renderTree();
+            } catch (error) {
+                console.error('Failed to expand node:', error);
+            }
+        }
+
+        function renderTree() {
+            const levelMap = {};
+            treeData.nodes.forEach(node => {
+                const level = typeof node.level === 'number' ? node.level : 0;
+                if (!levelMap[level]) levelMap[level] = [];
+                levelMap[level].push(node);
+            });
+
+            const sortedLevels = Object.keys(levelMap).map(Number).sort((a, b) => a - b);
+            const positions = {};
+
+            // Calculate dimensions
+            const maxX = sortedLevels.length > 0 ? (sortedLevels.length - 1) * levelSpacing + boxWidth : 800;
+            const maxY = Math.max(...sortedLevels.map(level => levelMap[level].length * rowSpacing)) + 100;
+            const contentHeight = maxY + 80;
+
+            let html = `
+                <div class="content-wrapper">
+                    <div class="tree-area" style="height: ${contentHeight}px;">
+            `;
+
+            // Level headers
+            sortedLevels.forEach((level, colIndex) => {
+                const x = colIndex * levelSpacing;
+                html += `<div class="level-header" style="left: ${x}px;">Generation ${level}</div>`;
+            });
+
+            // Person boxes
+            sortedLevels.forEach((level, colIndex) => {
+                levelMap[level].forEach((person, rowIndex) => {
+                    const x = colIndex * levelSpacing;
+                    const y = rowIndex * rowSpacing + 60;
+                    positions[person.id] = { x: x + boxWidth / 2, y: y + boxHeight / 2 };
+
+                    const isClicked = person.id === clickedNode;
+                    const isNewlyAdded = addedNodeIds.has(person.id);
+                    const isRoot = person.id === personId;
+
+                    let classes = 'person-box';
+                    if (isRoot) classes += ' root';
+                    if (isClicked && isNewlyAdded) classes += ' clicked new';
+                    else if (isClicked) classes += ' clicked';
+                    else if (isNewlyAdded) classes += ' new';
+
+                    html += `
+                        <div class="${classes}" 
+                             style="left: ${x}px; top: ${y}px;"
+                             onclick="handlePersonClick('${person.id}')"
+                             onmouseenter="showTooltip(event, '${person.id}')"
+                             onmouseleave="hideTooltip()">
+                            <div class="person-name">${person.full_name}</div>
+                            <div class="person-id">${person.id_type_1 || 'ID'}: ${person.id_1 || 'N/A'}</div>
+                        </div>
+                    `;
+                });
+            });
+
+            // SVG for connection lines
+            html += `<svg style="position: absolute; top: 0; left: 0; width: ${maxX + 100}px; height: ${contentHeight}px; pointer-events: none; z-index: 1;">`;
+            
+            treeData.links.forEach(link => {
+                const from = positions[link.from];
+                const to = positions[link.to];
+                if (from && to) {
+                    const strokeDasharray = link.end_date ? '4 2' : '0';
+                    html += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="gray" stroke-dasharray="${strokeDasharray}" stroke-width="2"/>`;
+                }
+            });
+
+            html += '</svg></div></div>';
+
+            document.getElementById('app').innerHTML = html;
+        }
+
+        async function handlePersonClick(nodeId) {
+            clickedNode = nodeId;
+            await expandNode(nodeId);
+            
+            if (fullDetails) {
+                await loadPersonDetails(nodeId);
+            }
+        }
+
+        async function loadPersonDetails(nodeId) {
+            try {
+                const [eventsRes, relationshipsRes] = await Promise.all([
+                    fetch(`${API_BASE}/person/${nodeId}/events`),
+                    fetch(`${API_BASE}/person/${nodeId}/relationships`)
+                ]);
+                
+                const eventsData = await eventsRes.json();
+                const relationshipsData = await relationshipsRes.json();
+                
+                // Process events with relationship end dates
+                const processedEvents = eventsData.events.map(event => {
+                    const endDate = relationshipsData.relationships[event.eventId] || relationshipsData.relationships[event.crvsEventUuid];
+                    const shouldShowEndDate = endDate && event.role !== 'Subject';
+                    return {
+                        ...event,
+                        relationshipEndDate: shouldShowEndDate ? endDate?.end_date : null,
+                        relationshipNotes: shouldShowEndDate ? endDate?.participant_remarks : null
+                    };
+                });
+
+                // Fetch location names
+                const locationIds = [...new Set(processedEvents.map(e => e.location).filter(loc => loc && loc !== 'Unknown'))];
+                const locationMap = {};
+                
+                await Promise.all(
+                    locationIds.map(async locationId => {
+                        try {
+                            const locationRes = await fetch(`http://localhost:2021/locations/${locationId}`);
+                            const locationData = await locationRes.json();
+                            locationMap[locationId] = locationData.name || locationId;
+                        } catch {
+                            locationMap[locationId] = locationId;
+                        }
+                    })
+                );
+                
+                locationNames = locationMap;
+                showPersonDetails({ ...eventsData, events: processedEvents });
+            } catch (error) {
+                console.error('Failed to load person details:', error);
+            }
+        }
+
+        function showPersonDetails(personData) {
+            const content = `
+                <div class="person-info">
+                    <h4>${personData.person.fullName}</h4>
+                    <div class="info-grid">
+                        <div class="info-row">
+                            <span class="info-label">${personData.person.nationalIdType || 'National ID'}</span>
+                            <span class="info-value">${personData.person.nationalId || 'N/A'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Date of Birth</span>
+                            <span class="info-value">${formatDate(personData.person.dateOfBirth) || 'N/A'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Gender</span>
+                            <span class="info-value">${personData.person.gender || 'N/A'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="events-section">
+                    <h4>Events (${personData.events.length})</h4>
+                    ${personData.events.length === 0 ? 
+                        '<p style="color: #666; font-style: italic;">No events found for this person.</p>' :
+                        personData.events.map(event => `
+                            <div class="event-item">
+                                <div class="event-type">${event.type}</div>
+                                <div class="event-details">
+                                    <p><strong>Date:</strong> ${formatDate(event.date)}</p>
+                                    <p><strong>Role:</strong> ${event.role}</p>
+                                    <p><strong>Location:</strong> ${locationNames[event.location] || event.location}</p>
+                                    ${event.relationshipEndDate ? `
+                                        <p class="relationship-ended">
+                                            <strong>Relationship Ended:</strong> ${formatDate(event.relationshipEndDate)}
+                                            ${event.relationshipNotes ? ` - ${event.relationshipNotes}` : ''}
+                                        </p>
+                                    ` : ''}
+                                    ${event.registrationId !== 'N/A' ? `
+                                        <p><strong>Registration ID:</strong> ${event.registrationId}</p>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            `;
+            
+            document.getElementById('panelContent').innerHTML = content;
+            document.getElementById('sidePanel').classList.add('show');
+        }
+
+        function closeSidePanel() {
+            document.getElementById('sidePanel').classList.remove('show');
+        }
+
+        function showTooltip(event, personId) {
+            const person = treeData.nodes.find(n => n.id === personId);
+            if (!person) return;
+
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `
+                <strong>DOB:</strong> ${formatDate(person.dob)}<br/>
+                <strong>Death:</strong> ${formatDate(person.death) || 'N/A'}<br/>
+                <strong>${person.id_type_1 || 'ID 1'}:</strong> ${person.id_1 || '—'}<br/>
+                <strong>${person.id_type_2 || 'ID 2'}:</strong> ${person.id_2 || '—'}
+            `;
+            tooltip.style.left = event.pageX + 10 + 'px';
+            tooltip.style.top = event.pageY - 10 + 'px';
+            tooltip.classList.add('show');
+        }
+
+        function hideTooltip() {
+            document.getElementById('tooltip').classList.remove('show');
+        }
+
+        // Initialize
+        initTree();
+    </script>
+</body>
+</html>

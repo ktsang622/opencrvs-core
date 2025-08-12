@@ -396,7 +396,7 @@ async function createProvisionalPerson(
     duplicates: null,
     status: null,
     last_update_at: null,
-    remarks: 'invalid crvs_event_uuid',
+    remarks: 'Mocked event: Invalid crvs_event_uuid',
     created_at: now
   }, tx)
   

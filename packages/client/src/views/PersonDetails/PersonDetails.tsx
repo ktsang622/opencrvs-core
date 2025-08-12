@@ -124,7 +124,7 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
         // Real API call
         try {
           const response = await fetch(
-            `${config.PERSON_SEARCH_API_URL}/person/${personId}/events`
+            `${config.TOPPAN_SERVICE_URL}/person/${personId}/events`
           )
           const data = await response.json()
           console.log('Full API response:', data)
@@ -225,7 +225,7 @@ const PersonDetailsView: React.FC<IPersonDetailsProps> = ({ intl }) => {
             } else {
               try {
                 const response = await fetch(
-                  `${config.PERSON_SEARCH_API_URL}/event/${eventId}/participants`
+                  `${config.TOPPAN_SERVICE_URL}/event/${eventId}/participants`
                 )
                 const data = await response.json()
                 setEventParticipants(data)

@@ -13,7 +13,9 @@ import {
   searchPersonHandler,
   detailedPersonSearchHandler,
   personEventsHandler,
-  eventParticipantsHandler
+  eventParticipantsHandler,
+  familyTreeInitHandler,
+  familyTreeExpandHandler
 } from './handler'
 
 export const personSearchRoutes = [
@@ -55,6 +57,26 @@ export const personSearchRoutes = [
       auth: false,
       tags: ['api'],
       description: 'Get event participants via family-tree API'
+    }
+  },
+  {
+    method: 'GET',
+    path: '/tree/init/{person_id}',
+    handler: familyTreeInitHandler,
+    options: {
+      auth: false,
+      tags: ['api'],
+      description: 'Initialize family tree'
+    }
+  },
+  {
+    method: 'POST',
+    path: '/tree/expand',
+    handler: familyTreeExpandHandler,
+    options: {
+      auth: false,
+      tags: ['api'],
+      description: 'Expand family tree node'
     }
   }
 ]

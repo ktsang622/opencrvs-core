@@ -11,7 +11,7 @@
 
 import * as Hapi from '@hapi/hapi'
 import fetch from 'node-fetch'
-import { PERSON_SEARCH_API_URL } from '@gateway/constants'
+import { TOPPAN_SERVICE_URL } from '@gateway/constants'
 
 export async function searchPersonHandler(
   request: Hapi.Request,
@@ -20,20 +20,17 @@ export async function searchPersonHandler(
   const payload = request.payload as any
 
   try {
-    // Proxy to family-tree API
-    const response = await fetch(
-      `${PERSON_SEARCH_API_URL}/api/opensearch/search-person`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }
-    )
+    // Proxy to toppan-service API
+    const response = await fetch(`${TOPPAN_SERVICE_URL}/person-search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
 
     if (!response.ok) {
-      throw new Error(`Family-tree API error: ${response.status}`)
+      throw new Error(`Toppan-service API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -68,9 +65,9 @@ export async function detailedPersonSearchHandler(
   const payload = request.payload as any
 
   try {
-    // Proxy to family-tree API
+    // Proxy to toppan-service API
     const response = await fetch(
-      `${PERSON_SEARCH_API_URL}/api/opensearch/search-person`,
+      `${TOPPAN_SERVICE_URL}/person-search/detailed`,
       {
         method: 'POST',
         headers: {
@@ -81,7 +78,7 @@ export async function detailedPersonSearchHandler(
     )
 
     if (!response.ok) {
-      throw new Error(`Family-tree API error: ${response.status}`)
+      throw new Error(`Toppan-service API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -119,10 +116,10 @@ export async function personEventsHandler(
   console.log('Gateway: Request URL:', request.url)
 
   try {
-    const targetUrl = `${PERSON_SEARCH_API_URL}/api/person/${personId}/events`
-    console.log('Gateway: Calling family-tree at:', targetUrl)
+    const targetUrl = `${TOPPAN_SERVICE_URL}/person/${personId}/events`
+    console.log('Gateway: Calling toppan-service at:', targetUrl)
 
-    // Proxy to family-tree API
+    // Proxy to toppan-service API
     const response = await fetch(targetUrl, {
       method: 'GET',
       headers: {
@@ -131,7 +128,7 @@ export async function personEventsHandler(
     })
 
     if (!response.ok) {
-      throw new Error(`Family-tree API error: ${response.status}`)
+      throw new Error(`Toppan-service API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -150,8 +147,8 @@ export async function eventParticipantsHandler(
   const { eventId } = request.params
 
   try {
-    const targetUrl = `${PERSON_SEARCH_API_URL}/api/event/${eventId}/participants`
-    console.log('Gateway: Calling family-tree at:', targetUrl)
+    const targetUrl = `${TOPPAN_SERVICE_URL}/event/${eventId}/participants`
+    console.log('Gateway: Calling toppan-service at:', targetUrl)
 
     const response = await fetch(targetUrl, {
       method: 'GET',
@@ -161,7 +158,7 @@ export async function eventParticipantsHandler(
     })
 
     if (!response.ok) {
-      throw new Error(`Family-tree API error: ${response.status}`)
+      throw new Error(`Toppan-service API error: ${response.status}`)
     }
 
     const data = await response.json()
@@ -170,5 +167,60 @@ export async function eventParticipantsHandler(
   } catch (error) {
     console.error('Event participants error:', error)
     return h.response({ error: 'Participants fetch failed' }).code(500)
+  }
+}
+
+export async function familyTreeInitHandler(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit
+) {
+  const { person_id } = request.params
+
+  try {
+    const targetUrl = `${TOPPAN_SERVICE_URL}/tree/init/${person_id}`
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Toppan-service API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return h.response(data).code(200)
+  } catch (error) {
+    console.error('Family tree init error:', error)
+    return h.response({ error: 'Family tree init failed' }).code(500)
+  }
+}
+
+export async function familyTreeExpandHandler(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit
+) {
+  const payload = request.payload as any
+
+  try {
+    const targetUrl = `${TOPPAN_SERVICE_URL}/tree/expand`
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      throw new Error(`Toppan-service API error: ${response.status}`)
+    }
+
+    const data = await response.json()
+    return h.response(data).code(200)
+  } catch (error) {
+    console.error('Family tree expand error:', error)
+    return h.response({ error: 'Family tree expand failed' }).code(500)
   }
 }
