@@ -53,7 +53,7 @@ jest.mock('@metrics/configApi', () => {
         AUTH_URL: 'http://localhost:4040',
         MINIO_URL: 'http://localhost:3535',
         RESOURCES_URL: 'http://localhost:3040',
-        APPLICATION_NAME: 'Farajaland CRVS',
+        APPLICATION_NAME: 'Toppan CRVS',
         FIELD_AGENT_AUDIT_LOCATIONS: 'DISTRICT',
         DECLARATION_AUDIT_LOCATIONS: 'DISTRICT',
         EXTERNAL_VALIDATION_WORKQUEUE: false,

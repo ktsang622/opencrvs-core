@@ -114,7 +114,7 @@ export const LeftNavigation = (props: ILeftNavigationProps) => {
       <Container>
         <Version>
           {props.warning}
-          <span>OpenCRVS v{props.applicationVersion}</span>
+          <span>Toppan CRVS v{props.applicationVersion}</span>
         </Version>
       </Container>
     </LeftNavigationContainer>

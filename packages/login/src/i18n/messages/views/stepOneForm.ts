@@ -44,7 +44,7 @@ const messagesToDefine: IStepOneFormMessages = {
 
   stepOneLoginText: {
     id: 'login.stepOneText',
-    defaultMessage: 'Login to Farajaland CRVS',
+    defaultMessage: 'Login to Toppan CRVS',
     description: 'The instruction that appears in step one of the login form'
   },
   submit: {

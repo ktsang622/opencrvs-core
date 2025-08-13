@@ -35,7 +35,7 @@ const config = {
   AUTH_URL: 'http://localhost:4040',
   MINIO_BUCKET: 'ocrvs',
   COUNTRY_CONFIG_URL: 'http://localhost:3040',
-  APPLICATION_NAME: 'Farajaland CRVS',
+  APPLICATION_NAME: 'Toppan CRVS',
   BIRTH: {
     REGISTRATION_TARGET: 45,
     LATE_REGISTRATION_TARGET: 365,
