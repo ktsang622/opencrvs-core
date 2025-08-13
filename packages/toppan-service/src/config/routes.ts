@@ -2,6 +2,7 @@ import { ServerRoute } from '@hapi/hapi';
 import { searchPersonHandler, detailedPersonSearchHandler, advancedPersonSearchHandler, debugHandler } from '../features/person-search/handler';
 import { familyTreeInitHandler, familyTreeExpandHandler } from '../features/family-tree/handler';
 import { personEventsHandler, eventParticipantsHandler, personRelationshipsHandler } from '../features/person-events/handler';
+import { indexPersonDbHandler } from '../features/opensearch/handler';
 
 
 export const routes: ServerRoute[] = [
@@ -114,6 +115,18 @@ export const routes: ServerRoute[] = [
       auth: false,
       tags: ['api'],
       description: 'Debug endpoint'
+    }
+  },
+
+  // OpenSearch indexing route
+  {
+    method: 'POST',
+    path: '/opensearch/index-person-db',
+    handler: indexPersonDbHandler,
+    options: {
+      auth: false,
+      tags: ['api'],
+      description: 'Index person database to OpenSearch'
     }
   },
 

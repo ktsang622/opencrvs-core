@@ -14,12 +14,25 @@ export function mapRecordToCreationPayload(record: any) {
 }
 
 export function mapRecordToCorrectionPayload(recordInput: any) {
-  const correction = recordInput.registration?.correction
-  const fatherChange = correction?.values?.find(
-    (cv: any) => cv.section === 'father' && cv.fieldName === 'detailsExist'
+  console.log(
+    '🔍 mapRecordToCorrectionPayload input:',
+    JSON.stringify(recordInput, null, 2)
   )
 
-  if (!fatherChange) return null
+  const correction = recordInput.registration?.correction
+  console.log('🔍 Found correction:', correction)
+
+  const fatherChange = correction?.values?.find(
+    (cv: any) =>
+      cv.section === 'father' &&
+      (cv.fieldName === 'detailsExist' || cv.fieldName === 'searchPersonId')
+  )
+  console.log('🔍 Found fatherChange:', fatherChange)
+
+  if (!fatherChange) {
+    console.log('❌ No father correction detected, returning null')
+    return null
+  }
 
   const searchPersonIdChange = correction?.values?.find(
     (cv: any) => cv.section === 'father' && cv.fieldName === 'searchPersonId'
@@ -37,7 +50,15 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
   let action: string
   let fatherData: any = {}
 
-  if (fatherChange.oldValue === false && fatherChange.newValue === true) {
+  if (fatherChange.fieldName === 'searchPersonId') {
+    // Father replacement via person picker
+    action = 'REPLACE_FATHER'
+    fatherData.fatherId = fatherChange.newValue
+    fatherData.expectedPersonId = fatherChange.oldValue
+  } else if (
+    fatherChange.oldValue === false &&
+    fatherChange.newValue === true
+  ) {
     // Adding father
     action = 'ADD_FATHER'
     if (searchPersonIdChange?.newValue) {
@@ -82,7 +103,7 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
     return null // No valid correction detected
   }
 
-  return {
+  const payload = {
     action,
     eventId: recordInput._fhirIDMap?.composition,
     fatherData,
@@ -90,4 +111,10 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
     correctionType: correction?.reason,
     bundle: recordInput // Pass the full bundle for FHIR father detection
   }
+
+  console.log(
+    '✅ mapRecordToCorrectionPayload returning:',
+    JSON.stringify(payload, null, 2)
+  )
+  return payload
 }

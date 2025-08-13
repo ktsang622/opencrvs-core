@@ -2,13 +2,13 @@
 import * as Hapi from '@hapi/hapi'
 
 import { getPersonDbSyncRoutes } from './person-db-sync/routes'
-import { runMigrations } from './run-migrations'
+import { runSimpleMigrations } from './simple-migrations'
 
 async function start() {
   // Run database migrations first
   console.log('🔄 Initializing Toppan service...')
   try {
-    await runMigrations()
+    await runSimpleMigrations()
   } catch (error) {
     console.error('❌ Failed to run migrations:', error)
     process.exit(1)
@@ -38,6 +38,8 @@ async function start() {
 
   // Main routes
   server.route(getPersonDbSyncRoutes())
+  
+
 
   await server.start()
   console.log(`🚀 toppan service listening on ${server.info.uri}`)

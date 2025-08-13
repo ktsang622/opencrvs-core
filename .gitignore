@@ -9,6 +9,14 @@ coverage
 
 # production
 build
+dist
+**/dist/
+packages/*/dist/
+
+# source maps
+*.map
+*.js.map
+*.css.map
 
 # misc
 .DS_Store

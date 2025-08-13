@@ -133,18 +133,14 @@ const PersonPicker = (
       console.log('✅ Using Formik context to set field values')
 
       // Auto-detect which section (mother/father) this picker is used in
-      // by checking existing form field names
-      const isMotherSection = Object.keys(formik.values).some((key) =>
-        key.startsWith('mother')
+      // by checking the picker's ID prop
+      const sectionPrefix = props.id.includes('father') ? 'father' : 'mother'
+      console.log(
+        '🔍 Detected section prefix:',
+        sectionPrefix,
+        'from ID:',
+        props.id
       )
-      const isFatherSection = Object.keys(formik.values).some((key) =>
-        key.startsWith('father')
-      )
-      const sectionPrefix = isMotherSection
-        ? 'mother'
-        : isFatherSection
-          ? 'father'
-          : 'mother'
 
       if (personData.uuid) {
         formik.setFieldValue('searchPersonId', personData.uuid)

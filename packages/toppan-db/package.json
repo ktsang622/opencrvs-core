@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@opencrvs/toppan-common": "^1.0.0",
+    "@opensearch-project/opensearch": "^2.2.0",
     "pg": "^8.11.3"
   },
   "devDependencies": {

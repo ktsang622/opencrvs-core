@@ -47,6 +47,7 @@ export async function syncRecordCorrection(recordInput: any, token: string) {
   if (!payload) return // No father correction detected
 
   console.log('🔄 Syncing birth record correction with Toppan...')
+  console.log('📤 Sending payload to Toppan:', JSON.stringify(payload, null, 2))
 
   const response = await fetch(
     `${env.TOPPAN_URL}/v1/person-db-sync/birth/correction`,
@@ -62,7 +63,15 @@ export async function syncRecordCorrection(recordInput: any, token: string) {
   )
 
   if (!response.ok) {
-    throw new Error(`Toppan correction sync failed: ${response.status}`)
+    const errorText = await response.text()
+    console.error(
+      '❌ Toppan correction sync failed:',
+      response.status,
+      errorText
+    )
+    throw new Error(
+      `Toppan correction sync failed: ${response.status} - ${errorText}`
+    )
   }
 
   console.log('✅ Birth record correction synced with Toppan successfully')

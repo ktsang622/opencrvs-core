@@ -1,7 +1,7 @@
 import * as Hapi from '@hapi/hapi'
 import Joi from 'joi'
-import axios from 'axios'
 import { randomUUID } from 'crypto'
+import { indexPersonDb } from '@opencrvs/toppan-db'
 import {
   getEventDatabaseId,
   findExistingFatherParticipant,
@@ -15,6 +15,8 @@ import {
   insertSyncRequest,
   insertEvent,
   updateFamilyLinkOnParticipantChange,
+  updateSyncRequestStatus,
+  clearSyncRequestPayload,
   pool
 } from '../../database'
 
@@ -57,7 +59,7 @@ const fatherDataSchema = Joi.object({
 
 const correctionPayloadSchema = Joi.object({
   action: Joi.string().valid('ADD_FATHER','REMOVE_FATHER','UPDATE_FATHER_SAME','REPLACE_FATHER').required(),
-  eventId: Joi.string().uuid().required(),
+  eventId: Joi.string().required(),
   fatherData: fatherDataSchema.when('action', {
     is: Joi.valid('ADD_FATHER','UPDATE_FATHER_SAME','REPLACE_FATHER'),
     then: Joi.required(),
@@ -65,8 +67,8 @@ const correctionPayloadSchema = Joi.object({
   }),
   reason: Joi.string().allow('', null).optional(),
   correctionType: Joi.string().allow('', null).optional(),
-  bundle: Joi.object().optional()
-})
+  bundle: Joi.any().optional()
+}).unknown(true)
 
 export const correctionValidation = { payload: correctionPayloadSchema }
 
@@ -90,6 +92,14 @@ export async function correctionHandler(request: Hapi.Request, h: Hapi.ResponseT
   console.log(`- eventId: ${eventId}`)
   console.log(`- action: ${action}`)
   if (fatherData) console.log(`- fatherData: ${JSON.stringify(fatherData)}`)
+
+  // Create sync request for retry capability
+  const syncRequestId = await insertSyncRequest({
+    event_type: 'birth',
+    action: 'CORRECTION',
+    crvs_event_uuid: eventId,
+    payload: request.payload
+  })
 
   try {
     return await withTransaction(async (tx) => {
@@ -125,24 +135,25 @@ export async function correctionHandler(request: Hapi.Request, h: Hapi.ResponseT
 
       switch (action) {
         case 'ADD_FATHER':
-          return await handleAddFather({ eventId, eventDbId, fatherData: fatherData!, reason, correctionType, now, h, tx, bundle })
+          return await handleAddFather({ eventId, eventDbId, fatherData: fatherData!, reason, correctionType, now, h, tx, bundle, syncRequestId })
         case 'REMOVE_FATHER':
-          return await handleRemoveFather({ eventId, eventDbId, reason, correctionType, now, h, tx })
+          return await handleRemoveFather({ eventId, eventDbId, reason, correctionType, now, h, tx, syncRequestId })
         case 'UPDATE_FATHER_SAME':
-          return await handleUpdateFatherSame({ eventId, eventDbId, fatherData: fatherData!, reason, correctionType, now, h, tx, bundle })
+          return await handleUpdateFatherSame({ eventId, eventDbId, fatherData: fatherData!, reason, correctionType, now, h, tx, bundle, syncRequestId })
         case 'REPLACE_FATHER':
-          return await handleReplaceFather({ eventId, eventDbId, fatherData: fatherData!, reason, correctionType, now, h, tx, bundle })
+          return await handleReplaceFather({ eventId, eventDbId, fatherData: fatherData!, reason, correctionType, now, h, tx, bundle, syncRequestId })
         default:
           return h.response({ error: 'Unsupported action' }).code(400)
       }
     })
   } catch (e) {
     console.error('\n❌ Birth correction error:', e)
+    await updateSyncRequestStatus(syncRequestId, 'failed', (e as Error).message)
     return h.response({ error: (e as Error).message }).code(500)
   }
 }
 
-async function handleAddFather({ eventId, eventDbId, fatherData, reason, correctionType, now, h, tx, bundle }: any) {
+async function handleAddFather({ eventId, eventDbId, fatherData, reason, correctionType, now, h, tx, bundle, syncRequestId }: any) {
   console.log('\n👨 Adding father to existing record...')
 
   // Check if active father already exists
@@ -168,15 +179,18 @@ async function handleAddFather({ eventId, eventDbId, fatherData, reason, correct
 
   await upsertEvent({ crvs_event_uuid: eventId, last_update_at: now, remarks: `Correction: ADD_FATHER | ${reason ?? ''}`.trim() }, tx)
 
-  safeTriggerReindex()
+  await safeTriggerReindex()
+  await updateSyncRequestStatus(syncRequestId, 'completed')
+  await clearSyncRequestPayload(syncRequestId)
   return h.response({ success: true, action: 'ADD_FATHER', personId }).code(201)
 }
 
 // Fix 6: Make REMOVE_FATHER idempotent
-async function handleRemoveFather({ eventId, eventDbId, reason, correctionType, now, h, tx }: any) {
+async function handleRemoveFather({ eventId, eventDbId, reason, correctionType, now, h, tx, syncRequestId }: any) {
   console.log('\n❌ Removing father from record...')
   const current = await findExistingFatherParticipant(eventDbId, tx)
   if (!current) {
+    await updateSyncRequestStatus(syncRequestId, 'completed')
     return h.response({ success: true, status: 'noop', message: 'No active father' }).code(204)
   }
 
@@ -184,12 +198,14 @@ async function handleRemoveFather({ eventId, eventDbId, reason, correctionType, 
   await updateFamilyLinkOnParticipantChange(eventDbId, current.person_id, 'father', 'inactive', now, tx)
   await upsertEvent({ crvs_event_uuid: eventId, last_update_at: now, remarks: `Correction: REMOVE_FATHER | ${reason ?? ''}`.trim() }, tx)
 
-  safeTriggerReindex()
+  await safeTriggerReindex()
+  await updateSyncRequestStatus(syncRequestId, 'completed')
+  await clearSyncRequestPayload(syncRequestId)
   return h.response({ success: true, status: 'removed', action: 'REMOVE_FATHER' }).code(200)
 }
 
 // Fix 5: Enforce UPDATE vs REPLACE semantics with optimistic concurrency
-async function handleUpdateFatherSame({ eventId, eventDbId, fatherData, reason, correctionType, now, h, tx, bundle }: any) {
+async function handleUpdateFatherSame({ eventId, eventDbId, fatherData, reason, correctionType, now, h, tx, bundle, syncRequestId }: any) {
   console.log('\n✏️ Updating father (same person)...')
   
   const current = await findExistingFatherParticipant(eventDbId, tx)
@@ -231,11 +247,13 @@ async function handleUpdateFatherSame({ eventId, eventDbId, fatherData, reason, 
 
   await upsertEvent({ crvs_event_uuid: eventId, last_update_at: now, remarks: `Correction: UPDATE_FATHER_SAME | ${reason ?? ''}`.trim() }, tx)
 
-  safeTriggerReindex()
+  await safeTriggerReindex()
+  await updateSyncRequestStatus(syncRequestId, 'completed')
+  await clearSyncRequestPayload(syncRequestId)
   return h.response({ success: true, action: 'UPDATE_FATHER_SAME', personId: current.person_id }).code(200)
 }
 
-async function handleReplaceFather({ eventId, eventDbId, fatherData, reason, correctionType, now, h, tx, bundle }: any) {
+async function handleReplaceFather({ eventId, eventDbId, fatherData, reason, correctionType, now, h, tx, bundle, syncRequestId }: any) {
   console.log('\n🔄 Replacing father with different person...')
 
   // Check for contradictory bundle
@@ -272,7 +290,9 @@ async function handleReplaceFather({ eventId, eventDbId, fatherData, reason, cor
 
   await upsertEvent({ crvs_event_uuid: eventId, last_update_at: now, remarks: `Correction: REPLACE_FATHER | ${reason ?? ''}`.trim() }, tx)
 
-  safeTriggerReindex()
+  await safeTriggerReindex()
+  await updateSyncRequestStatus(syncRequestId, 'completed')
+  await clearSyncRequestPayload(syncRequestId)
   return h.response({ success: true, action: 'REPLACE_FATHER', personId: newPersonId }).code(201)
 }
 
@@ -433,7 +453,7 @@ function safeTriggerReindex() {
     if (typeof fetch !== 'function') return
     // Best-effort fire-and-forget
     // @ts-ignore
-    fetch('http://localhost:3888/api/opensearch/index-person-db', { method: 'POST' })
+    fetch('http://localhost:3888/opensearch/index-person-db', { method: 'POST' })
       .then(() => console.log('✅ OpenSearch index update triggered'))
       .catch((e: any) => console.log('⚠️ Reindex trigger failed:', e?.message || e))
   } catch (_) {
@@ -442,10 +462,14 @@ function safeTriggerReindex() {
 }
 */
 
-function safeTriggerReindex() {
-  axios.post('http://localhost:3888/api/opensearch/index-person-db')
-    .then(() => console.log('✅ OpenSearch index update triggered'))
-    .catch((e) => console.log('⚠️ Reindex trigger failed:', e?.message || e))
+async function safeTriggerReindex() {
+  try {
+    console.log('🔄 Triggering OpenSearch reindex...')
+    await indexPersonDb()
+    console.log('✅ OpenSearch index updated')
+  } catch (error) {
+    console.log('⚠️ Reindex failed:', error)
+  }
 }
 
 // Fix 2: FHIR father detection helper - more robust parsing

@@ -72,20 +72,20 @@ services:
     ports:
       - '3447:3447'
 
-  family-tree:
-    build:
-      context: ../family-tree
-      dockerfile: ./docker/Dockerfile
-    env_file:
-      - ../family-tree/.env.docker
-    depends_on:
-      - postgres
-    volumes:
-      - ../family-tree/src:/app/src
-      - ../family-tree/public:/app/public
-      - family_tree_nextjs_cache:/app/.next
-    ports:
-      - '3888:3888'
+#  family-tree:
+#    build:
+#      context: ../family-tree
+#      dockerfile: ./docker/Dockerfile
+#    env_file:
+#      - ../family-tree/.env.docker
+#    depends_on:
+#      - postgres
+#    volumes:
+#      - ../family-tree/src:/app/src
+#      - ../family-tree/public:/app/public
+#      - family_tree_nextjs_cache:/app/.next
+#    ports:
+#      - '3888:3888'
 
   postgres:
     image: postgres:15

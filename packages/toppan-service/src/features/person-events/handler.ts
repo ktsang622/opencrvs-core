@@ -66,7 +66,7 @@ export const personEventsHandler = async (request: Request, h: ResponseToolkit) 
       FROM event e
       JOIN event_participant ep ON e.id = ep.event_id
       WHERE ep.person_id = $1 
-        AND ep.status IN ('active', 'review')
+        AND ep.status IN ('active', 'inactive', 'review')
       ORDER BY e.event_date DESC, e.created_at DESC
     `;
 
@@ -172,7 +172,7 @@ WITH ep AS (
   JOIN person p ON ep.person_id = p.id
   JOIN event e  ON ep.event_id = e.id
   WHERE e.crvs_event_uuid = $1
-    AND ep.status IN ('active', 'review')
+    AND ep.status IN ('active', 'inactive', 'review')
 ),
 subject AS (
   SELECT person_id AS subject_id, event_id
@@ -311,35 +311,38 @@ export const personRelationshipsHandler = async (request: Request, h: ResponseTo
   try {
     const relationshipsQuery = `
       SELECT 
-        fl.source_event_id,
-        fl.end_date,
-        ep_pick.remarks AS participant_remarks
-      FROM family_links_bidirectional fl
-      JOIN event e ON e.id = fl.source_event_id
-      LEFT JOIN LATERAL (
-        SELECT ep.remarks
-        FROM event_participant ep
-        WHERE ep.person_id = fl.person_id
-          AND (
-            ep.event_id = e.id
-            OR ep.event_id = e.crvs_event_uuid
-          )
-          AND ep.remarks IS NOT NULL
-        ORDER BY 
-          (ep.ended_at::date = fl.end_date) DESC,
-          ep.ended_at DESC NULLS LAST,
-          ep.created_at DESC NULLS LAST
-        LIMIT 1
-      ) ep_pick ON TRUE
-      WHERE fl.person_id = $1 AND fl.end_date IS NOT NULL
+        e.crvs_event_uuid,
+        ep.ended_at::date AS end_date,
+        ep.remarks AS participant_remarks
+      FROM event_participant ep
+      JOIN event e ON e.id = ep.event_id
+      WHERE ep.person_id = $1 
+        AND ep.ended_at IS NOT NULL
+        AND ep.status = 'inactive'
+      ORDER BY ep.ended_at DESC
     `;
 
     const result = await pool.query(relationshipsQuery, [personId]);
     
     const relationships = result.rows.reduce((acc: any, row: any) => {
-      acc[row.source_event_id] = {
+      let parsedRemarks = row.participant_remarks;
+      
+      if (row.participant_remarks) {
+        try {
+          // Parse the last JSON remark from concatenated string
+          const parts = row.participant_remarks.split(' | ');
+          const lastPart = parts[parts.length - 1];
+          const parsed = JSON.parse(lastPart);
+          parsedRemarks = `${parsed.base} (${parsed.correctionType || parsed.reason || 'Unknown'})`;
+        } catch {
+          // Keep original if parsing fails
+          parsedRemarks = row.participant_remarks;
+        }
+      }
+      
+      acc[row.crvs_event_uuid] = {
         end_date: row.end_date,
-        participant_remarks: row.participant_remarks
+        participant_remarks: parsedRemarks
       };
       return acc;
     }, {});

@@ -13,6 +13,7 @@ import {
   updateSyncRequestStatus,
   clearSyncRequestPayload,
 } from '../../database'
+import { indexPersonDb } from '@opencrvs/toppan-db'
 
 /**
  * This handler mirrors the mapping used in your webhook.
@@ -110,7 +111,7 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
 
     // Async reindex (ok for baseline; outbox later)
     console.log('\n🔍 Updating OpenSearch index...')
-    triggerReindex()
+    await triggerReindex()
     console.log('✅ OpenSearch index updated successfully')
 
     return h.response({
@@ -532,6 +533,11 @@ function mapBundleToSql(record: any) {
   }
 }
 
-function triggerReindex() {
-  fetch('http://localhost:3888/api/opensearch/index-person-db', { method: 'POST' }).catch(() => {})
+async function triggerReindex() {
+  try {
+    await indexPersonDb()
+    console.log('✅ OpenSearch index updated')
+  } catch (error) {
+    console.log('⚠️ Reindex failed:', error)
+  }
 }
