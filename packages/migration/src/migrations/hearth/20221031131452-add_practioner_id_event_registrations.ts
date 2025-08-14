@@ -84,20 +84,22 @@ const getUpdatedPoints = async (
         deathDays,
         ...tags
       }) => {
-        let task = (await db.collection('Task').findOne({
+        const taskDoc = await db.collection('Task').findOne({
           focus: {
             reference: `Composition/${compositionId}`
           },
           'businessStatus.coding.code': 'REGISTERED'
-        })) as fhir.Task | null
+        })
+        let task = taskDoc as unknown as fhir.Task | null
 
         if (!task) {
-          task = (await db.collection('Task_history').findOne({
+          const taskHistoryDoc = await db.collection('Task_history').findOne({
             focus: {
               reference: `Composition/${compositionId}`
             },
             'businessStatus.coding.code': 'REGISTERED'
-          })) as unknown as fhir.Task
+          })
+          task = taskHistoryDoc as unknown as fhir.Task
         }
 
         let practitionerExtension: fhir.Extension | undefined

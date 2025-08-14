@@ -11,7 +11,7 @@
     "open:cov": "yarn test && opener coverage/index.html",
     "lint": "eslint -c eslint.config.js --fix --max-warnings=0",
     "test:compilation": "tsc --noEmit",
-    "build": "tsc && copyfiles 'src/**/*.json' build/dist",
+    "build": "tsc && find src -name '*.json' -exec cp --parents {} build/dist \\;",
     "build:clean": "rm -rf build",
     "extract:translations": "bash extract-translations.sh"
   },

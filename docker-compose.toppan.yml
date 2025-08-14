@@ -1,0 +1,12 @@
+services:
+  toppan-service:
+    image: toppan/ocrvs-service:${VERSION}
+    build:
+      context: .
+      dockerfile: ./packages/toppan-service/Dockerfile
+
+  toppan-ui:
+    image: toppan/ocrvs-ui:${VERSION}
+    build:
+      context: .
+      dockerfile: ./packages/toppan-ui/Dockerfile

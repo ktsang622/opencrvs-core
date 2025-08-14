@@ -68,7 +68,8 @@ import { getLocalizedLocationName } from '@client/utils/locationUtils'
 import { usePermissions } from '@client/hooks/useAuthorization'
 import * as routes from '@client/navigation/routes'
 import { UserSection } from '@client/forms'
-import { stringify } from 'querystring'
+// Browser-compatible query string handling
+const stringify = (obj: Record<string, any>) => new URLSearchParams(obj).toString()
 
 const DEFAULT_FIELD_AGENT_LIST_SIZE = 10
 const DEFAULT_PAGE_NUMBER = 1

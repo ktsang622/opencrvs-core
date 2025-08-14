@@ -41,7 +41,7 @@ export const getRoutes = () => {
       path: '/ping',
       handler: healthCheckHandler,
       options: {
-        auth: false,
+        auth: false as const,
         description: 'Checks the health of all services.',
         notes: 'Pass the service as a query param: service'
       }
@@ -89,7 +89,7 @@ export const getRoutes = () => {
       method: 'POST',
       path: '/upload',
       handler: async (req, h) => {
-        return h.proxy({
+        return (h as any).proxy({
           uri: `${DOCUMENTS_URL}/files`,
           passThrough: true
         })
@@ -105,7 +105,7 @@ export const getRoutes = () => {
       method: 'GET',
       path: '/presigned-url/{fileUri*}',
       handler: async (req, h) => {
-        return h.proxy({
+        return (h as any).proxy({
           uri: `${DOCUMENTS_URL}/presigned-url/${MINIO_BUCKET}/${req.params.fileUri}`,
           passThrough: true
         })
@@ -115,7 +115,7 @@ export const getRoutes = () => {
       method: 'DELETE',
       path: '/files/{filename}',
       handler: async (req, h) => {
-        return h.proxy({
+        return (h as any).proxy({
           uri: `${DOCUMENTS_URL}/files/${req.params.filename}`,
           passThrough: true
         })

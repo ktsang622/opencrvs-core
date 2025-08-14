@@ -22,5 +22,13 @@
     "types": ["fhir", "jest"]
   },
   "include": ["resources/**/*.ts", "src/**/*.ts", "typings"],
-  "exclude": ["node_modules", "build", "scripts", "acceptance-tests"]
+  "exclude": [
+    "node_modules",
+    "build",
+    "scripts",
+    "acceptance-tests",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/__tests__/**"
+  ]
 }

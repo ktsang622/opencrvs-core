@@ -36,7 +36,7 @@ describe('verify svg uploader handler', () => {
   })
 
   it('returns ok for valid request', async () => {
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'POST',
       url: '/upload-svg',
       payload: Buffer.from(

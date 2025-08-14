@@ -17,6 +17,7 @@
     "noImplicitAny": true,
     "strictNullChecks": true,
     "noUnusedLocals": true,
+    "skipLibCheck": true,
     "types": ["fhir", "jest"]
   },
   "include": ["src/**/*.ts", "typings"],

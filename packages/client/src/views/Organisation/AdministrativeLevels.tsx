@@ -38,7 +38,8 @@ import styled from 'styled-components'
 import { getLocalizedLocationName } from '@client/utils/locationUtils'
 import { usePermissions } from '@client/hooks/useAuthorization'
 import * as routes from '@client/navigation/routes'
-import { stringify } from 'querystring'
+// Browser-compatible query string handling
+const stringify = (obj: Record<string, any>) => new URLSearchParams(obj).toString()
 
 const DEFAULT_PAGINATION_LIST_SIZE = 10
 

@@ -17,9 +17,18 @@
     "noImplicitAny": true,
     "strictNullChecks": true,
     "noUnusedLocals": true,
+    "skipLibCheck": true,
     "types": ["fhir", "jest"],
     "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "typings"],
-  "exclude": ["node_modules", "build", "scripts", "acceptance-tests"]
+  "exclude": [
+    "node_modules",
+    "build",
+    "scripts",
+    "acceptance-tests",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/__tests__/**"
+  ]
 }

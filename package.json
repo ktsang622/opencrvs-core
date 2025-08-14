@@ -57,6 +57,11 @@
   },
   "resolutions": {
     "@types/react": "18.3.1",
-    "fast-xml-parser": "4.4.1"
+    "fast-xml-parser": "4.4.1",
+    "minimatch": "9.0.5",
+    "glob": "10.4.5",
+    "cheerio": "1.0.0",
+    "graphql-ws": "5.16.0",
+    "@hapi/h2o2": "9.1.0"
   }
 }

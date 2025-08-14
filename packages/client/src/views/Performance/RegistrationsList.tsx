@@ -58,7 +58,8 @@ import { Link } from '@opencrvs/components/lib/Link'
 import { usePermissions } from '@client/hooks/useAuthorization'
 import formatDate from '@client/utils/date-formatting'
 import * as routes from '@client/navigation/routes'
-import { stringify } from 'querystring'
+// Browser-compatible query string handling
+const stringify = (obj: Record<string, any>) => new URLSearchParams(obj).toString()
 
 const ToolTipContainer = styled.span`
   text-align: center;

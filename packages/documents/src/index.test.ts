@@ -15,7 +15,7 @@ import { createServer } from '@documents/server'
 describe('Route authorization', () => {
   it('tests the health check', async () => {
     const server = await createServer()
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/ping'
     })
@@ -23,7 +23,7 @@ describe('Route authorization', () => {
   })
   it('blocks requests without a token', async () => {
     const server = await createServer()
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest'
     })
@@ -32,7 +32,7 @@ describe('Route authorization', () => {
 
   it('blocks requests with an invalid token', async () => {
     const server = await createServer()
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {
@@ -49,7 +49,7 @@ describe('Route authorization', () => {
       issuer: 'opencrvs:auth-service',
       audience: 'opencrvs:documents-user'
     })
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {
@@ -66,7 +66,7 @@ describe('Route authorization', () => {
       issuer: 'opencrvs:auth-service',
       audience: 'opencrvs:documents-user'
     })
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {
@@ -89,7 +89,7 @@ describe('Route authorization', () => {
       setTimeout(resolve, 5)
     })
 
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {
@@ -106,7 +106,7 @@ describe('Route authorization', () => {
       issuer: 'opencrvs:auth-service',
       audience: 'opencrvs:documents-user'
     })
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {
@@ -124,7 +124,7 @@ describe('Route authorization', () => {
       issuer: 'opencrvs:auth-service',
       audience: 'opencrvs:NOT_VALID'
     })
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {
@@ -142,7 +142,7 @@ describe('Route authorization', () => {
       issuer: 'opencrvs:NOT_VALID',
       audience: 'opencrvs:documents-user'
     })
-    const res = await server.server.inject({
+    const res = await (server.server as any).inject({
       method: 'GET',
       url: '/tokenTest',
       headers: {

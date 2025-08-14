@@ -9,10 +9,14 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 import { env } from '@auth/environment'
-import { ServerRegisterPluginObject } from '@hapi/hapi'
+// ServerRegisterPluginObject not exported in this Hapi version
+interface ServerRegisterPluginObject<T = any> {
+  plugin: any
+  options?: T
+}
 import { logger } from '@opencrvs/commons'
 import * as Pino from 'hapi-pino'
-import * as Sentry from 'hapi-sentry'
+import Sentry from 'hapi-sentry'
 
 type IHapiPlugin<T = any> = ServerRegisterPluginObject<T>
 

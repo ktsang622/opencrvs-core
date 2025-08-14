@@ -10,7 +10,7 @@
     "test": "yarn test:compilation && jest",
     "test:watch": "jest --watch",
     "test:compilation": "tsc --noEmit",
-    "build": "tsc && copyfiles 'src/**/*.graphql' build/dist",
+    "build": "tsc && bash -c 'shopt -s globstar nullglob; for f in src/**/*.graphql; do d=build/dist/${f#src/}; mkdir -p \"$(dirname \"$d\")\"; cp \"$f\" \"$d\"; done'",
     "build:clean": "rm -rf build",
     "gen:schema": "node -e \"const importSchema = require('graphql-import').importSchema; console.log(importSchema('src/graphql/index.graphql'))\" > src/graphql/schema.graphql && yarn prettier --write src/graphql/schema.graphql",
     "gen:types": "graphql-schema-typescript generate-ts src/graphql/schema.graphql --output src/graphql/schema.d.ts --importStatements 'import {Context} from \"./context\"' --contextType Context && yarn prettier --write src/graphql/schema.d.ts",
@@ -93,7 +93,7 @@
     "@typescript-eslint/eslint-plugin": "8.28.0",
     "@typescript-eslint/parser": "^8.28.0",
     "concurrently": "^8.0.0",
-    "copyfiles": "^2.1.1",
+
     "eslint": "^9.23.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-import": "^2.31.0",

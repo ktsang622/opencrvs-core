@@ -21,7 +21,7 @@ export const catchAllProxy = {
         uri: AUTH_URL + '/{suffix}'
       }),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -39,7 +39,7 @@ export const catchAllProxy = {
         passThrough: true
       }),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -56,7 +56,7 @@ export const catchAllProxy = {
         passThrough: true
       }),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -73,7 +73,7 @@ export const catchAllProxy = {
         passThrough: true
       }),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -89,7 +89,7 @@ export const catchAllProxy = {
         passThrough: true
       }),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -107,7 +107,7 @@ export const authProxy = {
         uri: AUTH_URL + `/token${req.url.search}`
       }),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -128,7 +128,7 @@ export const rateLimitedAuthProxy = {
         })
     ),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -146,7 +146,7 @@ export const rateLimitedAuthProxy = {
         })
     ),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false
@@ -164,7 +164,7 @@ export const rateLimitedAuthProxy = {
         })
     ),
     options: {
-      auth: false,
+      auth: false as const,
       payload: {
         output: 'data',
         parse: false

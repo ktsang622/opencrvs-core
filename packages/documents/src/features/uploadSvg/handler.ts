@@ -39,7 +39,7 @@ export async function svgUploadHandler(
   }
   const generateFileName = `${ref}.svg`
   try {
-    await minioClient.putObject(MINIO_BUCKET, generateFileName, bufferData, {
+    await minioClient.putObject(MINIO_BUCKET, generateFileName, bufferData, bufferData.length, {
       'content-type': 'image/svg+xml',
       'created-by': userId
     })

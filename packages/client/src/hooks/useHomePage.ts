@@ -26,7 +26,8 @@ import {
   generateGoToHomeTabUrl,
   generatePerformanceHomeUrl
 } from '@client/navigation'
-import { stringify } from 'querystring'
+// Browser-compatible query string handling
+const stringify = (obj: Record<string, any>) => new URLSearchParams(obj).toString()
 import { useSelector } from 'react-redux'
 import { getUserDetails } from '@client/profile/profileSelectors'
 

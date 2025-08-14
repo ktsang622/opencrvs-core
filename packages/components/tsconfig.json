@@ -19,7 +19,8 @@
     "strictNullChecks": true,
     "noUnusedLocals": false,
     "skipLibCheck": true,
-    "declarationMap": true
+    "declarationMap": true,
+    "types": ["node", "jest", "react"]
   },
   "include": ["src/**/*.tsx", "src/**/*.ts", ".storybook"],
   "exclude": ["node_modules", "lib"]

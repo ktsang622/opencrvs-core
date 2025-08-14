@@ -67,6 +67,7 @@ export async function fileUploadHandler(
     MINIO_BUCKET,
     'event-attachments/' + filename,
     file,
+    undefined,
     {
       'created-by': userId
     }
@@ -109,7 +110,7 @@ export async function documentUploadHandler(
     const fileType = (await fromBuffer(base64Decoded)) as IFileInfo
     const generateFileName = `${ref}.${fileType.ext}`
 
-    await minioClient.putObject(MINIO_BUCKET, generateFileName, base64Decoded, {
+    await minioClient.putObject(MINIO_BUCKET, generateFileName, base64Decoded, base64Decoded.length, {
       ...payload.metaData,
       'content-type': fileType.mime,
       'created-by': userId

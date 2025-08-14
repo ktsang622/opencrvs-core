@@ -28,7 +28,7 @@ export async function vsExportUploaderHandler(
     const bufferData = payload as Buffer
     const generateFileName = `${ref}.csv`
 
-    minioClient.putObject(MINIO_BUCKET, generateFileName, bufferData, {
+    await minioClient.putObject(MINIO_BUCKET, generateFileName, bufferData, bufferData.length, {
       'content-type': 'text/csv'
     })
 

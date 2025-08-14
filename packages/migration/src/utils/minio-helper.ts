@@ -39,7 +39,7 @@ export async function uploadBase64ToMinio(
     const base64Decoded = Buffer.from(base64String, 'base64')
     const fileType = await fromBuffer(base64Decoded)
     const generateFileName = `${ref}.${fileType?.ext}`
-    await minioClient.putObject(MINIO_BUCKET, generateFileName, base64Decoded, {
+    await minioClient.putObject(MINIO_BUCKET, generateFileName, base64Decoded, base64Decoded.length, {
       'content-type': fileType?.mime
     })
     return `/${MINIO_BUCKET}/${generateFileName}`
@@ -51,7 +51,7 @@ export async function uploadBase64ToMinio(
 export async function uploadSvgToMinio(svgCode: string) {
   const ref = uuid()
   const fileName = `${ref}.svg`
-  await minioClient.putObject(MINIO_BUCKET, fileName, svgCode, {
+  await minioClient.putObject(MINIO_BUCKET, fileName, svgCode, svgCode.length, {
     'content-type': 'image/svg+xml'
   })
   return `/${MINIO_BUCKET}/${fileName}`

@@ -13,7 +13,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@hapi/hapi": "^21.3.2",
+    "@hapi/hapi": "20.3.0",
     "@hapi/inert": "^7.1.0",
     "@hapi/vision": "^7.0.3",
     "@opencrvs/commons": "^1.0.0",
