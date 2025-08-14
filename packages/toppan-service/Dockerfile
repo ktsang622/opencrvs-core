@@ -1,22 +1,15 @@
-FROM node:18-alpine
+ARG VERSION=1.8.1-demo
+FROM opencrvs-base:${VERSION}
 
-WORKDIR /app
+USER node
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+WORKDIR /app/packages/toppan-service
+COPY --chown=node:node packages/toppan-service/*.json /app/packages/toppan-service/
+RUN yarn install --frozen-lockfile
+COPY --chown=node:node packages/toppan-service /app/packages/toppan-service
+RUN yarn build
 
-# Install dependencies
-RUN npm ci --only=production
+# Make start script executable
+RUN chmod +x start.sh
 
-# Copy source code
-COPY src/ ./src/
-
-# Build the application
-RUN npm run build
-
-# Expose port
-EXPOSE 3040
-
-# Start the application
-CMD ["npm", "start"]
+CMD ["./start.sh"]
