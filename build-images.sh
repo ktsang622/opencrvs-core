@@ -34,20 +34,41 @@ else
 fi
 echo ""
 
-# Build base image first
-echo "🏗️  Building base image with commons..."
-docker build -f packages/Dockerfile.base -t opencrvs-base:$VERSION .
-if [ $? -ne 0 ]; then
-  echo "❌ Failed to build base image"
-  exit 1
+# Check if base image exists and prompt to rebuild
+export VERSION
+if docker image inspect ghcr.io/opencrvs/ocrvs-base:$VERSION >/dev/null 2>&1; then
+  echo "✅ Base image ghcr.io/opencrvs/ocrvs-base:$VERSION already exists"
+  if prompt_yes_no "Rebuild base image? (recommended if commons changed)"; then
+    echo "🏗️  Rebuilding base image with commons..."
+    docker compose build base
+    if [ $? -ne 0 ]; then
+      echo "❌ Failed to build base image"
+      exit 1
+    else
+      echo "✅ Successfully rebuilt ghcr.io/opencrvs/ocrvs-base:$VERSION"
+    fi
+  else
+    echo "⏭️  Using existing base image"
+  fi
 else
-  echo "✅ Successfully built opencrvs-base:$VERSION"
+  echo "🏗️  Building base image with commons (required)..."
+  docker compose build base
+  if [ $? -ne 0 ]; then
+    echo "❌ Failed to build base image"
+    exit 1
+  else
+    echo "✅ Successfully built ghcr.io/opencrvs/ocrvs-base:$VERSION"
+  fi
 fi
+
+# Tag for local Dockerfile compatibility
+docker tag ghcr.io/opencrvs/ocrvs-base:$VERSION opencrvs-base:$VERSION
 echo ""
 
-# Build remaining shared packages (commons already in base image)
-echo "📦 Building remaining shared packages..."
-shared_packages=("components" "toppan-common" "toppan-db")
+# Build shared packages (commons already in base image)
+echo "📦 Building shared packages..."
+shared_packages=("components" "events" "toppan-common" "toppan-db")
+# Note: events is built locally first because gateway copies it
 
 for pkg in "${shared_packages[@]}"; do
   echo ""
@@ -78,29 +99,39 @@ for pkg in "${shared_packages[@]}"; do
   cd ../..
 done
 
-# Build Docker images
+# Build all services using docker-compose (parallel, efficient)
 echo ""
-echo "🐳 Building Docker images..."
-# Build all services except events (TRPC issues)
-services=("auth" "workflow" "user-mgnt" "notification" "webhooks" "search" "metrics" "config" "client" "login" "documents" "toppan" "toppan-service" "toppan-ui" "data-seeder" "migration")
-# Skipped: "events" "gateway" (TRPC version conflicts)
+echo "🚀 Building all services in parallel..."
 
-for service in "${services[@]}"; do
-  echo ""
-  echo "🐳 Building Docker image for $service..."
-  
-  if [ -f "packages/$service/Dockerfile" ]; then
-    docker build -f packages/$service/Dockerfile -t opencrvs/$service:$VERSION .
-    if [ $? -ne 0 ]; then
-      echo "❌ Failed to build Docker image for $service"
-      exit 1
-    else
-      echo "✅ Successfully built opencrvs/$service:$VERSION"
-    fi
-  else
-    echo "⚠️  No Dockerfile found for $service, skipping..."
-  fi
-done
+# Build services in dependency order
+echo "Building gateway first (depends on events)..."
+docker compose build gateway
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to build gateway"
+  exit 1
+fi
+
+# Build remaining OpenCRVS services
+echo "Building remaining OpenCRVS services..."
+other_services="auth workflow user-mgnt notification webhooks search metrics config client login documents data-seeder migration"
+docker compose build $other_services
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to build OpenCRVS services"
+  exit 1
+fi
+
+# Toppan services (use toppan/ tags)
+echo ""
+echo "Building Toppan services..."
+toppan_services="toppan-service toppan-ui"
+echo "Building Toppan services: $toppan_services"
+docker compose -f docker-compose.toppan.yml build $toppan_services
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to build Toppan services"
+  exit 1
+fi
+
+echo "✅ Successfully built all OpenCRVS and Toppan services"
 
 echo ""
 echo "🎉 All images built with version: $VERSION"
