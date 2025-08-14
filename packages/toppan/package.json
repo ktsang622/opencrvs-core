@@ -8,7 +8,7 @@
   "scripts": {
     "start": "cross-env NODE_ENV=development nodemon --exec ts-node -r tsconfig-paths/register src/index.ts",
     "start:prod": "TS_NODE_BASEURL=./build/dist/src node -r tsconfig-paths/register build/dist/src/index.js",
-    "build": "tsc -b",
+    "build": "tsc",
     "test": "jest",
     "build:clean": "rimraf build && tsc -b --clean || true && tsc -b",
     "lint": "eslint . --ext .ts,.js",
@@ -17,6 +17,8 @@
   "dependencies": {
     "@hapi/hapi": "^20.2.1",
     "@opencrvs/commons": "^1.0.0",
+    "@opencrvs/toppan-common": "^1.0.0",
+    "@opencrvs/toppan-db": "^1.0.0",
     "joi": "^17.6.0",
     "pg": "^8.11.0",
     "@hapi/boom": "^10.0.1"

@@ -7,7 +7,7 @@ export async function createDeathHandler(
   try {
     const { record } = request.payload as { record: any }
     
-    console.log('🔄 Creating death record in external database...')
+    console.log('🔄 Creating death record in external database...', record?.id || 'unknown')
     
     // TODO: Process death webhook data
     // Different logic from birth - deceased person, death details, etc.
