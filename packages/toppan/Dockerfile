@@ -3,6 +3,10 @@ FROM opencrvs-base:${VERSION}
 
 USER node
 
+# Copy shared libraries first
+COPY --chown=node:node packages/toppan-common /app/packages/toppan-common
+COPY --chown=node:node packages/toppan-db /app/packages/toppan-db
+
 WORKDIR /app/packages/toppan
 COPY --chown=node:node packages/toppan/*.json /app/packages/toppan/
 RUN yarn install --frozen-lockfile
