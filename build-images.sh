@@ -34,9 +34,15 @@ else
 fi
 echo ""
 
-# Skip base image build due to Docker storage issues
-echo "⚠️  Skipping base image build (Docker storage issue)"
-echo "💡 Fix: docker system prune -a --volumes"
+# Build base image first
+echo "🏗️  Building base image with commons..."
+docker build -f packages/Dockerfile.base -t opencrvs-base:$VERSION .
+if [ $? -ne 0 ]; then
+  echo "❌ Failed to build base image"
+  exit 1
+else
+  echo "✅ Successfully built opencrvs-base:$VERSION"
+fi
 echo ""
 
 # Build remaining shared packages (commons already in base image)
