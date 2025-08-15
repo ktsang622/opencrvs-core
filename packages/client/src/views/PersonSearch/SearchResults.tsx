@@ -140,7 +140,7 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
               </ResultCell>
               <ResultCell>
                 <ActionButtons>
-                  <Button
+                  {/* <Button
                     type="secondary"
                     size="small"
                     disabled
@@ -148,7 +148,7 @@ export const SearchResults: React.FC<ISearchResultsProps> = ({
                   >
                     <Icon name="Plus" size="small" />
                     Merge Records
-                  </Button>
+                  </Button> */}
 
                   <Button
                     type="primary"

@@ -20,6 +20,14 @@
     "@jridgewell/gen-mapping" "^0.3.0"
     "@jridgewell/trace-mapping" "^0.3.9"
 
+"@ampproject/remapping@^2.3.0":
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/@ampproject/remapping/-/remapping-2.3.0.tgz#ed441b6fa600072520ce18b43d2c8cc8caecc7f4"
+  integrity sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==
+  dependencies:
+    "@jridgewell/gen-mapping" "^0.3.5"
+    "@jridgewell/trace-mapping" "^0.3.24"
+
 "@apideck/better-ajv-errors@^0.3.1":
   version "0.3.6"
   resolved "https://registry.npmjs.org/@apideck/better-ajv-errors/-/better-ajv-errors-0.3.6.tgz"
@@ -6672,7 +6680,7 @@
   resolved "https://registry.npmjs.org/@open-draft/until/-/until-2.1.0.tgz"
   integrity sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==
 
-"@opensearch-project/opensearch@^2.4.0":
+"@opensearch-project/opensearch@^2.2.0", "@opensearch-project/opensearch@^2.4.0":
   version "2.13.0"
   resolved "https://registry.npmjs.org/@opensearch-project/opensearch/-/opensearch-2.13.0.tgz"
   integrity sha512-Bu3jJ7pKzumbMMeefu7/npAWAvFu5W9SlbBow1ulhluqUpqc7QoXe0KidDrMy7Dy3BQrkI6llR3cWL4lQTZOFw==
@@ -10911,36 +10919,10 @@
     chai "^5.1.1"
     tinyrainbow "^1.2.0"
 
-"@vitest/expect@2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/expect/-/expect-2.1.5.tgz"
-  integrity sha512-nZSBTW1XIdpZvEJyoP/Sy8fUg0b8od7ZpGDkTUcfJ7wz/VoZAFzFfLyxVxGFhUjJzhYqSbIpfMtl/+k/dpWa3Q==
-  dependencies:
-    "@vitest/spy" "2.1.5"
-    "@vitest/utils" "2.1.5"
-    chai "^5.1.2"
-    tinyrainbow "^1.2.0"
-
-"@vitest/mocker@2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/mocker/-/mocker-2.1.5.tgz"
-  integrity sha512-XYW6l3UuBmitWqSUXTNXcVBUCRytDogBsWuNXQijc00dtnU/9OqpXWp4OJroVrad/gLIomAq9aW8yWDBtMthhQ==
-  dependencies:
-    "@vitest/spy" "2.1.5"
-    estree-walker "^3.0.3"
-    magic-string "^0.30.12"
-
 "@vitest/pretty-format@2.0.5":
   version "2.0.5"
   resolved "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-2.0.5.tgz"
   integrity sha512-h8k+1oWHfwTkyTkb9egzwNMfJAEx4veaPSnMeKbVSjp4euqGSbQlm5+6VHwTr7u4FJslVVsUG5nopCaAYdOmSQ==
-  dependencies:
-    tinyrainbow "^1.2.0"
-
-"@vitest/pretty-format@2.1.5", "@vitest/pretty-format@^2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/pretty-format/-/pretty-format-2.1.5.tgz"
-  integrity sha512-4ZOwtk2bqG5Y6xRGHcveZVr+6txkH7M2e+nPFd6guSoN638v/1XQ0K06eOpi0ptVU/2tW/pIU4IoPotY/GZ9fw==
   dependencies:
     tinyrainbow "^1.2.0"
 
@@ -10951,21 +10933,28 @@
   dependencies:
     tinyrainbow "^1.2.0"
 
-"@vitest/runner@2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/runner/-/runner-2.1.5.tgz"
-  integrity sha512-pKHKy3uaUdh7X6p1pxOkgkVAFW7r2I818vHDthYLvUyjRfkKOU6P45PztOch4DZarWQne+VOaIMwA/erSSpB9g==
+"@vitest/pretty-format@^2.0.5":
+  version "2.1.9"
+  resolved "https://registry.yarnpkg.com/@vitest/pretty-format/-/pretty-format-2.1.9.tgz#434ff2f7611689f9ce70cd7d567eceb883653fdf"
+  integrity sha512-KhRIdGV2U9HOUzxfiHmY8IFHTdqtOhIzCpd8WRdJiE7D/HUcZVD0EgQCVjm+Q9gkUXWgBvMmTtZgIG48wq7sOQ==
   dependencies:
-    "@vitest/utils" "2.1.5"
+    tinyrainbow "^1.2.0"
+
+"@vitest/runner@2.0.5":
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/@vitest/runner/-/runner-2.0.5.tgz#89197e712bb93513537d6876995a4843392b2a84"
+  integrity sha512-TfRfZa6Bkk9ky4tW0z20WKXFEwwvWhRY+84CnSEtq4+3ZvDlJyY32oNTJtM7AW9ihW90tX/1Q78cb6FjoAs+ig==
+  dependencies:
+    "@vitest/utils" "2.0.5"
     pathe "^1.1.2"
 
-"@vitest/snapshot@2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/snapshot/-/snapshot-2.1.5.tgz"
-  integrity sha512-zmYw47mhfdfnYbuhkQvkkzYroXUumrwWDGlMjpdUr4jBd3HZiV2w7CQHj+z7AAS4VOtWxI4Zt4bWt4/sKcoIjg==
+"@vitest/snapshot@2.0.5":
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/@vitest/snapshot/-/snapshot-2.0.5.tgz#a2346bc5013b73c44670c277c430e0334690a162"
+  integrity sha512-SgCPUeDFLaM0mIUHfaArq8fD2WbaXG/zVXjRupthYfYGzc8ztbFbu6dUNOblBG7XLMR1kEhS/DNnfCZ2IhdDew==
   dependencies:
-    "@vitest/pretty-format" "2.1.5"
-    magic-string "^0.30.12"
+    "@vitest/pretty-format" "2.0.5"
+    magic-string "^0.30.10"
     pathe "^1.1.2"
 
 "@vitest/spy@2.0.5":
@@ -10975,13 +10964,6 @@
   dependencies:
     tinyspy "^3.0.0"
 
-"@vitest/spy@2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/spy/-/spy-2.1.5.tgz"
-  integrity sha512-aWZF3P0r3w6DiYTVskOYuhBc7EMc3jvn1TkBg8ttylFFRqNN2XGD7V5a4aQdk6QiUzZQ4klNBSpCLJgWNdIiNw==
-  dependencies:
-    tinyspy "^3.0.2"
-
 "@vitest/utils@2.0.5":
   version "2.0.5"
   resolved "https://registry.npmjs.org/@vitest/utils/-/utils-2.0.5.tgz"
@@ -10990,15 +10972,6 @@
     "@vitest/pretty-format" "2.0.5"
     estree-walker "^3.0.3"
     loupe "^3.1.1"
-    tinyrainbow "^1.2.0"
-
-"@vitest/utils@2.1.5":
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/@vitest/utils/-/utils-2.1.5.tgz"
-  integrity sha512-yfj6Yrp0Vesw2cwJbP+cl04OC+IHFsuQsrsJBL9pyGeQXE56v1UAOQco+SR55Vf1nQzfV0QJg1Qum7AaWUwwYg==
-  dependencies:
-    "@vitest/pretty-format" "2.1.5"
-    loupe "^3.1.2"
     tinyrainbow "^1.2.0"
 
 "@vitest/utils@^2.1.1":
@@ -13047,7 +13020,7 @@ chai@^4.3.6, chai@^4.3.7:
     pathval "^1.1.1"
     type-detect "^4.0.8"
 
-chai@^5.1.1, chai@^5.1.2:
+chai@^5.1.1:
   version "5.1.2"
   resolved "https://registry.npmjs.org/chai/-/chai-5.1.2.tgz"
   integrity sha512-aGtmf24DW6MLHHG5gCx4zaI3uBq3KRtxeVs0DjFH6Z0rDNbsvTxFASFvdj79pxjxZ8/5u3PIiN3IwEIQkiiuPw==
@@ -15635,11 +15608,6 @@ es-module-lexer@^0.9.3:
   resolved "https://registry.npmjs.org/es-module-lexer/-/es-module-lexer-0.9.3.tgz"
   integrity sha512-1HQ2M2sPtxwnvOvT1ZClHyQDiggdNjURWpY2we6aMKCQiUVxTmVs2UYPLIrD84sS+kMdUwfBSylbJPwNnBrnHQ==
 
-es-module-lexer@^1.5.4:
-  version "1.5.4"
-  resolved "https://registry.npmjs.org/es-module-lexer/-/es-module-lexer-1.5.4.tgz"
-  integrity sha512-MVNK56NiMrOwitFB7cqDwq0CQutbw+0BvLshJSse0MUNU+y1FC3bUS/AQg7oUng+/wKrrki7JfmwtVHkVfPLlw==
-
 es-object-atoms@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.0.0.tgz"
@@ -16740,11 +16708,6 @@ expect-playwright@^0.8.0:
   version "0.8.0"
   resolved "https://registry.npmjs.org/expect-playwright/-/expect-playwright-0.8.0.tgz"
   integrity sha512-+kn8561vHAY+dt+0gMqqj1oY+g5xWrsuGMk4QGxotT2WS545nVqqjs37z6hrYfIuucwqthzwJfCJUEYqixyljg==
-
-expect-type@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.npmjs.org/expect-type/-/expect-type-1.1.0.tgz"
-  integrity sha512-bFi65yM+xZgk+u/KRIpekdSYkTB5W1pEf0Lt8Q8Msh7b+eQ7LXVtIB1Bkm4fvclDEL1b2CZkMhv2mOeF8tMdkA==
 
 expect@^29.7.0:
   version "29.7.0"
@@ -21269,10 +21232,10 @@ magic-string@^0.30.0:
   dependencies:
     "@jridgewell/sourcemap-codec" "^1.4.15"
 
-magic-string@^0.30.12:
-  version "0.30.12"
-  resolved "https://registry.npmjs.org/magic-string/-/magic-string-0.30.12.tgz"
-  integrity sha512-Ea8I3sQMVXr8JhN4z+H/d8zwo+tYDgHE9+5G4Wnrwhs0gaK9fXTKx0Tw5Xwsd/bCPTTZNRAdpyzvoeORe9LYpw==
+magic-string@^0.30.10:
+  version "0.30.17"
+  resolved "https://registry.yarnpkg.com/magic-string/-/magic-string-0.30.17.tgz#450a449673d2460e5bbcfba9a61916a1714c7453"
+  integrity sha512-sNPKHvyjVf7gyjwS4xGTaW/mCnF8wnjtifKBEhxfZ7E/S8tQ0rssrwGNn6q8JH/ohItJfSQp9mBtQYuTlH5QnA==
   dependencies:
     "@jridgewell/sourcemap-codec" "^1.5.0"
 
@@ -26426,10 +26389,10 @@ statuses@2.0.1, statuses@^2.0.0, statuses@^2.0.1:
   resolved "https://registry.npmjs.org/statuses/-/statuses-2.0.1.tgz"
   integrity sha512-RwNA9Z/7PrK06rYLIzFMlaF+l73iwpzsqRIFgbMLbTcLD6cOao82TaWefPXQvB2fOC4AjuYSEndS7N/mTCbkdQ==
 
-std-env@^3.8.0:
-  version "3.8.0"
-  resolved "https://registry.npmjs.org/std-env/-/std-env-3.8.0.tgz"
-  integrity sha512-Bc3YwwCB+OzldMxOXJIIvC6cPRWr/LxOp48CdQTOkPyk/t4JWWJbrilwBd7RJzKV8QW7tJkcgAmeuLLJugl5/w==
+std-env@^3.7.0:
+  version "3.9.0"
+  resolved "https://registry.yarnpkg.com/std-env/-/std-env-3.9.0.tgz#1a6f7243b339dca4c9fd55e1c7504c77ef23e8f1"
+  integrity sha512-UGvjygr6F6tpH7o2qyqR6QYpwraIjKSdtzyBdyytFOHmPZY917kwdwLG0RbOjWOnKmnm3PeHjaoLLMie7kPLQw==
 
 stop-iteration-iterator@^1.0.0:
   version "1.0.0"
@@ -27416,15 +27379,10 @@ tinybench@^2.3.1:
   resolved "https://registry.npmjs.org/tinybench/-/tinybench-2.5.1.tgz"
   integrity sha512-65NKvSuAVDP/n4CqH+a9w2kTlLReS9vhsAP06MWx+/89nMinJyB2icyl58RIcqCmIggpojIGeuJGhjU1aGMBSg==
 
-tinybench@^2.9.0:
+tinybench@^2.8.0:
   version "2.9.0"
-  resolved "https://registry.npmjs.org/tinybench/-/tinybench-2.9.0.tgz"
+  resolved "https://registry.yarnpkg.com/tinybench/-/tinybench-2.9.0.tgz#103c9f8ba6d7237a47ab6dd1dcff77251863426b"
   integrity sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==
-
-tinyexec@^0.3.1:
-  version "0.3.1"
-  resolved "https://registry.npmjs.org/tinyexec/-/tinyexec-0.3.1.tgz"
-  integrity sha512-WiCJLEECkO18gwqIp6+hJg0//p23HXp4S+gGtAKu3mI2F2/sXC4FvHvXvB0zJVVaTPhx1/tOwdbRsa1sOBIKqQ==
 
 tinyglobby@^0.2.12:
   version "0.2.12"
@@ -27439,10 +27397,10 @@ tinypool@^0.3.0:
   resolved "https://registry.npmjs.org/tinypool/-/tinypool-0.3.1.tgz"
   integrity sha512-zLA1ZXlstbU2rlpA4CIeVaqvWq41MTWqLY3FfsAXgC8+f7Pk7zroaJQxDgxn1xNudKW6Kmj4808rPFShUlIRmQ==
 
-tinypool@^1.0.1:
-  version "1.0.2"
-  resolved "https://registry.npmjs.org/tinypool/-/tinypool-1.0.2.tgz"
-  integrity sha512-al6n+QEANGFOMf/dmUMsuS5/r9B06uwlyNjZZql/zv8J7ybHCgoihBNORZCY2mzUuAnomQa2JdhyHKzZxPCrFA==
+tinypool@^1.0.0:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/tinypool/-/tinypool-1.1.1.tgz#059f2d042bd37567fbc017d3d426bdd2a2612591"
+  integrity sha512-Zba82s87IFq9A9XmjiX5uZA/ARWDrB03OHlq+Vw1fSdt0I+4/Kutwy8BP4Y/y/aORMo61FQ0vIb5j44vSo5Pkg==
 
 tinyrainbow@^1.2.0:
   version "1.2.0"
@@ -27454,7 +27412,7 @@ tinyspy@^1.0.2:
   resolved "https://registry.npmjs.org/tinyspy/-/tinyspy-1.1.1.tgz"
   integrity sha512-UVq5AXt/gQlti7oxoIg5oi/9r0WpF7DGEVwXgqWSMmyN16+e3tl5lIvTaOpJ3TAtu5xFzWccFRM4R5NaWHF+4g==
 
-tinyspy@^3.0.0, tinyspy@^3.0.2:
+tinyspy@^3.0.0:
   version "3.0.2"
   resolved "https://registry.npmjs.org/tinyspy/-/tinyspy-3.0.2.tgz"
   integrity sha512-n1cw8k1k0x4pgA2+9XrOkFydTerNcJ1zWCO5Nn9scWHTD+5tp8dghT2x1uduQePZTZgd3Tupf+x9BxJjeJi77Q==
@@ -28598,15 +28556,15 @@ victory-vendor@^36.6.8:
     d3-time "^3.0.0"
     d3-timer "^3.0.1"
 
-vite-node@2.1.5:
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/vite-node/-/vite-node-2.1.5.tgz"
-  integrity sha512-rd0QIgx74q4S1Rd56XIiL2cYEdyWn13cunYBIuqh9mpmQr7gGS0IxXoP8R6OaZtNQQLyXSWbd4rXKYUbhFpK5w==
+vite-node@2.0.5:
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/vite-node/-/vite-node-2.0.5.tgz#36d909188fc6e3aba3da5fc095b3637d0d18e27b"
+  integrity sha512-LdsW4pxj0Ot69FAoXZ1yTnA9bjGohr2yNBU7QKRxpz8ITSkhuDl6h3zS/tvgz4qrNjeRnvrWeXQ8ZF7Um4W00Q==
   dependencies:
     cac "^6.7.14"
-    debug "^4.3.7"
-    es-module-lexer "^1.5.4"
+    debug "^4.3.5"
     pathe "^1.1.2"
+    tinyrainbow "^1.2.0"
     vite "^5.0.0"
 
 vite-plugin-pwa@^0.20.0:
@@ -28729,30 +28687,29 @@ vitest@0.25.8, vitest@^0.25.5:
     tinyspy "^1.0.2"
     vite "^3.0.0 || ^4.0.0"
 
-vitest@^2.1.5:
-  version "2.1.5"
-  resolved "https://registry.npmjs.org/vitest/-/vitest-2.1.5.tgz"
-  integrity sha512-P4ljsdpuzRTPI/kbND2sDZ4VmieerR2c9szEZpjc+98Z9ebvnXmM5+0tHEKqYZumXqlvnmfWsjeFOjXVriDG7A==
+vitest@2.0.5:
+  version "2.0.5"
+  resolved "https://registry.yarnpkg.com/vitest/-/vitest-2.0.5.tgz#2f15a532704a7181528e399cc5b754c7f335fd62"
+  integrity sha512-8GUxONfauuIdeSl5f9GTgVEpg5BTOlplET4WEDaeY2QBiN8wSm68vxN/tb5z405OwppfoCavnwXafiaYBC/xOA==
   dependencies:
-    "@vitest/expect" "2.1.5"
-    "@vitest/mocker" "2.1.5"
-    "@vitest/pretty-format" "^2.1.5"
-    "@vitest/runner" "2.1.5"
-    "@vitest/snapshot" "2.1.5"
-    "@vitest/spy" "2.1.5"
-    "@vitest/utils" "2.1.5"
-    chai "^5.1.2"
-    debug "^4.3.7"
-    expect-type "^1.1.0"
-    magic-string "^0.30.12"
+    "@ampproject/remapping" "^2.3.0"
+    "@vitest/expect" "2.0.5"
+    "@vitest/pretty-format" "^2.0.5"
+    "@vitest/runner" "2.0.5"
+    "@vitest/snapshot" "2.0.5"
+    "@vitest/spy" "2.0.5"
+    "@vitest/utils" "2.0.5"
+    chai "^5.1.1"
+    debug "^4.3.5"
+    execa "^8.0.1"
+    magic-string "^0.30.10"
     pathe "^1.1.2"
-    std-env "^3.8.0"
-    tinybench "^2.9.0"
-    tinyexec "^0.3.1"
-    tinypool "^1.0.1"
+    std-env "^3.7.0"
+    tinybench "^2.8.0"
+    tinypool "^1.0.0"
     tinyrainbow "^1.2.0"
     vite "^5.0.0"
-    vite-node "2.1.5"
+    vite-node "2.0.5"
     why-is-node-running "^2.3.0"
 
 w3c-hr-time@^1.0.2:

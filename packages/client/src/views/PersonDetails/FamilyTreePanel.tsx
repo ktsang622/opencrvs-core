@@ -38,9 +38,23 @@ export const FamilyTreePanel: React.FC<IFamilyTreePanelProps> = ({
         }}
       >
         <h4 style={{ margin: 0, color: '#2c3e50' }}>Family Tree</h4>
-        <Button type="tertiary" size="small" onClick={onClose}>
-          ✕
-        </Button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button
+            type="secondary"
+            size="small"
+            onClick={() =>
+              window.open(
+                `${config.FAMILY_TREE_URL}/${personId}?fulldetails=true`,
+                '_blank'
+              )
+            }
+          >
+            Open Full View
+          </Button>
+          <Button type="tertiary" size="small" onClick={onClose}>
+            ✕
+          </Button>
+        </div>
       </div>
       {isLoading && (
         <div style={{ padding: '40px', textAlign: 'center' }}>

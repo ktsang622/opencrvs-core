@@ -61,6 +61,7 @@ interface Window {
     REGISTRATIONS_DASHBOARD_URL: string
     STATISTICS_DASHBOARD_URL: string
     LEADERBOARDS_DASHBOARD_URL: string
+    FAMILY_TREE_URL: string
     SIGNATURE_REQUIRED_FOR_ROLES: string[]
   }
   __localeId__: string
