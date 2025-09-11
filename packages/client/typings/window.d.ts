@@ -43,6 +43,7 @@ interface Window {
       PRINT_DECLARATION: boolean
       DATE_OF_BIRTH_UNKNOWN: boolean
       V2_EVENTS: boolean
+      ENHANCED_DOCUMENT_VIEWER: boolean
     }
     LANGUAGES: string
     LOGIN_URL: string

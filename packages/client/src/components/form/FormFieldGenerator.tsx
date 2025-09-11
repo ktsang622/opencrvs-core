@@ -355,8 +355,25 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
                * false to the setFieldTouch function or calling it before
                * calling setFieldValue.
                */
+              console.log(
+                'DEBUG: FormFieldGenerator onComplete called with files:',
+                files.length,
+                'files'
+              )
+              files.forEach((file, index) => {
+                console.log(`DEBUG: File ${index}:`, {
+                  type: file.type,
+                  optionValues: file.optionValues,
+                  dataLength: file.data?.length || 0,
+                  hasData: !!file.data
+                })
+              })
               setFieldTouched(fieldDefinition.name, true, false)
               setFieldValue(fieldDefinition.name, files)
+              console.log(
+                'DEBUG: setFieldValue completed for field:',
+                fieldDefinition.name
+              )
             }}
             compressImagesToSizeMB={fieldDefinition.compressImagesToSizeMB}
             maxSizeMB={fieldDefinition.maxSizeMB}

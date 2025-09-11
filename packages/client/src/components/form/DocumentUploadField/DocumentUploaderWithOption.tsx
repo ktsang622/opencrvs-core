@@ -138,8 +138,22 @@ export const DocumentUploaderWithOption = (props: IFullProps) => {
   }
 
   const processImage = async (uploadedImage: File) => {
+    console.log('DEBUG: processImage called', {
+      fileName: uploadedImage.name,
+      fileType: uploadedImage.type,
+      fileSize: uploadedImage.size,
+      featureEnabled: window.config?.FEATURES?.ENHANCED_DOCUMENT_VIEWER
+    })
+
     const options = { ...defaultOptions }
-    if (!ALLOWED_IMAGE_TYPE.includes(uploadedImage.type)) {
+    const isPdfWithFeatureEnabled =
+      uploadedImage.type === 'application/pdf' &&
+      window.config?.FEATURES?.ENHANCED_DOCUMENT_VIEWER
+    if (
+      !ALLOWED_IMAGE_TYPE.includes(uploadedImage.type) &&
+      !isPdfWithFeatureEnabled
+    ) {
+      console.log('DEBUG: File type validation failed')
       setErrorMessage(intl.formatMessage(messages.uploadError, { maxSize }))
       throw new Error('File type not supported')
     }
@@ -165,11 +179,13 @@ export const DocumentUploaderWithOption = (props: IFullProps) => {
   }
 
   const handleFileChange = async (uploadedImage: File) => {
+    console.log('DEBUG: handleFileChange called', uploadedImage?.name)
     if (!uploadedImage) {
       return
     }
     // If there is only one option available then it would stay selected
     const documentType = fields.documentType || dropdownOptions[0].value
+    console.log('DEBUG: documentType selected', documentType)
 
     let processedFile: File
     const optionValues: [IFormFieldValue, string] = [
@@ -193,12 +209,15 @@ export const DocumentUploaderWithOption = (props: IFullProps) => {
     )
 
     try {
+      console.log('DEBUG: Starting file processing...')
       // Start processing
       ;[processedFile] = await Promise.all([
         processImage(uploadedImage),
         minimumProcessingTime
       ])
+      console.log('DEBUG: File processing complete', processedFile.name)
     } catch (error) {
+      console.log('DEBUG: File processing failed', error)
       if (props.onUploadingStateChanged) {
         props.onUploadingStateChanged(false)
       }
@@ -228,6 +247,7 @@ export const DocumentUploaderWithOption = (props: IFullProps) => {
       fileSize: processedFile.size
     }
 
+    console.log('DEBUG: Calling onComplete with document:', newDocument)
     props.onComplete([...props.files, newDocument])
     if (props.onUploadingStateChanged) {
       props.onUploadingStateChanged(false)
@@ -296,6 +316,11 @@ export const DocumentUploaderWithOption = (props: IFullProps) => {
         <FullWidthImageUploader
           id="upload_document"
           name={props.name}
+          accept={
+            window.config?.FEATURES?.ENHANCED_DOCUMENT_VIEWER
+              ? 'image/*,application/pdf'
+              : 'image/*'
+          }
           onClick={(e) => !isValid() && e.preventDefault()}
           onChange={handleFileChange}
           disabled={filesBeingProcessed.length > 0}
@@ -317,6 +342,11 @@ export const DocumentUploaderWithOption = (props: IFullProps) => {
           <DocumentUploadButton
             id="upload_document"
             name={props.name}
+            accept={
+              window.config?.FEATURES?.ENHANCED_DOCUMENT_VIEWER
+                ? 'image/*,application/pdf'
+                : 'image/*'
+            }
             onClick={(e) => !isValid() && e.preventDefault()}
             onChange={handleFileChange}
             disabled={filesBeingProcessed.length > 0}

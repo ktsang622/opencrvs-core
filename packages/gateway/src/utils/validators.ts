@@ -9,6 +9,7 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 import { MINIO_BUCKET } from '@gateway/constants'
+import { isEnhancedDocumentViewerEnabled } from '@gateway/utils/applicationConfig'
 import {
   GQLAttachmentInput,
   GQLBirthRegistrationInput,
@@ -29,6 +30,9 @@ const isMinioUri = (uri: string | undefined) => {
 export async function validateAttachments(
   attachments: Array<{ data?: string; uri?: string }>
 ) {
+  const isPdfSupportEnabled = await isEnhancedDocumentViewerEnabled()
+  console.log('DEBUG: PDF support enabled:', isPdfSupportEnabled)
+
   for (const file of attachments) {
     if (isMinioUrl(file.data)) {
       continue
@@ -44,9 +48,29 @@ export async function validateAttachments(
 
     const data = file.data.split('base64,')?.[1] || ''
     const mime = file.data.split(';')[0].replace('data:', '')
+    console.log(
+      'DEBUG: File MIME type:',
+      mime,
+      'PDF support:',
+      isPdfSupportEnabled
+    )
 
-    if (!mime.startsWith('image/')) {
-      throw new Error(`File type doesn't match image/*`)
+    // Allow images always, PDFs only when feature flag is enabled
+    const isValidMimeType =
+      mime.startsWith('image/') ||
+      (isPdfSupportEnabled && mime === 'application/pdf')
+
+    console.log('DEBUG: Is valid MIME type:', isValidMimeType)
+
+    if (!isValidMimeType) {
+      const supportedTypes = isPdfSupportEnabled
+        ? 'image/* or application/pdf'
+        : 'image/*'
+      console.log(
+        'DEBUG: Rejecting file type. Supported types:',
+        supportedTypes
+      )
+      throw new Error(`File type doesn't match ${supportedTypes}`)
     }
 
     const buffer = Buffer.from(data, 'base64')
@@ -55,8 +79,16 @@ export async function validateAttachments(
       throw new Error("File type couldn't be determined")
     }
 
-    if (!type.mime.startsWith('image/')) {
-      throw new Error(`File type doesn't match image/*`)
+    // Allow images always, PDFs only when feature flag is enabled
+    const isValidFileType =
+      type.mime.startsWith('image/') ||
+      (isPdfSupportEnabled && type.mime === 'application/pdf')
+
+    if (!isValidFileType) {
+      const supportedTypes = isPdfSupportEnabled
+        ? 'image/* or application/pdf'
+        : 'image/*'
+      throw new Error(`File type doesn't match ${supportedTypes}`)
     }
   }
 }

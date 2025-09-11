@@ -188,7 +188,7 @@ export const searchPersonHandler = async (request: Request, h: ResponseToolkit) 
     const from = (parseInt(page) - 1) * parseInt(pageSize);
 
     const result = await osClient.search({
-      index: 'person_index',
+      index: 'person_read',
       from,
       size: parseInt(pageSize),
       track_total_hits: true,
@@ -315,7 +315,7 @@ export const detailedPersonSearchHandler = async (request: Request, h: ResponseT
     const from = (parseInt(page) - 1) * parseInt(pageSize);
 
     const result = await osClient.search({
-      index: 'person_index',
+      index: 'person_read',
       from,
       size: parseInt(pageSize),
       track_total_hits: true,
@@ -418,7 +418,7 @@ export const advancedPersonSearchHandler = async (request: Request, h: ResponseT
 
   try {
     const result = await osClient.search({
-      index: 'person_index',
+      index: 'person_read',
       size: 20,
       body: {
         query: { bool: { must } },

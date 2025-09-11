@@ -62,9 +62,12 @@ export function useOnFileChange({
     const isFileTooLarge = uploadedFile.size > maxFileSize
 
     const hasFileCriteria = acceptedFileTypes.length > 0
-    const isWrongFileType = acceptedFileTypes.every(
-      (fileType) => fileType !== uploadedFile.type
-    )
+    const isPdfWithFeatureEnabled =
+      uploadedFile.type === 'application/pdf' &&
+      window.config.FEATURES.ENHANCED_DOCUMENT_VIEWER
+    const isWrongFileType =
+      acceptedFileTypes.every((fileType) => fileType !== uploadedFile.type) &&
+      !isPdfWithFeatureEnabled
     if ((hasFileCriteria && isWrongFileType) || isFileTooLarge) {
       onUploadingStateChanged?.(false)
       setFilesBeingUploaded([])

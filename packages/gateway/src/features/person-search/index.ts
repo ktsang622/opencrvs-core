@@ -24,7 +24,7 @@ export const personSearchRoutes = [
     path: '/person-search',
     handler: searchPersonHandler,
     options: {
-      auth: false,
+      auth: false as const,
       tags: ['api'],
       description: 'Search for persons via family-tree API'
     }
@@ -34,7 +34,7 @@ export const personSearchRoutes = [
     path: '/person-search/detailed',
     handler: detailedPersonSearchHandler,
     options: {
-      auth: false,
+      auth: false as const,
       tags: ['api'],
       description: 'Search for persons with detailed data via family-tree API'
     }
@@ -44,7 +44,7 @@ export const personSearchRoutes = [
     path: '/person/{personId}/events',
     handler: personEventsHandler,
     options: {
-      auth: false,
+      auth: false as const,
       tags: ['api'],
       description: 'Get person events via family-tree API'
     }
@@ -54,7 +54,7 @@ export const personSearchRoutes = [
     path: '/event/{eventId}/participants',
     handler: eventParticipantsHandler,
     options: {
-      auth: false,
+      auth: false as const,
       tags: ['api'],
       description: 'Get event participants via family-tree API'
     }
@@ -64,7 +64,7 @@ export const personSearchRoutes = [
     path: '/tree/init/{person_id}',
     handler: familyTreeInitHandler,
     options: {
-      auth: false,
+      auth: false as const,
       tags: ['api'],
       description: 'Initialize family tree'
     }
@@ -74,7 +74,7 @@ export const personSearchRoutes = [
     path: '/tree/expand',
     handler: familyTreeExpandHandler,
     options: {
-      auth: false,
+      auth: false as const,
       tags: ['api'],
       description: 'Expand family tree node'
     }
