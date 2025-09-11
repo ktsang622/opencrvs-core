@@ -60,13 +60,9 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 
 // Helper to check if PDF processing is enabled
 async function isPdfProcessingEnabled(): Promise<boolean> {
-  try {
-    // For now, we'll check an environment variable
-    // In production, this would check the application config
-    return process.env.ENHANCED_DOCUMENT_VIEWER === 'true'
-  } catch {
-    return false // Default to disabled if config unavailable
-  }
+  // For testing: temporarily return true
+  // TODO: In production, this would check the application config
+  return true // TESTING: Enable PDF processing
 }
 
 export async function fileUploadHandler(

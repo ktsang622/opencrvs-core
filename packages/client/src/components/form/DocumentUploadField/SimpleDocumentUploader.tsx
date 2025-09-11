@@ -169,6 +169,7 @@ const SimpleDocumentUploaderComponent = ({
         <DocumentUploader
           id="upload_document"
           name={name}
+          accept="image/*,application/pdf"
           onChange={handleFileChange}
         >
           {intl.formatMessage(messages.uploadFile)}

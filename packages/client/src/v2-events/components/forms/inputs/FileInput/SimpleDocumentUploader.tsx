@@ -121,6 +121,7 @@ export function SimpleDocumentUploader({
       )}
       {!file && (
         <DocumentUploader
+          accept="image/*,application/pdf"
           fullWidth={width === 'full'}
           id={name}
           name={name}
