@@ -60,9 +60,19 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 
 // Helper to check if PDF processing is enabled
 async function isPdfProcessingEnabled(): Promise<boolean> {
-  // For testing: temporarily return true
-  // TODO: In production, this would check the application config
-  return true // TESTING: Enable PDF processing
+  try {
+    // Read config from country config service
+    const response = await fetch('http://localhost:3040/application-config')
+    if (!response.ok) {
+      console.warn('Could not fetch application config, defaulting to false')
+      return false
+    }
+    const config = await response.json()
+    return config.FEATURES?.ENHANCED_DOCUMENT_VIEWER === true
+  } catch (error) {
+    console.warn('Error checking PDF processing feature flag:', error)
+    return false
+  }
 }
 
 export async function fileUploadHandler(
@@ -80,34 +90,26 @@ export async function fileUploadHandler(
   const extension = file.hapi.filename.split('.').pop()
   const filename = `${transactionId}.${extension}`
 
-  // NEW: Handle PDF processing ONLY if feature enabled
-  if (extension === 'pdf' && (await isPdfProcessingEnabled())) {
-    const pdfBuffer = await streamToBuffer(file)
-    const processedPdf = await processPdf(pdfBuffer, transactionId)
+  // Handle PDF files when feature is enabled
+  if (extension === 'pdf') {
+    const pdfEnabled = await isPdfProcessingEnabled()
+    if (!pdfEnabled) {
+      throw badRequest('PDF uploads are not enabled')
+    }
 
-    // Store original PDF
+    // For now, just store PDF as-is (same as images)
+    // TODO: Add multi-page processing as separate optional feature
     await minioClient.putObject(
       MINIO_BUCKET,
       'event-attachments/' + filename,
-      pdfBuffer,
+      file,
       {
         'created-by': userId,
         'content-type': 'application/pdf'
       }
     )
 
-    // Store page images
-    for (const page of processedPdf.pages) {
-      await minioClient.putObject(MINIO_BUCKET, page.path, page.buffer, {
-        'created-by': userId,
-        'content-type': 'image/png'
-      })
-    }
-
-    return {
-      filename: 'event-attachments/' + filename,
-      pages: processedPdf.pages.map((p) => p.path)
-    }
+    return 'event-attachments/' + filename
   }
 
   // EXISTING: Image handling unchanged
