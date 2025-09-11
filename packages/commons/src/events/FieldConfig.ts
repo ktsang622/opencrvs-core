@@ -123,7 +123,9 @@ export const ImageMimeType = z.enum([
   'image/svg+xml'
 ])
 
-export const MimeType = ImageMimeType
+export const DocumentMimeType = z.enum(['application/pdf'])
+
+export const MimeType = z.union([ImageMimeType, DocumentMimeType])
 export type MimeType = z.infer<typeof MimeType>
 
 const DEFAULT_MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024
