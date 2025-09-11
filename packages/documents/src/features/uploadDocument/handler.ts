@@ -14,6 +14,7 @@ import * as Hapi from '@hapi/hapi'
 import { v4 as uuid } from 'uuid'
 import { fromBuffer } from 'file-type'
 import { getUserId, logger } from '@opencrvs/commons'
+import { processPdf } from '@documents/features/pdfProcessor'
 
 import { z } from 'zod'
 import { Readable } from 'stream'
@@ -48,6 +49,26 @@ const Payload = z.object({
   transactionId: z.string()
 })
 
+// Helper function to convert stream to buffer
+async function streamToBuffer(stream: Readable): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
+}
+
+// Helper to check if PDF processing is enabled
+async function isPdfProcessingEnabled(): Promise<boolean> {
+  try {
+    // For now, we'll check an environment variable
+    // In production, this would check the application config
+    return process.env.ENHANCED_DOCUMENT_VIEWER === 'true'
+  } catch {
+    return false // Default to disabled if config unavailable
+  }
+}
+
 export async function fileUploadHandler(
   request: Hapi.Request,
   h: Hapi.ResponseToolkit
@@ -63,13 +84,42 @@ export async function fileUploadHandler(
   const extension = file.hapi.filename.split('.').pop()
   const filename = `${transactionId}.${extension}`
 
+  // NEW: Handle PDF processing ONLY if feature enabled
+  if (extension === 'pdf' && (await isPdfProcessingEnabled())) {
+    const pdfBuffer = await streamToBuffer(file)
+    const processedPdf = await processPdf(pdfBuffer, transactionId)
+
+    // Store original PDF
+    await minioClient.putObject(
+      MINIO_BUCKET,
+      'event-attachments/' + filename,
+      pdfBuffer,
+      {
+        'created-by': userId,
+        'content-type': 'application/pdf'
+      }
+    )
+
+    // Store page images
+    for (const page of processedPdf.pages) {
+      await minioClient.putObject(MINIO_BUCKET, page.path, page.buffer, {
+        'created-by': userId,
+        'content-type': 'image/png'
+      })
+    }
+
+    return {
+      filename: 'event-attachments/' + filename,
+      pages: processedPdf.pages.map((p) => p.path)
+    }
+  }
+
+  // EXISTING: Image handling unchanged
   await minioClient.putObject(
     MINIO_BUCKET,
     'event-attachments/' + filename,
     file,
-    {
-      'created-by': userId
-    }
+    { 'created-by': userId }
   )
 
   return 'event-attachments/' + filename
