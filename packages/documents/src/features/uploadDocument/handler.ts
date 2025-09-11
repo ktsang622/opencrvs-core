@@ -97,19 +97,34 @@ export async function fileUploadHandler(
       throw badRequest('PDF uploads are not enabled')
     }
 
-    // For now, just store PDF as-is (same as images)
-    // TODO: Add multi-page processing as separate optional feature
+    // Process PDF: store original + generate page images
+    const pdfBuffer = await streamToBuffer(file)
+    const processedPdf = await processPdf(pdfBuffer, transactionId)
+
+    // Store original PDF
     await minioClient.putObject(
       MINIO_BUCKET,
       'event-attachments/' + filename,
-      file,
+      pdfBuffer,
       {
         'created-by': userId,
         'content-type': 'application/pdf'
       }
     )
 
-    return 'event-attachments/' + filename
+    // Store page images (3-page PDF = 3 PNG files)
+    for (const page of processedPdf.pages) {
+      await minioClient.putObject(MINIO_BUCKET, page.path, page.buffer, {
+        'created-by': userId,
+        'content-type': 'image/png'
+      })
+    }
+
+    return {
+      filename: 'event-attachments/' + filename,
+      pages: processedPdf.pages.map((p) => p.path),
+      pageCount: processedPdf.pageCount
+    }
   }
 
   // EXISTING: Image handling unchanged
