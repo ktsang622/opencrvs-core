@@ -77,6 +77,16 @@ const PDFError = styled.div`
   }
 `
 
+const PDFLoading = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.grey600};
+`
+
 interface IProps {
   previewImage:
     | NonNullable<FileFieldValue>
@@ -90,12 +100,29 @@ interface IProps {
 
 // Helper to check if enhanced document viewer is enabled
 function isEnhancedDocumentViewerEnabled(): boolean {
-  return window.config.FEATURES.ENHANCED_DOCUMENT_VIEWER
+  return window.config?.FEATURES?.ENHANCED_DOCUMENT_VIEWER === true
 }
 
 // Helper to check if file is PDF
 function isPDFFile(filename: string): boolean {
   return filename.toLowerCase().endsWith('.pdf')
+}
+
+// Security: Validate PDF URLs for v2-events
+function isValidPdfUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false
+  }
+  
+  try {
+    const urlObj = new URL(url)
+    return (
+      (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') &&
+      url.toLowerCase().endsWith('.pdf')
+    )
+  } catch {
+    return false
+  }
 }
 
 export function DocumentPreview({
@@ -109,9 +136,12 @@ export function DocumentPreview({
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [pdfError, setPdfError] = useState(false)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const isPDF = isPDFFile(previewImage.filename)
   const showPDF = isEnhancedDocumentViewerEnabled() && isPDF
+  const pdfUrl = getFullUrl(previewImage.filename)
+  const isValidPdf = isValidPdfUrl(pdfUrl)
 
   function zoomIn() {
     setZoom((prevState) => prevState + 0.2)
@@ -125,6 +155,17 @@ export function DocumentPreview({
 
   const handlePdfError = () => {
     setPdfError(true)
+    setPdfLoading(false)
+  }
+
+  const handlePdfLoad = () => {
+    setPdfLoading(false)
+    setPdfError(false)
+  }
+
+  const handlePdfLoadStart = () => {
+    setPdfLoading(true)
+    setPdfError(false)
   }
 
   return (
@@ -201,24 +242,43 @@ export function DocumentPreview({
       <ViewerContainer>
         {showPDF ? (
           <PDFContainer>
-            {pdfError ? (
+            {!isValidPdf ? (
+              <PDFError>
+                <div>⚠️</div>
+                <div>Invalid PDF file or URL</div>
+                <div>Please upload a valid PDF document</div>
+              </PDFError>
+            ) : pdfError ? (
               <PDFError>
                 <div>📄</div>
                 <div>Unable to preview PDF in browser</div>
                 <a
                   download="document.pdf"
-                  href={getFullUrl(previewImage.filename)}
+                  href={pdfUrl}
                   rel="noopener noreferrer"
                   target="_blank"
+                  onClick={(e) => {
+                    // Security: Additional validation before download
+                    if (!isValidPdfUrl(pdfUrl)) {
+                      e.preventDefault()
+                    }
+                  }}
                 >
                   Download PDF to view
                 </a>
               </PDFError>
+            ) : pdfLoading ? (
+              <PDFLoading>
+                <div>📄</div>
+                <div>Loading PDF...</div>
+              </PDFLoading>
             ) : (
               <embed
-                src={getFullUrl(previewImage.filename)}
+                src={pdfUrl}
                 type="application/pdf"
+                onLoad={handlePdfLoad}
                 onError={handlePdfError}
+                onLoadStart={handlePdfLoadStart}
               />
             )}
           </PDFContainer>

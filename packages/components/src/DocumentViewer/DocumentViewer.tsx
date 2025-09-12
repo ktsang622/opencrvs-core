@@ -23,6 +23,29 @@ function isPdfUrl(url: string): boolean {
   )
 }
 
+// Security: Validate and sanitize PDF URLs
+function isValidPdfUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false
+  }
+  
+  // Allow data URLs with PDF content
+  if (url.startsWith('data:application/pdf;base64,')) {
+    return true
+  }
+  
+  // Allow HTTP/HTTPS URLs ending with .pdf
+  try {
+    const urlObj = new URL(url)
+    return (
+      (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') &&
+      url.toLowerCase().endsWith('.pdf')
+    )
+  } catch {
+    return false
+  }
+}
+
 const ViewerWrapper = styled.div`
   position: relative;
   background-color: ${({ theme }) => theme.colors.white};
@@ -89,6 +112,16 @@ const PDFError = styled.div`
   }
 `
 
+const PDFLoading = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.grey600};
+`
+
 export interface IDocumentViewerOptions {
   selectOptions: SelectComponentOptions[]
   documentOptions: SelectComponentOptions[]
@@ -110,13 +143,16 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [pdfError, setPdfError] = useState(false)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const isPdf = isPdfUrl(selectedDocument)
+  const isValidPdf = isValidPdfUrl(selectedDocument)
 
   useEffect(() => {
     setSelectedOption(options.selectOptions[0]?.value || '')
     setSelectedDocument(options.documentOptions[0]?.value || '')
     setPdfError(false) // Reset PDF error when document changes
+    setPdfLoading(false) // Reset loading state
   }, [options])
 
   const zoomIn = () => {
@@ -138,6 +174,17 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
 
   const handlePdfError = () => {
     setPdfError(true)
+    setPdfLoading(false)
+  }
+
+  const handlePdfLoad = () => {
+    setPdfLoading(false)
+    setPdfError(false)
+  }
+
+  const handlePdfLoadStart = () => {
+    setPdfLoading(true)
+    setPdfError(false)
   }
 
   const isSupportingDocumentsEmpty =
@@ -175,7 +222,13 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
             <>
               {isPdf ? (
                 <PDFContainer>
-                  {pdfError ? (
+                  {!isValidPdf ? (
+                    <PDFError>
+                      <div>⚠️</div>
+                      <div>Invalid PDF file or URL</div>
+                      <div>Please upload a valid PDF document</div>
+                    </PDFError>
+                  ) : pdfError ? (
                     <PDFError>
                       <div>📄</div>
                       <div>Unable to preview PDF in browser</div>
@@ -183,15 +236,28 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
                         href={selectedDocument}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={(e) => {
+                          // Security: Additional validation before opening
+                          if (!isValidPdfUrl(selectedDocument)) {
+                            e.preventDefault()
+                          }
+                        }}
                       >
                         Open PDF in new tab
                       </a>
                     </PDFError>
+                  ) : pdfLoading ? (
+                    <PDFLoading>
+                      <div>📄</div>
+                      <div>Loading PDF...</div>
+                    </PDFLoading>
                   ) : (
                     <embed
                       src={selectedDocument}
                       type="application/pdf"
+                      onLoad={handlePdfLoad}
                       onError={handlePdfError}
+                      onLoadStart={handlePdfLoadStart}
                     />
                   )}
                 </PDFContainer>

@@ -46,6 +46,16 @@ function isPdfFile(file: IFileValue | IAttachmentValue): boolean {
   return false
 }
 
+// Security: Validate PDF data URLs
+function isValidPdfData(data: string): boolean {
+  if (!data || typeof data !== 'string') {
+    return false
+  }
+
+  // Only allow base64-encoded PDF data URLs
+  return data.startsWith('data:application/pdf;base64,') && data.length > 30
+}
+
 const ViewerWrapper = styled.div`
   position: fixed;
   top: 0;
@@ -100,6 +110,16 @@ const PDFError = styled.div`
   }
 `
 
+const PDFLoading = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.grey600};
+`
+
 interface IProps {
   previewImage: IFileValue | IAttachmentValue
   disableDelete?: boolean
@@ -120,8 +140,10 @@ export const DocumentPreview = ({
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [pdfError, setPdfError] = useState(false)
+  const [pdfLoading, setPdfLoading] = useState(false)
 
   const isPdf = isPdfFile(previewImage)
+  const isValidPdf = previewImage.data ? isValidPdfData(previewImage.data) : false
 
   const zoomIn = () => setZoom((prevState) => prevState + 0.2)
   const zoomOut = () =>
@@ -130,6 +152,17 @@ export const DocumentPreview = ({
 
   const handlePdfError = () => {
     setPdfError(true)
+    setPdfLoading(false)
+  }
+
+  const handlePdfLoad = () => {
+    setPdfLoading(false)
+    setPdfError(false)
+  }
+
+  const handlePdfLoadStart = () => {
+    setPdfLoading(true)
+    setPdfError(false)
   }
 
   return (
@@ -208,7 +241,13 @@ export const DocumentPreview = ({
           <>
             {isPdf ? (
               <PDFContainer>
-                {pdfError ? (
+                {!isValidPdf ? (
+                  <PDFError>
+                    <Icon name="AlertTriangle" size="large" color="red" />
+                    <div>Invalid PDF file</div>
+                    <div>Please upload a valid PDF document</div>
+                  </PDFError>
+                ) : pdfError ? (
                   <PDFError>
                     <Icon name="FileText" size="large" />
                     <div>Unable to preview PDF in browser</div>
@@ -217,15 +256,28 @@ export const DocumentPreview = ({
                       download="document.pdf"
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={(e) => {
+                        // Security: Additional validation before download
+                        if (!isValidPdfData(previewImage.data)) {
+                          e.preventDefault()
+                        }
+                      }}
                     >
                       Download PDF to view
                     </a>
                   </PDFError>
+                ) : pdfLoading ? (
+                  <PDFLoading>
+                    <Icon name="FileText" size="large" />
+                    <div>Loading PDF...</div>
+                  </PDFLoading>
                 ) : (
                   <embed
                     src={previewImage.data}
                     type="application/pdf"
+                    onLoad={handlePdfLoad}
                     onError={handlePdfError}
+                    onLoadStart={handlePdfLoadStart}
                   />
                 )}
               </PDFContainer>
