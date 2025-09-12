@@ -49,6 +49,34 @@ const ViewerContainer = styled.div`
   }
 `
 
+const PDFContainer = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  & embed {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+`
+
+const PDFError = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+
+  & a {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: underline;
+  }
+`
+
 interface IProps {
   previewImage:
     | NonNullable<FileFieldValue>
@@ -58,6 +86,16 @@ interface IProps {
   goBack: () => void
   onDelete: (image: FileFieldValue) => void
   id?: string
+}
+
+// Helper to check if enhanced document viewer is enabled
+function isEnhancedDocumentViewerEnabled(): boolean {
+  return window.config.FEATURES.ENHANCED_DOCUMENT_VIEWER
+}
+
+// Helper to check if file is PDF
+function isPDFFile(filename: string): boolean {
+  return filename.toLowerCase().endsWith('.pdf')
 }
 
 export function DocumentPreview({
@@ -70,6 +108,10 @@ export function DocumentPreview({
 }: IProps) {
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [pdfError, setPdfError] = useState(false)
+
+  const isPDF = isPDFFile(previewImage.filename)
+  const showPDF = isEnhancedDocumentViewerEnabled() && isPDF
 
   function zoomIn() {
     setZoom((prevState) => prevState + 0.2)
@@ -81,17 +123,23 @@ export function DocumentPreview({
     setRotation((prevState) => (prevState - 90) % 360)
   }
 
+  const handlePdfError = () => {
+    setPdfError(true)
+  }
+
   return (
     <ViewerWrapper id={id ?? 'preview_image_field'}>
       <AppBar
         desktopLeft={<Icon name="Paperclip" size="large" />}
         desktopRight={
           <Stack gap={8}>
-            <PanControls
-              rotateLeft={rotateLeft}
-              zoomIn={zoomIn}
-              zoomOut={zoomOut}
-            />
+            {!showPDF && (
+              <PanControls
+                rotateLeft={rotateLeft}
+                zoomIn={zoomIn}
+                zoomOut={zoomOut}
+              />
+            )}
             {!disableDelete && (
               <>
                 <DividerVertical />
@@ -120,11 +168,13 @@ export function DocumentPreview({
         mobileLeft={<Icon name="Paperclip" size="large" />}
         mobileRight={
           <Stack gap={8}>
-            <PanControls
-              rotateLeft={rotateLeft}
-              zoomIn={zoomIn}
-              zoomOut={zoomOut}
-            />
+            {!showPDF && (
+              <PanControls
+                rotateLeft={rotateLeft}
+                zoomIn={zoomIn}
+                zoomOut={zoomOut}
+              />
+            )}
             {!disableDelete && (
               <Button
                 id="preview_delete"
@@ -149,13 +199,38 @@ export function DocumentPreview({
       />
 
       <ViewerContainer>
-        <PanViewer
-          key={Math.random()}
-          id="document_image"
-          image={getFullUrl(previewImage.filename)}
-          rotation={rotation}
-          zoom={zoom}
-        />
+        {showPDF ? (
+          <PDFContainer>
+            {pdfError ? (
+              <PDFError>
+                <div>📄</div>
+                <div>Unable to preview PDF in browser</div>
+                <a
+                  download="document.pdf"
+                  href={getFullUrl(previewImage.filename)}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  Download PDF to view
+                </a>
+              </PDFError>
+            ) : (
+              <embed
+                src={getFullUrl(previewImage.filename)}
+                type="application/pdf"
+                onError={handlePdfError}
+              />
+            )}
+          </PDFContainer>
+        ) : (
+          <PanViewer
+            key={Math.random()}
+            id="document_image"
+            image={getFullUrl(previewImage.filename)}
+            rotation={rotation}
+            zoom={zoom}
+          />
+        )}
       </ViewerContainer>
     </ViewerWrapper>
   )

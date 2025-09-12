@@ -14,6 +14,15 @@ import { Select, ISelectOption as SelectComponentOptions } from '../Select'
 import PanViewer from './components/PanViewer'
 import PanControls from './components/PanControls'
 
+// Helper function to detect if URL is a PDF
+function isPdfUrl(url: string): boolean {
+  return (
+    url.toLowerCase().includes('.pdf') ||
+    url.includes('application/pdf') ||
+    url.startsWith('data:application/pdf')
+  )
+}
+
 const ViewerWrapper = styled.div`
   position: relative;
   background-color: ${({ theme }) => theme.colors.white};
@@ -31,6 +40,7 @@ const ViewerWrapper = styled.div`
 const ViewerContainer = styled.div`
   display: flex;
   flex-direction: column;
+  height: 100%;
 `
 const ViewerHeader = styled.div`
   height: 64px;
@@ -46,8 +56,37 @@ const ViewerHeader = styled.div`
 
 const ViewerImage = styled.div`
   display: flex;
-  height: 700px;
+  flex: 1;
   align-items: center;
+`
+
+const PDFContainer = styled.div`
+  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  & embed {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+`
+
+const PDFError = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+  color: ${({ theme }) => theme.colors.grey600};
+
+  & a {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: underline;
+  }
 `
 
 export interface IDocumentViewerOptions {
@@ -70,10 +109,14 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
   )
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [pdfError, setPdfError] = useState(false)
+
+  const isPdf = isPdfUrl(selectedDocument)
 
   useEffect(() => {
     setSelectedOption(options.selectOptions[0]?.value || '')
     setSelectedDocument(options.documentOptions[0]?.value || '')
+    setPdfError(false) // Reset PDF error when document changes
   }, [options])
 
   const zoomIn = () => {
@@ -91,6 +134,10 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
 
   const rotateLeft = () => {
     setRotation((prev) => (prev - 90) % 360)
+  }
+
+  const handlePdfError = () => {
+    setPdfError(true)
   }
 
   const isSupportingDocumentsEmpty =
@@ -116,21 +163,49 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
                 }
               }}
             />
-            <PanControls
-              zoomIn={zoomIn}
-              zoomOut={zoomOut}
-              rotateLeft={rotateLeft}
-            />
+            {!isPdf && (
+              <PanControls
+                zoomIn={zoomIn}
+                zoomOut={zoomOut}
+                rotateLeft={rotateLeft}
+              />
+            )}
           </ViewerHeader>
           {isSupportingDocumentsEmpty && (
-            <ViewerImage>
-              <PanViewer
-                id="document_image"
-                image={selectedDocument}
-                zoom={zoom}
-                rotation={rotation}
-              />
-            </ViewerImage>
+            <>
+              {isPdf ? (
+                <PDFContainer>
+                  {pdfError ? (
+                    <PDFError>
+                      <div>📄</div>
+                      <div>Unable to preview PDF in browser</div>
+                      <a
+                        href={selectedDocument}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open PDF in new tab
+                      </a>
+                    </PDFError>
+                  ) : (
+                    <embed
+                      src={selectedDocument}
+                      type="application/pdf"
+                      onError={handlePdfError}
+                    />
+                  )}
+                </PDFContainer>
+              ) : (
+                <ViewerImage>
+                  <PanViewer
+                    id="document_image"
+                    image={selectedDocument}
+                    zoom={zoom}
+                    rotation={rotation}
+                  />
+                </ViewerImage>
+              )}
+            </>
           )}
           {children}
         </ViewerContainer>

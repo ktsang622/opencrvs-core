@@ -13,8 +13,9 @@ import { MINIO_BUCKET } from '@documents/minio/constants'
 import * as Hapi from '@hapi/hapi'
 import { v4 as uuid } from 'uuid'
 import { fromBuffer } from 'file-type'
-import { getUserId, logger } from '@opencrvs/commons'
-import { processPdf } from '@documents/features/pdfProcessor'
+import { getUserId, logger, fetchJSON, joinURL } from '@opencrvs/commons'
+
+import { COUNTRY_CONFIG_URL } from '@documents/constants'
 
 import { z } from 'zod'
 import { Readable } from 'stream'
@@ -51,7 +52,7 @@ const Payload = z.object({
 
 // Helper function to convert stream to buffer
 async function streamToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = []
+  const chunks: Uint8Array[] = []
   for await (const chunk of stream) {
     chunks.push(chunk)
   }
@@ -61,16 +62,13 @@ async function streamToBuffer(stream: Readable): Promise<Buffer> {
 // Helper to check if PDF processing is enabled
 async function isPdfProcessingEnabled(): Promise<boolean> {
   try {
-    // Read config from country config service
-    const response = await fetch('http://localhost:3040/application-config')
-    if (!response.ok) {
-      console.warn('Could not fetch application config, defaulting to false')
-      return false
-    }
-    const config = await response.json()
+    logger.info('Fetching application config from country config')
+    const config = await fetchJSON<{
+      FEATURES?: { ENHANCED_DOCUMENT_VIEWER?: boolean }
+    }>(joinURL(COUNTRY_CONFIG_URL, '/application-config'))
     return config.FEATURES?.ENHANCED_DOCUMENT_VIEWER === true
   } catch (error) {
-    console.warn('Error checking PDF processing feature flag:', error)
+    logger.warn('Error checking PDF processing feature flag:', error)
     return false
   }
 }
@@ -93,15 +91,13 @@ export async function fileUploadHandler(
   // Handle PDF files when feature is enabled
   if (extension === 'pdf') {
     const pdfEnabled = await isPdfProcessingEnabled()
+
     if (!pdfEnabled) {
       throw badRequest('PDF uploads are not enabled')
     }
 
-    // Process PDF: store original + generate page images
+    // Store PDF file (no conversion needed - PDF viewer will handle it)
     const pdfBuffer = await streamToBuffer(file)
-    const processedPdf = await processPdf(pdfBuffer, transactionId)
-
-    // Store original PDF
     await minioClient.putObject(
       MINIO_BUCKET,
       'event-attachments/' + filename,
@@ -112,18 +108,9 @@ export async function fileUploadHandler(
       }
     )
 
-    // Store page images (3-page PDF = 3 PNG files)
-    for (const page of processedPdf.pages) {
-      await minioClient.putObject(MINIO_BUCKET, page.path, page.buffer, {
-        'created-by': userId,
-        'content-type': 'image/png'
-      })
-    }
-
     return {
       filename: 'event-attachments/' + filename,
-      pages: processedPdf.pages.map((p) => p.path),
-      pageCount: processedPdf.pageCount
+      fileType: 'pdf'
     }
   }
 

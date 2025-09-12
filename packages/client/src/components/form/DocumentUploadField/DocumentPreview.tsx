@@ -21,6 +21,31 @@ import PanControls from '@opencrvs/components/lib/DocumentViewer/components/PanC
 import PanViewer from '@opencrvs/components/lib/DocumentViewer/components/PanViewer'
 import { useState } from 'react'
 
+// Helper function to detect if file is PDF
+function isPdfFile(file: IFileValue | IAttachmentValue): boolean {
+  // Check the type property first
+  if (file.type === 'application/pdf') {
+    return true
+  }
+
+  // Check for PDF data URL prefix
+  if (file.data && file.data.startsWith('data:application/pdf')) {
+    return true
+  }
+
+  // Check file extension in URI (for IAttachmentValue)
+  if ('uri' in file && file.uri && file.uri.toLowerCase().endsWith('.pdf')) {
+    return true
+  }
+
+  // Check name property (for IAttachmentValue)
+  if ('name' in file && file.name && file.name.toLowerCase().endsWith('.pdf')) {
+    return true
+  }
+
+  return false
+}
+
 const ViewerWrapper = styled.div`
   position: fixed;
   top: 0;
@@ -47,6 +72,34 @@ const ViewerContainer = styled.div`
   }
 `
 
+const PDFContainer = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  & embed {
+    width: 100%;
+    height: 100%;
+    border: none;
+  }
+`
+
+const PDFError = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  text-align: center;
+
+  & a {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: underline;
+  }
+`
+
 interface IProps {
   previewImage: IFileValue | IAttachmentValue
   disableDelete?: boolean
@@ -66,11 +119,18 @@ export const DocumentPreview = ({
 }: IProps) => {
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [pdfError, setPdfError] = useState(false)
+
+  const isPdf = isPdfFile(previewImage)
 
   const zoomIn = () => setZoom((prevState) => prevState + 0.2)
   const zoomOut = () =>
     setZoom((prevState) => (prevState >= 1 ? prevState - 0.2 : prevState))
   const rotateLeft = () => setRotation((prevState) => (prevState - 90) % 360)
+
+  const handlePdfError = () => {
+    setPdfError(true)
+  }
 
   return (
     <ViewerWrapper id={id ?? 'preview_image_field'}>
@@ -79,14 +139,16 @@ export const DocumentPreview = ({
         desktopTitle={title}
         desktopRight={
           <Stack gap={8}>
-            <PanControls
-              zoomIn={zoomIn}
-              zoomOut={zoomOut}
-              rotateLeft={rotateLeft}
-            />
+            {!isPdf && (
+              <PanControls
+                zoomIn={zoomIn}
+                zoomOut={zoomOut}
+                rotateLeft={rotateLeft}
+              />
+            )}
             {!disableDelete && (
               <>
-                <DividerVertical />
+                {!isPdf && <DividerVertical />}
                 <Button
                   id="preview_delete"
                   type="icon"
@@ -112,11 +174,13 @@ export const DocumentPreview = ({
         mobileTitle={title}
         mobileRight={
           <Stack gap={8}>
-            <PanControls
-              zoomIn={zoomIn}
-              zoomOut={zoomOut}
-              rotateLeft={rotateLeft}
-            />
+            {!isPdf && (
+              <PanControls
+                zoomIn={zoomIn}
+                zoomOut={zoomOut}
+                rotateLeft={rotateLeft}
+              />
+            )}
             {!disableDelete && (
               <Button
                 id="preview_delete"
@@ -141,13 +205,40 @@ export const DocumentPreview = ({
 
       <ViewerContainer>
         {previewImage.data && (
-          <PanViewer
-            key={Math.random()}
-            id="document_image"
-            image={previewImage.data}
-            zoom={zoom}
-            rotation={rotation}
-          />
+          <>
+            {isPdf ? (
+              <PDFContainer>
+                {pdfError ? (
+                  <PDFError>
+                    <Icon name="FileText" size="large" />
+                    <div>Unable to preview PDF in browser</div>
+                    <a
+                      href={previewImage.data}
+                      download="document.pdf"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Download PDF to view
+                    </a>
+                  </PDFError>
+                ) : (
+                  <embed
+                    src={previewImage.data}
+                    type="application/pdf"
+                    onError={handlePdfError}
+                  />
+                )}
+              </PDFContainer>
+            ) : (
+              <PanViewer
+                key={Math.random()}
+                id="document_image"
+                image={previewImage.data}
+                zoom={zoom}
+                rotation={rotation}
+              />
+            )}
+          </>
         )}
       </ViewerContainer>
     </ViewerWrapper>

@@ -14,7 +14,8 @@ const env = cleanEnv(process.env, {
   DOCUMENTS_HOST: str({ default: '0.0.0.0' }),
   DOCUMENTS_PORT: num({ default: 9050 }),
   CERT_PUBLIC_KEY_PATH: str({ default: '../../.secrets/public-key.pem' }),
-  DEFAULT_TIMEOUT: num({ default: 600000 })
+  DEFAULT_TIMEOUT: num({ default: 600000 }),
+  COUNTRY_CONFIG_URL: str({ default: 'http://localhost:3040' })
 })
 
 export const HOST = env.DOCUMENTS_HOST
@@ -23,3 +24,4 @@ export const CERT_PUBLIC_KEY_PATH = env.CERT_PUBLIC_KEY_PATH
 export const SENTRY_DSN = process.env.SENTRY_DSN
 export const DEFAULT_TIMEOUT = env.DEFAULT_TIMEOUT
 export const PRODUCTION = env.isProd
+export const COUNTRY_CONFIG_URL = env.COUNTRY_CONFIG_URL

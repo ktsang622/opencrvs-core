@@ -62,7 +62,13 @@ const createRequest = async <T = any>(
       throw new Error(data.message)
     }
 
-    throw new Error(response.statusText)
+    console.error('Workflow request failed:', {
+      status: response.status,
+      statusText: response.statusText,
+      url: new URL(path, WORKFLOW_URL).href,
+      method
+    })
+    throw new Error(`${response.status}: ${response.statusText}`)
   }
 
   return response.json()
