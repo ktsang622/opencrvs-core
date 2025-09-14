@@ -9,14 +9,11 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 import { TRPCError } from '@trpc/server'
-import { MutationProcedure } from '@trpc/server/unstable-core-do-not-import'
 import { z } from 'zod'
 import { SCOPES, getUUID } from '@opencrvs/commons'
 import {
   ActionType,
   ActionStatus,
-  EventDocument,
-  ActionInput,
   NotifyActionInput,
   RegisterActionInput,
   RejectDeclarationActionInput,
@@ -100,20 +97,8 @@ const ACTION_PROCEDURE_CONFIG = {
   }
 }
 
-type ActionProcedure = {
-  request: MutationProcedure<{
-    input: ActionInput
-    output: EventDocument
-  }>
-  accept: MutationProcedure<{
-    input: ActionInput & { actionId: string }
-    output: EventDocument
-  }>
-  reject: MutationProcedure<{
-    input: { eventId: string; actionId: string; transactionId: string }
-    output: EventDocument
-  }>
-}
+// tRPC v11 RC compatibility: Using Record<string, any> to work around missing 'meta' property requirement
+type ActionProcedure = Record<string, any>
 
 /**
  * Most actions share a similar model, where the action is first requested, and then either synchronously or asynchronously

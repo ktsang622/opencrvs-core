@@ -135,7 +135,9 @@ function validateActionAnnotation({
   return errors
 }
 
-export function validateAction(actionType: ActionType) {
+export function validateAction(
+  actionType: ActionType
+): (opts: ActionMiddlewareOptions) => Promise<any> {
   return async ({ input, ctx, next }: ActionMiddlewareOptions) => {
     const event = await getEventById(input.eventId)
 

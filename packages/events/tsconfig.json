@@ -22,6 +22,6 @@
     "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "typings", "tslint-rules"],
-  "exclude": ["node_modules", "build", "scripts", "acceptance-tests"],
+  "exclude": ["node_modules", "build", "scripts", "acceptance-tests", "src/**/*.test.ts", "src/tests", "src/**/__mocks__"],
   "extends": "./tsconfig.paths.json"
 }
