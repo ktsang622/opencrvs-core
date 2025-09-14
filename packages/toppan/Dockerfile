@@ -16,13 +16,13 @@ COPY packages/toppan-db/ ./packages/toppan-db/
 WORKDIR /app/packages/toppan-db
 RUN yarn install --frozen-lockfile && yarn build
 
-# Build main toppan-service
-WORKDIR /app/packages/toppan-service
-COPY packages/toppan-service/package.json ./
+# Build main toppan service
+WORKDIR /app/packages/toppan
+COPY packages/toppan/package.json ./
 RUN yarn install --frozen-lockfile
-COPY packages/toppan-service/ ./
+COPY packages/toppan/ ./
 RUN yarn build
 
-EXPOSE 3040
+EXPOSE 9998
 
 CMD ["yarn", "start:prod"]

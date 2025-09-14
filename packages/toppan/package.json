@@ -16,7 +16,6 @@
   },
   "dependencies": {
     "@hapi/hapi": "^20.2.1",
-    "@opencrvs/commons": "^1.0.0",
     "@opencrvs/toppan-common": "^1.0.0",
     "@opencrvs/toppan-db": "^1.0.0",
     "joi": "^17.6.0",
@@ -24,7 +23,7 @@
     "@hapi/boom": "^10.0.1"
   },
   "devDependencies": {
-    "@types/hapi": "^18.0.0",
+    "@types/hapi__hapi": "^20.0.0",
     "@types/node": "^18.0.0",
     "@types/pg": "^8.10.0",
     "cross-env": "^7.0.0",
