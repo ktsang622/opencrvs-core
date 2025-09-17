@@ -21,7 +21,10 @@ WORKDIR /app/packages/toppan
 COPY packages/toppan/package.json ./
 RUN yarn install --frozen-lockfile
 COPY packages/toppan/ ./
+COPY packages/toppan/prod.env .env
 RUN yarn build
+RUN mkdir -p build/dist/src/migrations \
+  && cp src/migrations/*.sql build/dist/src/migrations/
 
 EXPOSE 9998
 

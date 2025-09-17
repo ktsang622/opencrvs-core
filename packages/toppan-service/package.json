@@ -4,7 +4,7 @@
   "description": "Toppan family tree service for OpenCRVS",
   "author": "Toppan Security",
   "license": "UNLICENSED",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
   "scripts": {
     "start": "nodemon --exec ts-node -r dotenv/config src/index.ts",
     "start:prod": "node dist/index.js",

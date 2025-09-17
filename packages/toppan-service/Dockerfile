@@ -21,8 +21,9 @@ WORKDIR /app/packages/toppan-service
 COPY packages/toppan-service/package.json ./
 RUN yarn install --frozen-lockfile
 COPY packages/toppan-service/ ./
+COPY packages/toppan-service/prod.env .env
 RUN yarn build
 
-EXPOSE 3040
+EXPOSE 3888
 
 CMD ["yarn", "start:prod"]

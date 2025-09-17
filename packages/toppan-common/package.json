@@ -4,10 +4,18 @@
   "description": "Common types and utilities for Toppan family tree",
   "author": "Toppan Security",
   "license": "UNLICENSED",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepare": "yarn build",
+    "clean": "rm -rf dist",
+    "prepublish": "npm run clean && npm run build",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "typescript": "^5.2.2"

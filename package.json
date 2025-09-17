@@ -40,7 +40,11 @@
     "seed:prod": "NODE_ENV=production lerna run seed --stream --scope @opencrvs/data-seeder",
     "add:license": "license-check-and-add add -f license-config.json",
     "build:components": "lerna run build --scope @opencrvs/components",
-    "debug": "bash debug-service-in-chrome.sh"
+    "debug": "bash debug-service-in-chrome.sh",
+    "dev:toppan-db": "yarn workspace @opencrvs/toppan-db dev",
+    "dev:toppan-common": "yarn workspace @opencrvs/toppan-common dev",
+    "dev:toppan-service": "yarn workspace @opencrvs/toppan-service start",
+    "dev:toppan": "concurrently -k -r -n db,common,service \"yarn workspace @opencrvs/toppan-db dev\" \"yarn workspace @opencrvs/toppan-common dev\" \"yarn workspace @opencrvs/toppan-service start\""
   },
   "devDependencies": {
     "@types/dotenv": "^6.1.0",

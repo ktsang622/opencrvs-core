@@ -4,10 +4,12 @@
   "description": "Database queries and utilities for Toppan family tree",
   "author": "Toppan Security",
   "license": "UNLICENSED",
-  "main": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "prepare": "yarn build"
   },
   "dependencies": {
     "@opencrvs/toppan-common": "^1.0.0",

@@ -1,14 +1,21 @@
+import 'dotenv/config'
 import { Pool, PoolClient } from 'pg'
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Connection
 // ───────────────────────────────────────────────────────────────────────────────
+const dbHost = process.env.DB_HOST || process.env.TOPPAN_DB_HOST || 'localhost'
+const dbPort = parseInt(process.env.DB_PORT || process.env.TOPPAN_DB_PORT || '5432', 10)
+const dbName = process.env.DB_NAME || process.env.TOPPAN_DB_NAME || 'person_registry'
+const dbUser = process.env.DB_USER || process.env.TOPPAN_DB_USER || 'registry_user'
+const dbPassword = process.env.DB_PASSWORD || process.env.TOPPAN_DB_PASSWORD || 'registry_pass'
+
 const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME || 'person_registry',
-  user: process.env.DB_USER || 'registry_user',
-  password: process.env.DB_PASSWORD || 'registry_pass'
+  host: dbHost,
+  port: dbPort,
+  database: dbName,
+  user: dbUser,
+  password: dbPassword
 })
 
 // ───────────────────────────────────────────────────────────────────────────────
