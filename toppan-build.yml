@@ -137,3 +137,28 @@ services:
     image: ${DOCKER_REGISTRY:-toppan-crvs}/data-seeder:${VERSION:-demo-1.8.0}
     depends_on:
       - base
+
+  # Toppan Services
+  toppan:
+    build:
+      context: .
+      dockerfile: packages/toppan/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/toppan:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  toppan-service:
+    build:
+      context: .
+      dockerfile: packages/toppan-service/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/toppan-service:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  toppan-ui:
+    build:
+      context: .
+      dockerfile: packages/toppan-ui/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/toppan-ui:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base

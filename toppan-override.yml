@@ -151,6 +151,7 @@ services:
       - DOCUMENTS_URL=http://documents:9050
       - MONGO_URL=mongodb://mongo1/metrics
       - SEARCH_URL=http://search:9090
+      - CONFIG_API_URL=http://config:2021
       - HEARTH_MONGO_URL=mongodb://mongo1/hearth-dev
       - DASHBOARD_MONGO_URL=mongodb://mongo1/performance
 

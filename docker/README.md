@@ -1,26 +1,46 @@
 # OpenCRVS Docker Deployment Guide
 
-This directory contains Docker configuration files and scripts for building and running OpenCRVS as containerized services.
+This directory contains Docker configuration files and scripts for building and running OpenCRVS as containerized services with Toppan customizations.
 
 ## 🏗️ Architecture Overview
 
-OpenCRVS uses a hybrid microservices architecture with optimized containerization:
+OpenCRVS uses a hybrid microservices architecture with optimized containerization and multi-repository coordination:
+
+### Repository Structure
+```
+/home/ktsang/
+├── opencrvs-core/          # Main OpenCRVS services (this repository)
+├── opencrvs-countryconfig/  # Country-specific configuration
+└── opensearch/             # PostgreSQL + OpenSearch for Toppan services
+```
+
+### Docker Compose Files Structure
+
+The current setup uses **Toppan-customized compose files**:
+
+1. **`toppan-deps.yml`** - External dependencies (MongoDB, Redis, ElasticSearch, etc.)
+2. **`toppan-base.yml`** - Core OpenCRVS services with production configuration
+3. **`toppan-override.yml`** - Development overrides (ports, volumes, environment)
+4. **`toppan-build.yml`** - Build configuration for OpenCRVS core services
+5. **`toppan-build-ext.yml`** - Build configuration for external services (countryconfig, opensearch)
+6. **`toppan-seeder.yml`** - Data seeding configuration
 
 ### Container Architecture
 
 **OpenCRVS Core Services (17 services):**
-- Use shared base image with pre-built commons/components for efficiency
-- Base image: `ocrvs-base` (~3.5GB) containing OpenCRVS foundations
+- Use shared base image (`ocrvs-base`) with pre-built commons/components
+- Base image: ~3.5GB containing OpenCRVS foundations
+- Each service: ~3.5GB (base + service-specific code)
 
-**Toppan Custom Services (3 services):**
-- Use standalone Node.js images for independence and efficiency
-- Smaller images (1-2GB each) with only required dependencies
+**Toppan Services (Built in opencrvs-core):**
+- `toppan` - Family tree backend service
+- `toppan-service` - Family tree integration service
+- `toppan-ui` - Family tree frontend interface
 
-### Docker Compose Files Structure
-
-1. **`toppan-deps.yml`** - External dependencies (databases, cache, etc.)
-2. **`toppan-base.yml`** - Core OpenCRVS services with production configuration
-3. **`toppan-override.yml`** - Development overrides (ports, volumes, environment)
+**External Services:**
+- `countryconfig` - Country-specific configuration (separate repository)
+- `opensearch` + `postgres` - Toppan family tree data (separate repository)
+- `toppan-data-seeder` - Data initialization
 
 ### Service Tiers
 
@@ -29,7 +49,7 @@ OpenCRVS uses a hybrid microservices architecture with optimized containerizatio
 - `user-mgnt` - User and role management
 - `config` - Application configuration
 
-**Tier 2: Business Logic** 
+**Tier 2: Business Logic**
 - `workflow` - Registration workflow management
 - `events` - V2 event-driven architecture
 - `documents` - File upload and storage
@@ -42,10 +62,10 @@ OpenCRVS uses a hybrid microservices architecture with optimized containerizatio
 - `webhooks` - External system integrations
 
 **Tier 4: Frontend**
-- `client` - Main React application
-- `login` - Authentication UI
+- `client` - Main React application (nginx)
+- `login` - Authentication UI (nginx)
 
-**Tier 5: Custom Extensions (Standalone)**
+**Tier 5: Toppan Services**
 - `toppan` - Family tree backend service
 - `toppan-service` - Family tree integration service
 - `toppan-ui` - Family tree frontend interface
@@ -58,12 +78,6 @@ OpenCRVS uses a hybrid microservices architecture with optimized containerizatio
 - `hearth` - FHIR server
 - `minio` - Object storage
 
-**External Services (Separate Repositories)**
-- `countryconfig` - Country-specific configuration (`../opencrvs-countryconfig`)
-- `postgres` - PostgreSQL database for Toppan services (`../opensearch`)
-- `opensearch` - OpenSearch for Toppan family tree search (`../opensearch`)
-- `toppan-data-seeder` - Initial data seeding with automatic init scripts
-
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -73,75 +87,58 @@ OpenCRVS uses a hybrid microservices architecture with optimized containerizatio
 - 8GB+ RAM available
 - 20GB+ disk space
 
-### Development Mode (Complete Stack)
+### Complete Stack Deployment (Recommended)
 
-**Option 1: Single Command (Recommended)**
 ```bash
-# 1. Build all images (OpenCRVS + countryconfig)
+# 1. Build all images (OpenCRVS + countryconfig + external services)
 ./scripts/build-docker-images.sh
 
-# 2. Start complete stack with health checks
+# 2. Start complete stack with all dependencies
 ./scripts/start-complete-stack.sh
 ```
 
-**Option 2: Manual Step-by-Step**
+This script will:
+- Build all required Docker images
+- Start external services (PostgreSQL, OpenSearch) in `../opensearch`
+- Start OpenCRVS core services
+- Run data seeding automatically
+- Perform health checks
+
+### Manual Step-by-Step Deployment
+
 ```bash
-# 1. Build all OpenCRVS core images (including countryconfig automatically)
+# 1. Build OpenCRVS core images
 ./scripts/build-docker-images.sh
 
-# 2. Start PostgreSQL + OpenSearch for Toppan services
+# 2. Start external dependencies in opensearch repository
 cd ../opensearch
 docker compose up -d postgres opensearch opensearch-dashboards pg_adminer
-# Run data seeder once to initialize OpenSearch
-docker compose run --rm toppan-data-seeder
+docker compose run --rm toppan-data-seeder  # Initialize data
 cd ../opencrvs-core
 
-# 3. Start OpenCRVS core services
+# 3. Start OpenCRVS services
 ./scripts/start-docker.sh
-```
 
-# 5. Access applications
+# 4. Access applications
 # Client: http://localhost:3000
 # Login: http://localhost:3020
 # Gateway: http://localhost:7070/graphql
+# Config API: http://localhost:2021
+# Country Config: http://localhost:3040
 # Toppan UI: http://localhost:3889
-# OpenSearch: http://localhost:19200
-# OpenSearch Dashboards: http://localhost:5601
 ```
 
 ### Production Mode
 
 ```bash
-# 1. Build with production settings (includes countryconfig automatically)
-VERSION=1.8.0 REGISTRY=myregistry ./scripts/build-docker-images.sh
+# Build with production settings
+export VERSION=1.8.0
+export REGISTRY=toppan-crvs
+./scripts/build-docker-images.sh
 
-# 2. Start external services (PostgreSQL + OpenSearch)
-cd ../opensearch
-VERSION=1.8.0 docker compose up -d postgres opensearch opensearch-dashboards pg_adminer
-# Run data seeder once to initialize OpenSearch
-docker compose run --rm toppan-data-seeder
-cd ../opencrvs-core
-
-# 4. Start in production mode
-./scripts/start-docker.sh --mode production --version 1.8.0 --registry myregistry
+# Start in production mode
+./scripts/start-complete-stack.sh --mode production --version 1.8.0 --registry toppan-crvs
 ```
-
-## 🏗️ Complete Multi-Repository Deployment
-
-OpenCRVS requires coordination between multiple repositories:
-
-### Repository Structure
-```
-/home/ktsang/
-├── opencrvs-core/          # Main OpenCRVS services
-├── opencrvs-countryconfig/  # Country-specific configuration
-└── opensearch/             # PostgreSQL + OpenSearch for Toppan
-```
-
-### Deployment Order
-1. **External Infrastructure** (`../opensearch`)
-2. **Country Configuration** (`../opencrvs-countryconfig`)
-3. **OpenCRVS Core** (`./opencrvs-core`)
 
 ## 🔧 Scripts Reference
 
@@ -150,109 +147,87 @@ OpenCRVS requires coordination between multiple repositories:
 Builds all Docker images in proper dependency order.
 
 ```bash
-# Basic usage
+# Basic usage - builds all images
 ./scripts/build-docker-images.sh
+
+# Build specific services
+./scripts/build-docker-images.sh gateway auth events
 
 # Custom registry and version
 VERSION=1.8.0 REGISTRY=myorg ./scripts/build-docker-images.sh
 
-# Different base branch
-BRANCH=main ./scripts/build-docker-images.sh
-```
+# Build with no cache
+./scripts/build-docker-images.sh --no-cache
 
-**Environment Variables:**
-- `VERSION` - Image version tag (default: git commit hash)
-- `REGISTRY` - Docker registry prefix (default: opencrvs)
-- `BRANCH` - Base image branch (default: develop)
-
-**Build Architecture:**
-1. **Optimized base image** - Contains OpenCRVS commons/components only
-2. **OpenCRVS core services** - Use shared base for consistency (~3.5GB base + service code)
-3. **Toppan services** - Standalone Node.js images (~1-2GB each, fully independent)
-
-**Build Order:**
-1. `ocrvs-base` - Optimized foundation (OpenCRVS commons/components)
-2. OpenCRVS core services in parallel (17 services using base)
-3. Toppan services in parallel (3 standalone services)
-
-## 🔄 Rebuilding After Architecture Changes
-
-### When Base Image Changes
-If the base image architecture changes (commons/components updates), you need to rebuild all OpenCRVS core services:
-
-```bash
-# Force rebuild everything (base + all services)
-./scripts/build-docker-images.sh
-
-# Check what was rebuilt
+# Check build status
 ./scripts/build-docker-images.sh --status
 ```
 
-### Selective Rebuilds
-For targeted rebuilds after the initial full build:
+**Build Architecture:**
+1. **Base image** (`ocrvs-base`) - Contains OpenCRVS commons/components
+2. **Core services** - Use shared base image (built in parallel)
+3. **Toppan services** - toppan, toppan-service, toppan-ui (built in this repository)
+4. **External services** - countryconfig, opensearch, toppan-data-seeder
 
-```bash
-# Rebuild specific services only
-./scripts/build-docker-images.sh gateway auth events
+### Start Complete Stack: `scripts/start-complete-stack.sh`
 
-# Rebuild all Toppan services (standalone)
-./scripts/build-docker-images.sh toppan toppan-service toppan-ui
-
-# Rebuild base image only (will require rebuilding core services after)
-docker build -t toppan-crvs/ocrvs-base:demo-1.8.0 -f Dockerfile.base .
-```
-
-### Optimization Benefits
-
-**Before Optimization:**
-- Base image: 4.02GB (OpenCRVS + Toppan packages)
-- All services: 4GB+ each
-- Total OpenCRVS overhead: ~68GB (17 × 4GB)
-
-**After Optimization:**
-- Base image: ~3.5GB (OpenCRVS core only)
-- OpenCRVS services: ~3.5GB+ each (500MB savings per service)
-- Toppan services: 1-2GB each (70% smaller than before)
-- Total savings: ~8.5GB OpenCRVS + ~9GB Toppan = **17.5GB saved**
-
-**Architecture Benefits:**
-- ✅ Clean separation between core and custom services
-- ✅ Independent development/deployment cycles
-- ✅ Optimal resource utilization
-- ✅ Faster builds and deployments
-
-### Start Script: `scripts/start-docker.sh`
-
-Starts OpenCRVS services using Docker Compose.
+Orchestrates the entire multi-repository deployment.
 
 ```bash
 # Development mode (default)
-./scripts/start-docker.sh
+./scripts/start-complete-stack.sh
 
 # Production mode
-./scripts/start-docker.sh --mode production
+./scripts/start-complete-stack.sh --mode production
 
-# Only external dependencies
+# Custom version and registry
+./scripts/start-complete-stack.sh --version 1.8.0 --registry myorg
+
+# Help
+./scripts/start-complete-stack.sh --help
+```
+
+**What it does:**
+1. Validates repository structure
+2. Builds all required images
+3. Starts external services (opensearch repository)
+4. Starts OpenCRVS core services
+5. Runs data seeding
+6. Performs health checks
+
+### Start Docker Services: `scripts/start-docker.sh`
+
+Starts only OpenCRVS core services (assumes dependencies are running).
+
+```bash
+# Start all OpenCRVS services
+./scripts/start-docker.sh
+
+# Start only dependencies
 ./scripts/start-docker.sh --deps-only
 
-# Only OpenCRVS services (requires deps running)
+# Start only services (requires deps running)
 ./scripts/start-docker.sh --services-only
 
 # Custom configuration
-./scripts/start-docker.sh \
-  --mode production \
-  --version 1.8.0 \
-  --registry myorg \
-  --country-config myorg/mycountry-config:latest
+./scripts/start-docker.sh --version 1.8.0 --registry myorg
 ```
 
-**Options:**
-- `--mode` - development|production (default: development)
-- `--version` - Service version tag (default: latest)
-- `--registry` - Docker registry prefix (default: opencrvs)
-- `--country-config` - Country configuration image
-- `--deps-only` - Start only external dependencies
-- `--services-only` - Start only OpenCRVS services
+### Other Scripts
+
+```bash
+# Stop complete stack
+./scripts/stop-complete-stack.sh
+
+# Stop only OpenCRVS services
+./scripts/stop-docker.sh
+
+# Clear all databases
+./scripts/clear-db.sh
+
+# Run data seeder
+./scripts/run-toppan-seeder.sh
+```
 
 ## 🐳 Docker Compose Usage
 
@@ -260,61 +235,60 @@ Starts OpenCRVS services using Docker Compose.
 
 ```bash
 # Start complete development stack
-docker compose \
+docker compose -p opencrvs \
   -f toppan-deps.yml \
   -f toppan-base.yml \
   -f toppan-override.yml \
   up -d
 
 # Start only dependencies
-docker compose -f toppan-deps.yml up -d
+docker compose -p opencrvs -f toppan-deps.yml up -d
 
-# Start only services in production mode
-NODE_ENV=production docker compose \
-  -f toppan-base.yml \
-  up -d
-
-# Scale specific service
-docker compose -f toppan-base.yml up -d --scale gateway=3
+# Start only services (production mode)
+export NODE_ENV=production
+docker compose -p opencrvs -f toppan-base.yml up -d
 
 # View logs
-docker compose -f toppan-base.yml logs -f gateway
+docker compose -p opencrvs logs -f gateway
 
 # Stop everything
-docker compose \
+docker compose -p opencrvs \
   -f toppan-deps.yml \
   -f toppan-base.yml \
   -f toppan-override.yml \
   down
 ```
 
-### Service Management
+### Building Images
 
 ```bash
-# Restart specific service
-docker compose restart gateway
+# Build all core services
+docker compose -f toppan-build.yml build
 
-# Update service image and restart
-docker compose pull gateway
-docker compose up -d gateway
+# Build external services
+docker compose -f toppan-build-ext.yml build
 
-# Execute commands in running container
-docker compose exec gateway bash
-docker compose exec mongo1 mongo
+# Build specific service
+docker compose -f toppan-build.yml build gateway
 
-# View container resource usage
-docker stats
+# Build with no cache
+docker compose -f toppan-build.yml build --no-cache gateway
 ```
 
 ## 🔌 Port Mappings (Development)
 
 | Service | Port | Description |
 |---------|------|-------------|
+| **Frontend** | | |
 | client | 3000 | Main React application |
 | login | 3020 | Authentication UI |
+| **API Services** | | |
+| gateway | 7070 | GraphQL API gateway |
 | auth | 4040 | Authentication API |
 | user-mgnt | 3030 | User management API |
-| gateway | 7070 | GraphQL API gateway |
+| config | 2021 | Configuration API |
+| countryconfig | 3040 | Country configuration |
+| **Business Logic** | | |
 | workflow | 5050 | Workflow management |
 | events | 5555 | Event processing |
 | documents | 9050 | Document upload |
@@ -322,118 +296,116 @@ docker stats
 | search | 9090 | Search API |
 | metrics | 1050 | Analytics API |
 | webhooks | 2525 | Webhook management |
-| config | 2021 | Configuration API |
-| countryconfig | 3040 | Country configuration |
-| **Toppan Services** | | |
-| toppan | 9998 | Family tree backend |
-| toppan-service | 3040 | Family tree integration |
-| toppan-ui | 3889 | Family tree frontend |
-| **External Dependencies** | | |
+| **Dependencies** | | |
 | mongo1 | 27017 | MongoDB |
 | redis | 6379 | Redis cache |
 | elasticsearch | 9200 | ElasticSearch |
 | influxdb | 8086 | InfluxDB |
-| minio | 9000 | MinIO object storage |
+| minio | 3535 | MinIO object storage |
+| **Toppan Services** | | |
+| toppan | 9998 | Family tree backend |
+| toppan-service | 7070 | Family tree integration (via gateway proxy) |
+| toppan-ui | 3889 | Family tree frontend |
 | **External Services** | | |
-| countryconfig | 3040 | Country configuration |
 | postgres | 5432 | PostgreSQL (Toppan) |
 | pg_adminer | 15432 | PostgreSQL Admin UI |
 | opensearch | 19200 | OpenSearch (Toppan) |
 | opensearch-dashboards | 5601 | OpenSearch UI |
-| toppan-data-seeder | - | Data seeding service |
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
 **Global:**
+- `VERSION` - Service version (default: latest)
+- `REGISTRY` - Docker registry prefix (default: toppan-crvs)
 - `NODE_ENV` - Environment (development/production)
-- `VERSION` - Service version
-- `DOCKER_REGISTRY` - Registry prefix
-- `COUNTRY_CONFIG_IMAGE` - Country config image
+- `DOCKER_REGISTRY` - Same as REGISTRY
 
-**Service-specific:**
+**Core Services:**
 - `CERT_PUBLIC_KEY_PATH` - JWT public key path
 - `CERT_PRIVATE_KEY_PATH` - JWT private key path
 - `MONGO_URL` - MongoDB connection string
 - `REDIS_HOST` - Redis hostname
 - `FHIR_URL` - FHIR server URL
 
+**Frontend Services (client, login):**
+- `COUNTRY_CONFIG_URL_INTERNAL` - Internal URL for countryconfig service (http://countryconfig:3040)
+- `GATEWAY_URL_INTERNAL` - Internal URL for gateway service (http://gateway:7070)
+- `CONTENT_SECURITY_POLICY_WILDCARD` - CSP wildcard for localhost development
+
+> **Note:** The `*_INTERNAL` variables are required for nginx proxy configuration in frontend containers. These enable proper service-to-service communication within the Docker network for API proxying (e.g., `/api/countryconfig/*` routes).
+
 ### Development Secrets
 
 Development mode requires JWT key pair:
 
 ```bash
-# Auto-generated by start script, or manually:
+# Auto-generated by start scripts, or manually:
 mkdir -p .secrets
 openssl genrsa -out .secrets/private-key.pem 2048
 openssl rsa -pubout -in .secrets/private-key.pem -out .secrets/public-key.pem
 ```
 
-### Country Configuration
+### External Services Configuration
 
-Override country configuration by setting image:
+**OpenSearch & PostgreSQL:**
+- Configured in `../opensearch` repository
+- Automatically started by `start-complete-stack.sh`
+- Manual setup: `cd ../opensearch && docker compose up -d`
 
-```bash
-# Using environment variable
-export COUNTRY_CONFIG_IMAGE=myorg/mycountry:latest
-./scripts/start-docker.sh
-
-# Using command line
-./scripts/start-docker.sh --country-config myorg/mycountry:latest
-
-# Using docker-compose override
-# Create docker-compose.local.yml:
-services:
-  countryconfig:
-    image: myorg/mycountry:latest
-    build:
-      context: ../mycountry-config
-```
+**Country Configuration:**
+- Configured in `../opencrvs-countryconfig` repository
+- Built automatically as part of the build process
+- Accessible at http://localhost:3040
 
 ## 🏥 Health Checks & Monitoring
 
 ### Service Health
 
-All services expose health endpoints:
-
 ```bash
-# Check service health
+# Check service health endpoints
 curl http://localhost:7070/ping  # Gateway
 curl http://localhost:4040/ping  # Auth
 curl http://localhost:3030/ping  # User-mgnt
+curl http://localhost:2021/ping  # Config
+
+# Check frontend services
+curl http://localhost:3000/      # Client
+curl http://localhost:3020/      # Login
 ```
 
 ### Container Monitoring
 
 ```bash
 # View all container status
-docker compose ps
+docker compose -p opencrvs ps
 
 # View resource usage
 docker stats
 
 # View logs with timestamps
-docker compose logs -f --timestamps gateway
-
-# View recent logs
-docker compose logs --tail=50 gateway
+docker compose -p opencrvs logs -f --timestamps gateway
 
 # Follow logs from multiple services
-docker compose logs -f gateway auth user-mgnt
+docker compose -p opencrvs logs -f gateway auth user-mgnt
 ```
 
 ### Database Access
 
 ```bash
 # MongoDB shell
-docker compose exec mongo1 mongo
+docker compose -p opencrvs exec mongo1 mongo
 
 # Redis CLI
-docker compose exec redis redis-cli
+docker compose -p opencrvs exec redis redis-cli
 
-# ElasticSearch
+# ElasticSearch health
 curl http://localhost:9200/_cluster/health
+
+# PostgreSQL (in opensearch repository)
+cd ../opensearch
+docker compose exec postgres psql -U postgres
 ```
 
 ## 🚨 Troubleshooting
@@ -459,66 +431,123 @@ docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
 **Service Won't Start:**
 ```bash
 # Check service logs
-docker compose logs gateway
+docker compose -p opencrvs logs gateway
 
 # Check dependencies
-docker compose ps
+docker compose -p opencrvs ps
 
-# Restart services in order
-docker compose restart mongo1 redis elasticsearch
-docker compose restart auth user-mgnt config
-docker compose restart gateway
+# Restart services in dependency order
+docker compose -p opencrvs restart mongo1 redis elasticsearch
+docker compose -p opencrvs restart auth user-mgnt config
+docker compose -p opencrvs restart gateway
 ```
 
-**Database Connection Issues:**
+**Build Failures:**
 ```bash
-# Verify MongoDB is accessible
-docker compose exec gateway ping mongo1
-docker compose exec gateway telnet mongo1 27017
+# Clean build with no cache
+./scripts/build-docker-images.sh --no-cache
 
-# Check MongoDB logs
-docker compose logs mongo1
+# Check build status
+./scripts/build-docker-images.sh --status
+
+# Check Docker space
+docker system df
+docker system prune  # Clean up unused resources
+```
+
+**CORS and 502 Proxy Errors:**
+```bash
+# Check if internal URLs are properly set in frontend containers
+docker exec opencrvs-client env | grep -E "(COUNTRY_CONFIG_URL_INTERNAL|GATEWAY_URL_INTERNAL)"
+docker exec opencrvs-login env | grep -E "(COUNTRY_CONFIG_URL_INTERNAL|GATEWAY_URL_INTERNAL)"
+
+# Verify nginx proxy configuration
+docker exec opencrvs-client grep -n 'proxy_pass' /etc/nginx/conf.d/default.conf
+
+# Test internal service connectivity
+docker exec opencrvs-client curl -sI http://countryconfig:3040/client-config.js
+docker exec opencrvs-client curl -sI http://gateway:7070/ping
+
+# Check if services are accessible from host
+curl -sI http://localhost:3040/client-config.js  # Direct countryconfig
+curl -sI http://localhost:3000/api/countryconfig/client-config.js  # Through nginx proxy
+```
+
+**CORS Troubleshooting:**
+- If you see 502 errors on `/api/countryconfig/*` endpoints, ensure `COUNTRY_CONFIG_URL_INTERNAL` and `GATEWAY_URL_INTERNAL` are set in frontend services
+- Clear browser cache after fixing CORS configuration
+- Check browser console for specific CORS error messages
+- Verify countryconfig service CORS whitelist includes `http://localhost:3000` and `http://localhost:3020`
+
+**Multi-Repository Issues:**
+```bash
+# Verify all repositories are present
+ls -la ../opensearch
+ls -la ../opencrvs-countryconfig
+
+# Check if external services are running
+cd ../opensearch && docker compose ps
+
+# Restart external services
+cd ../opensearch && docker compose restart postgres opensearch
 ```
 
 ### Log Analysis
 
 ```bash
-# Search logs for errors
-docker compose logs | grep -i error
+# Search logs for errors across all services
+docker compose -p opencrvs logs | grep -i error
 
 # Export logs for analysis
-docker compose logs > opencrvs.log
+docker compose -p opencrvs logs > opencrvs.log
 
 # Follow specific service logs
-docker compose logs -f --tail=100 gateway
+docker compose -p opencrvs logs -f --tail=100 gateway
 
 # Filter logs by timestamp
-docker compose logs --since="2023-01-01T00:00:00" gateway
+docker compose -p opencrvs logs --since="2023-01-01T00:00:00" gateway
 ```
 
-### Performance Optimization
+## 🔄 Development Workflow
 
-**Resource Limits:**
-```yaml
-# Add to toppan-override.yml
-services:
-  gateway:
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2G
-        reservations:
-          cpus: '1.0'
-          memory: 1G
-```
+### Making Changes
 
-**Service Scaling:**
+1. **Code Changes:** Edit source code in appropriate service
+2. **Rebuild:** `./scripts/build-docker-images.sh [service-name]`
+3. **Restart:** `docker compose -p opencrvs restart [service-name]`
+4. **Test:** Verify changes work as expected
+
+### Database Management
+
 ```bash
-# Scale services horizontally
-docker compose up -d --scale gateway=3 --scale auth=2
+# Clear all databases and restart fresh
+./scripts/clear-db.sh
+./scripts/start-complete-stack.sh
 
-# Load balancer needed for multiple instances
+# Run only data seeding
+./scripts/run-toppan-seeder.sh
+
+# Backup databases
+docker exec opencrvs-mongo1 mongodump --out /backup
+cd ../opensearch && docker exec postgres pg_dump -U postgres > backup.sql
+```
+
+### Container Management
+
+```bash
+# Recreate containers with new configuration
+docker compose -p opencrvs \
+  -f toppan-deps.yml \
+  -f toppan-base.yml \
+  -f toppan-override.yml \
+  up -d --force-recreate
+
+# Recreate only specific services
+docker compose -p opencrvs up -d --force-recreate client login
+
+# Execute commands in containers
+docker compose -p opencrvs exec gateway bash
+docker compose -p opencrvs exec mongo1 mongo
 ```
 
 ## 🔐 Security Considerations
@@ -526,7 +555,7 @@ docker compose up -d --scale gateway=3 --scale auth=2
 ### Production Deployment
 
 1. **Use Docker secrets instead of volume mounts**
-2. **Enable TLS termination at load balancer**  
+2. **Enable TLS termination at load balancer**
 3. **Use private Docker registry**
 4. **Implement network policies**
 5. **Regular security updates**
@@ -576,3 +605,13 @@ services:
 - [Docker Compose Reference](https://docs.docker.com/compose/)
 - [Container Security Best Practices](https://docs.docker.com/develop/security-best-practices/)
 - [OpenCRVS Architecture Guide](https://github.com/opencrvs/opencrvs-core/tree/develop/docs)
+
+## 🔄 Migration from Standard OpenCRVS
+
+If migrating from standard OpenCRVS Docker setup:
+
+1. **File Mapping:** `docker-compose.*.yml` → `toppan-*.yml`
+2. **Scripts:** Use new scripts in `scripts/` directory
+3. **Multi-repo:** Set up `../opensearch` and `../opencrvs-countryconfig`
+4. **Environment:** Update environment variables for nginx proxy
+5. **Commands:** Use `-p opencrvs` project name in docker compose commands

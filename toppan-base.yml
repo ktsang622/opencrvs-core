@@ -123,6 +123,7 @@ services:
       - FHIR_URL=http://hearth:3447/fhir
       - AUTH_URL=http://auth:4040
       - CONFIG_URL=http://config:2021
+      - CONFIG_API_URL=http://config:2021
       - COUNTRY_CONFIG_URL=http://countryconfig:3040
       - INFLUX_HOST=influxdb
       - INFLUX_PORT=8086
@@ -349,3 +350,49 @@ services:
       - MINIO_BUCKET=ocrvs
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+
+  # Toppan Services
+  toppan:
+    image: ${DOCKER_REGISTRY}/toppan:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-toppan
+    ports:
+      - "9998:9998"
+    environment:
+      - NODE_ENV=development
+      - PORT=9998
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=toppan
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    restart: unless-stopped
+
+  toppan-service:
+    image: ${DOCKER_REGISTRY}/toppan-service:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-toppan-service
+    ports:
+      - "3888:3888"
+    environment:
+      - NODE_ENV=development
+      - PORT=3888
+      - OPENSEARCH_HOST=http://opensearch:19200
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=toppan
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    restart: unless-stopped
+
+  toppan-ui:
+    image: ${DOCKER_REGISTRY}/toppan-ui:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-toppan-ui
+    ports:
+      - "3889:3889"
+    environment:
+      - NODE_ENV=development
+      - TOPPAN_SERVICE_URL=http://toppan-service:3888
+      - APPLICATION_CONFIG_URL=http://config:2021
+    restart: unless-stopped
