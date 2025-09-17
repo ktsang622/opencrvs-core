@@ -127,7 +127,7 @@ fi
 # Start services
 if [ "$SERVICES_ONLY" = true ]; then
     # Only start OpenCRVS core services, not dependencies
-    CORE_SERVICES="config auth user-mgnt notification search metrics documents workflow gateway webhooks events client login countryconfig migration"
+    CORE_SERVICES="config auth user-mgnt notification search metrics documents workflow gateway webhooks events client login countryconfig migration toppan toppan-service toppan-ui"
     echo -e "${BLUE}🔨 Docker Compose command:${NC}"
     echo "docker compose -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES"
     echo ""

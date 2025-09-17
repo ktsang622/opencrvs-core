@@ -102,6 +102,7 @@ services:
       - COUNTRY_CONFIG_URL=http://countryconfig:3040
       - FHIR_URL=http://hearth:3447/fhir
       - REDIS_HOST=redis
+      - TOPPAN_SERVICE_URL=${TOPPAN_SERVICE_URL:-http://toppan-service:3888}
 
   documents:
     ports:
@@ -168,6 +169,9 @@ services:
   client:
     ports:
       - '3000:80'
+    depends_on:
+      countryconfig:
+        condition: service_healthy
     environment:
       - NODE_ENV=development
       - REACT_APP_API_URL=http://localhost:7070/graphql
@@ -182,6 +186,9 @@ services:
   login:
     ports:
       - '3020:80'
+    depends_on:
+      countryconfig:
+        condition: service_healthy
     environment:
       - NODE_ENV=development
       - REACT_APP_API_URL=http://localhost:7070/graphql
@@ -210,3 +217,9 @@ services:
       - COUNTRY_CONFIG_URL=http://localhost:3040
       - CONFIRM_REGISTRATION_URL=http://localhost:3020
       - DOMAIN=localhost
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --quiet --tries=1 --spider http://127.0.0.1:3040/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

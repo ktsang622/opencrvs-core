@@ -20,7 +20,7 @@ NC='\033[0m' # No Color
 
 # Default values
 MODE="development"
-VERSION=${VERSION:-"latest"}
+VERSION=${VERSION:-"demo-1.8.0"}
 DOCKER_REGISTRY=${REGISTRY:-"toppan-crvs"}
 OPENSEARCH_DIR="../opensearch"
 COUNTRYCONFIG_DIR="../opencrvs-countryconfig"
@@ -84,6 +84,7 @@ done
 export VERSION=$VERSION
 export REGISTRY=$DOCKER_REGISTRY
 export MODE=$MODE
+export TOPPAN_SERVICE_URL=${TOPPAN_SERVICE_URL:-http://toppan-service:3888}
 
 # Function to wait for service health
 wait_for_service() {
@@ -216,9 +217,15 @@ echo ""
 echo -e "${YELLOW}🌱 Step 2: Running data seeder to initialize OpenSearch...${NC}"
 
 echo -e "${BLUE}🔨 Running data seeder (one-time initialization)...${NC}"
-docker compose -p opencrvs run --rm toppan-data-seeder
-
-echo -e "${GREEN}✅ Data seeding completed${NC}"
+if docker compose -p opencrvs run --rm toppan-data-seeder; then
+    echo -e "${GREEN}✅ Data seeding completed successfully${NC}"
+elif [ $? -eq 2 ]; then
+    echo -e "${YELLOW}⚠️  Data already seeded, skipping initialization${NC}"
+else
+    echo -e "${RED}❌ Data seeding failed${NC}"
+    echo -e "${BLUE}💡 Check seeder logs: docker compose -p opencrvs logs toppan-data-seeder${NC}"
+    exit 1
+fi
 
 popd > /dev/null
 
@@ -244,6 +251,18 @@ echo -e "${BLUE}Directory: $(pwd)${NC}"
 echo -e "${BLUE}🔨 Starting OpenCRVS services only (dependencies already running)...${NC}"
 ./scripts/start-docker.sh --services-only --mode "$MODE" --version "$VERSION" --registry "$DOCKER_REGISTRY"
 
+echo -e "${BLUE}⏳ Performing health checks on key services...${NC}"
+
+# Wait for gateway to be ready
+wait_for_service "Gateway" "http://localhost:7070/ping" 30 || \
+    echo -e "${YELLOW}⚠️  Gateway health check failed, but continuing${NC}"
+
+# Wait for Toppan backend service
+wait_for_service "Toppan API" "http://localhost:9998/ping" 20 || \
+    echo -e "${YELLOW}⚠️  Toppan API health check failed, but continuing${NC}"
+
+echo -e "${GREEN}✅ Health checks completed${NC}"
+
 echo ""
 echo -e "${GREEN}🎉 Complete OpenCRVS stack started successfully!${NC}"
 echo ""
@@ -256,7 +275,8 @@ echo "  • Auth API:            http://localhost:4040"
 echo ""
 echo -e "${BLUE}Toppan Services:${NC}"
 echo "  • Toppan UI:           http://localhost:3889"
-echo "  • Toppan API:          http://localhost:9998"
+echo "  • Toppan API:          http://localhost:9998 (direct)"
+echo "  • Toppan API:          http://localhost:7070/graphql (via gateway proxy)"
 echo ""
 echo -e "${BLUE}External Services:${NC}"
 echo "  • PostgreSQL:          localhost:5432 (user: registry_user, db: person_registry)"
