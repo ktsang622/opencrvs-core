@@ -156,7 +156,7 @@ echo -e "${BLUE}Directory: $OPENSEARCH_DIR${NC}"
 pushd "$OPENSEARCH_DIR" > /dev/null
 
 echo -e "${BLUE}🔨 Starting PostgreSQL, OpenSearch, and dashboards...${NC}"
-VERSION=$VERSION docker compose up -d postgres opensearch opensearch-dashboards pg_adminer
+VERSION=$VERSION docker compose -p opencrvs up -d postgres opensearch opensearch-dashboards pg_adminer
 
 echo -e "${BLUE}⏳ Waiting for services to be ready...${NC}"
 
@@ -216,11 +216,24 @@ echo ""
 echo -e "${YELLOW}🌱 Step 2: Running data seeder to initialize OpenSearch...${NC}"
 
 echo -e "${BLUE}🔨 Running data seeder (one-time initialization)...${NC}"
-docker compose run --rm toppan-data-seeder
+docker compose -p opencrvs run --rm toppan-data-seeder
 
 echo -e "${GREEN}✅ Data seeding completed${NC}"
 
 popd > /dev/null
+
+# Step 2.5: Start dependency services first
+echo ""
+echo -e "${YELLOW}📦 Step 2.5: Starting OpenCRVS dependencies...${NC}"
+echo -e "${BLUE}Directory: $(pwd)${NC}"
+
+echo -e "${BLUE}🔨 Starting dependency services (mongo, redis, elasticsearch, etc.)...${NC}"
+./scripts/start-docker.sh --deps-only --mode "$MODE" --version "$VERSION" --registry "$DOCKER_REGISTRY"
+
+echo -e "${BLUE}⏳ Waiting for dependencies to be ready...${NC}"
+sleep 10
+
+echo -e "${GREEN}✅ Dependencies started successfully${NC}"
 
 # Step 3: Start OpenCRVS core services
 echo ""
@@ -228,8 +241,8 @@ echo -e "${YELLOW}🚀 Step 3: Starting OpenCRVS core services...${NC}"
 echo -e "${BLUE}Directory: $(pwd)${NC}"
 
 # Pass all environment variables to the start script
-echo -e "${BLUE}🔨 Starting OpenCRVS services with mode: ${MODE}${NC}"
-./scripts/start-docker.sh --mode "$MODE" --version "$VERSION" --registry "$DOCKER_REGISTRY"
+echo -e "${BLUE}🔨 Starting OpenCRVS services only (dependencies already running)...${NC}"
+./scripts/start-docker.sh --services-only --mode "$MODE" --version "$VERSION" --registry "$DOCKER_REGISTRY"
 
 echo ""
 echo -e "${GREEN}🎉 Complete OpenCRVS stack started successfully!${NC}"
@@ -252,9 +265,17 @@ echo "  • OpenSearch:          http://localhost:19200"
 echo "  • OpenSearch Dash:     http://localhost:5601"
 echo ""
 echo -e "${BLUE}💡 Management Commands:${NC}"
-echo "  • View logs:           docker compose -f docker-compose.deps.yml -f docker-compose.base.yml logs -f [service]"
-echo "  • Stop everything:     docker compose -f docker-compose.deps.yml -f docker-compose.base.yml down"
+echo "  • View logs:           docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f [service]"
+echo "  • Stop everything:     docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml down"
 echo "  • Stop external:       cd $OPENSEARCH_DIR && docker compose down"
-echo "  • Scale service:       docker compose -f docker-compose.base.yml up -d --scale [service]=N"
+echo "  • Scale service:       docker compose -p opencrvs -f toppan-base.yml up -d --scale [service]=N"
+echo "  • Clear database:      ./scripts/clear-db.sh --all"
+echo "  • Migration logs:      docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f migration"
 echo ""
 echo -e "${GREEN}🚀 Ready for development!${NC}"
+
+# Cleanup environment variables
+unset VERSION
+unset REGISTRY
+unset DOCKER_REGISTRY
+unset MODE

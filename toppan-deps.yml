@@ -1,0 +1,82 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# OpenCRVS is also distributed under the terms of the Civil Registration
+# & Healthcare Disclaimer located at http://opencrvs.org/license.
+#
+# Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
+
+# Toppan dependency services configuration
+
+volumes:
+  metricbeat:
+  mongo_data:
+  elasticsearch_data:
+  influxdb_data:
+  minio_data:
+
+services:
+  mongo1:
+    image: mongo:4.4
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - 'mongo_data:/data/db'
+
+  redis:
+    image: docker.io/bitnami/redis:8.0
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.4
+    restart: unless-stopped
+    ports:
+      - '9200:9200'
+      - '9300:9300'
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    volumes:
+      - 'elasticsearch_data:/usr/share/elasticsearch/data'
+
+  influxdb:
+    image: influxdb:1.8.10
+    restart: unless-stopped
+    ports:
+      - '8086:8086'
+    volumes:
+      - 'influxdb_data:/var/lib/influxdb'
+
+  hearth:
+    image: opencrvs/hearth:1.1.0
+    environment:
+      - mongodb__url=mongodb://mongo1/hearth-dev
+      - logger__level=warn
+      - authentication__type=disabled
+      - idGenerator=uuidv4
+      - server__fhirVersion=stu3
+    depends_on:
+      - mongo1
+    restart: unless-stopped
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+      - './infrastructure/hearth-plugins/checkDuplicateTask.js:/src/hearth/lib/plugins/checkDuplicateTask.js'
+      - './infrastructure/hearth-queryparam-extensions.json:/src/hearth/config/queryparam-extensions.json'
+    ports:
+      - '3447:3447'
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2023-09-16T01-01-47Z.fips
+    restart: unless-stopped
+    command: server --address ":3535" --console-address ":3536" /data
+    ports:
+      - '3535:3535'
+      - '3536:3536'
+    volumes:
+      - 'minio_data:/data'

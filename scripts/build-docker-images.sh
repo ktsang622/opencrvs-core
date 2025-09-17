@@ -19,7 +19,8 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Get version from git or use default
-VERSION=${VERSION:-$(git log -1 --pretty=format:%h 2>/dev/null || echo "demo-1.8.0")}
+#VERSION=${VERSION:-$(git log -1 --pretty=format:%h 2>/dev/null || echo "demo-1.8.0")}
+VERSION=${VERSION:-"demo-1.8.0"}
 REGISTRY=${REGISTRY:-"toppan-crvs"}
 BRANCH=${BRANCH:-"develop"}
 
@@ -211,10 +212,13 @@ build_selected_services() {
     echo -e "${YELLOW}🎯 Building selected services: ${selected_services[*]}${NC}"
     echo ""
 
-    # Validate services exist
+    # Validate services exist (allow 'countryconfig' as special case)
     local invalid_services=()
+    local countryconfig_requested=false
     for service in "${selected_services[@]}"; do
-        if [[ ! " ${ALL_SERVICES[*]} " =~ " ${service} " ]]; then
+        if [[ "$service" == "countryconfig" ]]; then
+            countryconfig_requested=true
+        elif [[ ! " ${ALL_SERVICES[*]} " =~ " ${service} " ]]; then
             invalid_services+=("$service")
         fi
     done
@@ -223,6 +227,7 @@ build_selected_services() {
         echo -e "${RED}❌ Invalid services: ${invalid_services[*]}${NC}"
         echo -e "${BLUE}Available services:${NC}"
         printf "  %s\n" "${ALL_SERVICES[@]}"
+        echo "  countryconfig"
         exit 1
     fi
 
@@ -235,9 +240,24 @@ build_selected_services() {
         echo -e "${GREEN}✓ Using existing base image: ${REGISTRY}/ocrvs-base:${VERSION}${NC}"
     fi
 
-    # Build selected services
-    echo -e "${BLUE}🔨 Building ${#selected_services[@]} selected services...${NC}"
-    build_services_parallel "${selected_services[@]}"
+    # Filter out countryconfig from regular services
+    local regular_services=()
+    for service in "${selected_services[@]}"; do
+        if [[ "$service" != "countryconfig" ]]; then
+            regular_services+=("$service")
+        fi
+    done
+
+    # Build regular services if any
+    if [ ${#regular_services[@]} -gt 0 ]; then
+        echo -e "${BLUE}🔨 Building ${#regular_services[@]} selected services...${NC}"
+        build_services_parallel "${regular_services[@]}"
+    fi
+
+    # Build countryconfig if requested
+    if [ "$countryconfig_requested" = true ]; then
+        build_countryconfig
+    fi
 
     echo -e "${GREEN}🎉 Selected services built successfully!${NC}"
     echo ""

@@ -30,6 +30,12 @@
 
 To proceed, refer to our [documentation](http://documentation.opencrvs.org). It contains all the information you need.
 
+### Docker Development
+
+For Docker-based development and deployment, see:
+- [Docker Path Mapping Guide](DOCKER_PATH_MAPPING.md) - Fixes TypeScript path mapping issues in containers
+- [Docker README](docker/README.md) - Complete Docker deployment guide
+
 ## Become part of the OpenCRVS Community
 
 We want to see OpenCRVS implemented across the world. We can’t do this alone. Through the OpenCRVS Community, we are uniting experts in civil registration and other interested parties.

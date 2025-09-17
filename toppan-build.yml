@@ -1,0 +1,139 @@
+# OpenCRVS Build Configuration
+# Extends base compose with build contexts for all services
+
+services:
+  # Base image
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/ocrvs-base:${VERSION:-demo-1.8.0}
+
+  # Core Services
+  config:
+    build:
+      context: .
+      dockerfile: packages/config/Dockerfile
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-toppan-crvs}
+        VERSION: ${VERSION:-demo-1.8.0}
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/config:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  auth:
+    build:
+      context: .
+      dockerfile: packages/auth/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/auth:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  user-mgnt:
+    build:
+      context: .
+      dockerfile: packages/user-mgnt/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/user-mgnt:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  notification:
+    build:
+      context: .
+      dockerfile: packages/notification/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/notification:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  # Data Services
+  search:
+    build:
+      context: .
+      dockerfile: packages/search/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/search:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  metrics:
+    build:
+      context: .
+      dockerfile: packages/metrics/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/metrics:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  documents:
+    build:
+      context: .
+      dockerfile: packages/documents/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/documents:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  # Workflow Services
+  gateway:
+    build:
+      context: .
+      dockerfile: packages/gateway/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/gateway:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  workflow:
+    build:
+      context: .
+      dockerfile: packages/workflow/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/workflow:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  webhooks:
+    build:
+      context: .
+      dockerfile: packages/webhooks/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/webhooks:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  # Event Services
+  events:
+    build:
+      context: .
+      dockerfile: packages/events/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/events:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  # Frontend Services
+  client:
+    build:
+      context: .
+      dockerfile: packages/client/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/client:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  login:
+    build:
+      context: .
+      dockerfile: packages/login/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/login:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  # Migration & Seeding
+  migration:
+    build:
+      context: .
+      dockerfile: packages/migration/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/migration:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  data-seeder:
+    build:
+      context: .
+      dockerfile: packages/data-seeder/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/data-seeder:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base

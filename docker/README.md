@@ -18,9 +18,9 @@ OpenCRVS uses a hybrid microservices architecture with optimized containerizatio
 
 ### Docker Compose Files Structure
 
-1. **`docker-compose.deps.yml`** - External dependencies (databases, cache, etc.)
-2. **`docker-compose.base.yml`** - Core OpenCRVS services with production configuration
-3. **`docker-compose.override.yml`** - Development overrides (ports, volumes, environment)
+1. **`toppan-deps.yml`** - External dependencies (databases, cache, etc.)
+2. **`toppan-base.yml`** - Core OpenCRVS services with production configuration
+3. **`toppan-override.yml`** - Development overrides (ports, volumes, environment)
 
 ### Service Tiers
 
@@ -261,30 +261,30 @@ Starts OpenCRVS services using Docker Compose.
 ```bash
 # Start complete development stack
 docker compose \
-  -f docker-compose.deps.yml \
-  -f docker-compose.base.yml \
-  -f docker-compose.override.yml \
+  -f toppan-deps.yml \
+  -f toppan-base.yml \
+  -f toppan-override.yml \
   up -d
 
 # Start only dependencies
-docker compose -f docker-compose.deps.yml up -d
+docker compose -f toppan-deps.yml up -d
 
 # Start only services in production mode
 NODE_ENV=production docker compose \
-  -f docker-compose.base.yml \
+  -f toppan-base.yml \
   up -d
 
 # Scale specific service
-docker compose -f docker-compose.base.yml up -d --scale gateway=3
+docker compose -f toppan-base.yml up -d --scale gateway=3
 
 # View logs
-docker compose -f docker-compose.base.yml logs -f gateway
+docker compose -f toppan-base.yml logs -f gateway
 
 # Stop everything
 docker compose \
-  -f docker-compose.deps.yml \
-  -f docker-compose.base.yml \
-  -f docker-compose.override.yml \
+  -f toppan-deps.yml \
+  -f toppan-base.yml \
+  -f toppan-override.yml \
   down
 ```
 
@@ -446,7 +446,7 @@ curl http://localhost:9200/_cluster/health
 lsof -i :3000
 sudo netstat -tulpn | grep 3000
 
-# Change ports in docker-compose.override.yml
+# Change ports in toppan-override.yml
 ```
 
 **Out of Memory:**
@@ -500,7 +500,7 @@ docker compose logs --since="2023-01-01T00:00:00" gateway
 
 **Resource Limits:**
 ```yaml
-# Add to docker-compose.override.yml
+# Add to toppan-override.yml
 services:
   gateway:
     deploy:

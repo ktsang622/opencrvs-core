@@ -14,4 +14,9 @@ import '@opencrvs/commons/monitoring'
 
 import { createServer } from '@config/server'
 
-createServer().then((server) => server.start())
+createServer()
+  .then((server) => server.start())
+  .catch((error) => {
+    console.error('Failed to start config server:', error)
+    process.exit(1)
+  })

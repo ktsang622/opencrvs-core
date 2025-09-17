@@ -1,0 +1,23 @@
+# OpenCRVS External Services Build Configuration
+# Builds services from sibling directories
+
+services:
+  # CountryConfig (from sibling directory)
+  countryconfig:
+    build:
+      context: ../opencrvs-countryconfig
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/countryconfig:${VERSION:-demo-1.8.0}
+
+  # OpenSearch Services (from ../opensearch)
+  opensearch:
+    build:
+      context: ../opensearch
+      dockerfile: Dockerfile.opensearch
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/opensearch:${VERSION:-demo-1.8.0}
+
+  toppan-data-seeder:
+    build:
+      context: ../opensearch
+      dockerfile: Dockerfile.seeder
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/toppan-data-seeder:${VERSION:-demo-1.8.0}

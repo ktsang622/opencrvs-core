@@ -1,0 +1,351 @@
+# OpenCRVS Base Docker Compose
+# Core services without external dependencies
+
+volumes:
+  opencrvs_data:
+
+services:
+  # Core Services
+  config:
+    build:
+      context: .
+      dockerfile: packages/config/Dockerfile
+    image: ${DOCKER_REGISTRY}/config:${VERSION:-latest}
+    container_name: opencrvs-config
+    ports:
+      - "2021:2021"
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - APPLICATION_CONFIG_URL=http://countryconfig:3040
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: .
+      dockerfile: packages/auth/Dockerfile
+    image: ${DOCKER_REGISTRY}/auth:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-auth
+    ports:
+      - "4040:4040"
+    depends_on:
+      - config
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - CONFIG_URL=http://config:2021
+      - NOTIFICATION_SERVICE_URL=http://notification:2020/
+      - COUNTRY_CONFIG_URL_INTERNAL=http://countryconfig:3040
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+    restart: unless-stopped
+
+  user-mgnt:
+    build:
+      context: .
+      dockerfile: packages/user-mgnt/Dockerfile
+    image: ${DOCKER_REGISTRY}/user-mgnt:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-user-mgnt
+    ports:
+      - "3030:3030"
+    depends_on:
+      - auth
+      - config
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - CONFIG_URL=http://config:2021
+    restart: unless-stopped
+
+  notification:
+    image: ${DOCKER_REGISTRY}/notification:latest
+    pull_policy: never
+    container_name: opencrvs-notification
+    ports:
+      - "2020:2020"
+    depends_on:
+      - auth
+      - config
+      - countryconfig
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - CONFIG_URL=http://config:2021
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+    restart: unless-stopped
+
+  # Data Services
+  search:
+    image: ${DOCKER_REGISTRY}/search:latest
+    pull_policy: never
+    container_name: opencrvs-search
+    ports:
+      - "9090:9090"
+    depends_on:
+      - auth
+      - user-mgnt
+      - hearth
+      - elasticsearch
+      - mongo1
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - ES_HOST=elasticsearch:9200
+      - HEARTH_MONGO_URL=mongodb://mongo1/hearth-dev
+      - APPLICATION_CONFIG_URL=http://config:2021
+    restart: unless-stopped
+
+  metrics:
+    image: ${DOCKER_REGISTRY}/metrics:latest
+    pull_policy: never
+    container_name: opencrvs-metrics
+    ports:
+      - "1050:1050"
+    depends_on:
+      - auth
+      - config
+      - countryconfig
+      - hearth
+      - influxdb
+      - mongo1
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - CONFIG_URL=http://config:2021
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+      - INFLUX_HOST=influxdb
+      - INFLUX_PORT=8086
+      - INFLUX_DB=ocrvs
+      - MONGO_URL=mongodb://mongo1/ocrvs
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    restart: unless-stopped
+
+  documents:
+    image: ${DOCKER_REGISTRY}/documents:latest
+    pull_policy: never
+    container_name: opencrvs-documents
+    depends_on:
+      - auth
+      - config
+      - countryconfig
+      - minio
+    environment:
+      - NODE_ENV=development
+      - AUTH_URL=http://auth:4040
+      - CONFIG_URL=http://config:2021
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+      - ENHANCED_DOCUMENT_VIEWER=true
+    restart: unless-stopped
+
+  # Workflow Services
+  gateway:
+    build:
+      context: .
+      dockerfile: packages/gateway/Dockerfile
+    image: ${DOCKER_REGISTRY}/gateway:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-gateway
+    ports:
+      - "7070:7070"
+    depends_on:
+      - auth
+      - user-mgnt
+      - config
+      - countryconfig
+      - search
+      - metrics
+      - documents
+      - workflow
+      - notification
+      - webhooks
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - SEARCH_URL=http://search:9090/
+      - METRICS_URL=http://metrics:1050
+      - DOCUMENTS_URL=http://documents:9050
+      - WORKFLOW_URL=http://workflow:5050
+      - NOTIFICATION_URL=http://notification:2020
+      - WEBHOOKS_URL=http://webhooks:2525
+      - CONFIG_URL=http://config:2021
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+    restart: unless-stopped
+
+  workflow:
+    image: ${DOCKER_REGISTRY}/workflow:latest
+    pull_policy: never
+    container_name: opencrvs-workflow
+    ports:
+      - "5050:5050"
+    depends_on:
+      - auth
+      - user-mgnt
+      - search
+      - metrics
+      - documents
+      - config
+      - countryconfig
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - SEARCH_URL=http://search:9090
+      - METRICS_URL=http://metrics:1050
+      - DOCUMENTS_URL=http://documents:9050
+      - CONFIG_URL=http://config:2021
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+    restart: unless-stopped
+
+  webhooks:
+    image: ${DOCKER_REGISTRY}/webhooks:latest
+    pull_policy: never
+    container_name: opencrvs-webhooks
+    ports:
+      - "2525:2525"
+    depends_on:
+      - auth
+      - user-mgnt
+      - config
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - CONFIG_URL=http://config:2021
+    restart: unless-stopped
+
+  # Event Services
+  events:
+    image: ${DOCKER_REGISTRY}/events:latest
+    pull_policy: never
+    container_name: opencrvs-events
+    ports:
+      - "5555:5555"
+    depends_on:
+      - auth
+      - user-mgnt
+      - gateway
+      - hearth
+    environment:
+      - NODE_ENV=development
+      - FHIR_URL=http://hearth:3447/fhir
+      - AUTH_URL=http://auth:4040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - GATEWAY_URL=http://gateway:7070
+    restart: unless-stopped
+
+  # Frontend Services
+  client:
+    image: ${DOCKER_REGISTRY}/client:latest
+    pull_policy: never
+    container_name: opencrvs-client
+    ports:
+      - "3000:80"
+    depends_on:
+      - countryconfig
+      - gateway
+      - auth
+      - config
+    environment:
+      - REACT_APP_API_URL=http://localhost:7070/graphql
+      - REACT_APP_CONFIG_API_URL=http://localhost:2021
+      - REACT_APP_AUTH_URL=http://localhost:4040
+      - REACT_APP_COUNTRY_CONFIG_URL=http://localhost:3040
+      - COUNTRY_CONFIG_URL_INTERNAL=http://countryconfig:3040
+      - GATEWAY_URL_INTERNAL=http://gateway:7070
+      - CONTENT_SECURITY_POLICY_WILDCARD=localhost http://localhost:2021 http://localhost:3040
+    restart: unless-stopped
+
+  login:
+    image: ${DOCKER_REGISTRY}/login:latest
+    pull_policy: never
+    container_name: opencrvs-login
+    ports:
+      - "3020:80"
+    depends_on:
+      - countryconfig
+      - gateway
+      - auth
+      - config
+    environment:
+      - REACT_APP_API_URL=http://localhost:7070/graphql
+      - REACT_APP_CONFIG_API_URL=http://localhost:2021
+      - REACT_APP_AUTH_URL=http://localhost:4040
+      - COUNTRY_CONFIG_URL_INTERNAL=http://countryconfig:3040
+      - GATEWAY_URL_INTERNAL=http://gateway:7070
+      - CONTENT_SECURITY_POLICY_WILDCARD=localhost http://localhost:2021 http://localhost:3040
+    restart: unless-stopped
+
+  # Country Configuration
+  countryconfig:
+    image: ${DOCKER_REGISTRY}/countryconfig:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-countryconfig
+    ports:
+      - "3040:3040"
+    environment:
+      - NODE_ENV=${NODE_ENV}
+      - FHIR_URL=${FHIR_URL}
+      - GATEWAY_URL=${GATEWAY_URL}
+      - LOGIN_URL=${LOGIN_URL}
+      - AUTH_URL=${AUTH_URL}
+      - AUTH_URL_INTERNAL=${AUTH_URL_INTERNAL}
+      - APPLICATION_CONFIG_URL=${APPLICATION_CONFIG_URL}
+      - CLIENT_APP_URL=${CLIENT_APP_URL}
+      - COUNTRY_CONFIG_URL=${COUNTRY_CONFIG_URL}
+      - CONFIRM_REGISTRATION_URL=${CONFIRM_REGISTRATION_URL}
+      - DOMAIN=${DOMAIN}
+    restart: unless-stopped
+
+  # Database Migration Service
+  migration:
+    image: ${DOCKER_REGISTRY}/migration:${VERSION:-latest}
+    build:
+      context: .
+      dockerfile: ./packages/migration/Dockerfile
+    pull_policy: never
+    container_name: opencrvs-migration
+    restart: "no"  # Migration should run once and exit
+    depends_on:
+      - mongo1
+      - elasticsearch
+      - influxdb
+      - minio
+      - search
+    environment:
+      - USER_MGNT_MONGO_URL=mongodb://mongo1/user-mgnt
+      - APPLICATION_CONFIG_MONGO_URL=mongodb://mongo1/application-config
+      - HEARTH_MONGO_URL=mongodb://mongo1/hearth-dev
+      - DASHBOARD_MONGO_URL=mongodb://mongo1/performance
+      - OPENHIM_MONGO_URL=mongodb://mongo1/openhim-dev
+      - EVENTS_MONGO_URL=mongodb://mongo1/events
+      - SEARCH_URL=http://search:9090/
+      - ES_HOST=elasticsearch:9200
+      - INFLUX_HOST=influxdb
+      - INFLUX_PORT=8086
+      - INFLUX_DB=ocrvs
+      - WAIT_HOSTS=mongo1:27017,influxdb:8086,minio:3535,elasticsearch:9200
+      - MINIO_HOST=minio
+      - MINIO_PORT=3535
+      - MINIO_BUCKET=ocrvs
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin

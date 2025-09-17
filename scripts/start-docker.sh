@@ -94,22 +94,22 @@ export VERSION=$VERSION
 export COUNTRY_CONFIG_IMAGE=$COUNTRY_CONFIG_IMAGE
 
 # Determine compose files based on mode and options
-COMPOSE_FILES="-f docker-compose.deps.yml"
+COMPOSE_FILES="-f toppan-deps.yml"
 
 if [ "$DEPS_ONLY" = true ]; then
     echo -e "${YELLOW}🔧 Starting external dependencies only...${NC}"
-    COMPOSE_FILES="-f docker-compose.deps.yml"
+    COMPOSE_FILES="-f toppan-deps.yml"
 elif [ "$SERVICES_ONLY" = true ]; then
     echo -e "${YELLOW}🚀 Starting OpenCRVS services only...${NC}"
-    COMPOSE_FILES="-f docker-compose.base.yml"
+    COMPOSE_FILES="-f toppan-deps.yml -f toppan-base.yml"
     if [ "$MODE" = "development" ]; then
-        COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.override.yml"
+        COMPOSE_FILES="$COMPOSE_FILES -f toppan-override.yml"
     fi
 else
     echo -e "${YELLOW}🚀 Starting complete OpenCRVS stack...${NC}"
-    COMPOSE_FILES="-f docker-compose.deps.yml -f docker-compose.base.yml"
+    COMPOSE_FILES="-f toppan-deps.yml -f toppan-base.yml"
     if [ "$MODE" = "development" ]; then
-        COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.override.yml"
+        COMPOSE_FILES="$COMPOSE_FILES -f toppan-override.yml"
     fi
 fi
 
@@ -125,21 +125,29 @@ if [ "$MODE" = "development" ] && [ "$DEPS_ONLY" != true ]; then
 fi
 
 # Start services
-echo -e "${BLUE}🔨 Docker Compose command:${NC}"
-echo "docker compose $COMPOSE_FILES up -d"
-echo ""
-
-docker compose $COMPOSE_FILES up -d
+if [ "$SERVICES_ONLY" = true ]; then
+    # Only start OpenCRVS core services, not dependencies
+    CORE_SERVICES="config auth user-mgnt notification search metrics documents workflow gateway webhooks events client login countryconfig migration"
+    echo -e "${BLUE}🔨 Docker Compose command:${NC}"
+    echo "docker compose -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES"
+    echo ""
+    docker compose -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES
+else
+    echo -e "${BLUE}🔨 Docker Compose command:${NC}"
+    echo "docker compose -p opencrvs $COMPOSE_FILES up -d"
+    echo ""
+    docker compose -p opencrvs $COMPOSE_FILES up -d
+fi
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}🎉 OpenCRVS started successfully!${NC}"
     echo ""
-    
+
     if [ "$DEPS_ONLY" != true ]; then
         echo -e "${BLUE}📋 Service URLs:${NC}"
         if [ "$MODE" = "development" ]; then
             echo "🌐 Client:          http://localhost:3000"
-            echo "🔐 Login:           http://localhost:3020" 
+            echo "🔐 Login:           http://localhost:3020"
             echo "🏛️  Country Config:  http://localhost:3040"
             echo "🔗 Gateway:         http://localhost:7070/graphql"
             echo "👥 User Management: http://localhost:3030"
@@ -157,22 +165,28 @@ if [ $? -eq 0 ]; then
             echo "🔐 Login:           http://localhost:3020"
         fi
     fi
-    
+
     echo ""
     echo -e "${BLUE}📊 Container Status:${NC}"
-    docker compose $COMPOSE_FILES ps
-    
+    docker compose -p opencrvs $COMPOSE_FILES ps
+
     echo ""
     echo -e "${YELLOW}💡 Useful commands:${NC}"
-    echo "View logs:        docker compose $COMPOSE_FILES logs -f [service-name]"
-    echo "Stop services:    docker compose $COMPOSE_FILES down"
-    echo "Restart service:  docker compose $COMPOSE_FILES restart [service-name]"
-    echo "Scale service:    docker compose $COMPOSE_FILES up -d --scale [service-name]=N"
-    
+    echo "View logs:        docker compose -p opencrvs $COMPOSE_FILES logs -f [service-name]"
+    echo "Stop services:    docker compose -p opencrvs $COMPOSE_FILES down"
+    echo "Restart service:  docker compose -p opencrvs $COMPOSE_FILES restart [service-name]"
+    echo "Scale service:    docker compose -p opencrvs $COMPOSE_FILES up -d --scale [service-name]=N"
+
 else
     echo -e "${RED}❌ Failed to start OpenCRVS${NC}"
     echo ""
     echo -e "${YELLOW}Checking logs...${NC}"
-    docker compose $COMPOSE_FILES logs --tail=20
+    docker compose -p opencrvs $COMPOSE_FILES logs --tail=20
     exit 1
 fi
+
+# Cleanup environment variables
+unset NODE_ENV
+unset DOCKER_REGISTRY
+unset VERSION
+unset COUNTRY_CONFIG_IMAGE

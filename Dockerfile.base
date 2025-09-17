@@ -1,0 +1,28 @@
+FROM node:18-slim
+
+RUN apt-get update && apt-get upgrade -y
+RUN apt-get clean && \
+    rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
+
+USER node
+WORKDIR /app
+
+# Copy root package files
+COPY --chown=node:node package.json yarn.lock ./
+RUN yarn install --production --frozen-lockfile
+
+# Build commons (required by all OpenCRVS core services)
+COPY --chown=node:node packages/commons /app/packages/commons
+WORKDIR /app/packages/commons
+RUN yarn install --frozen-lockfile
+RUN yarn build
+
+# Build components (required by client/login)
+WORKDIR /app
+COPY --chown=node:node packages/components /app/packages/components
+WORKDIR /app/packages/components
+RUN yarn install --frozen-lockfile
+RUN yarn build
+
+# Reset to app root
+WORKDIR /app

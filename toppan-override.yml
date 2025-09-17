@@ -1,0 +1,211 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
+#
+# OpenCRVS is also distributed under the terms of the Civil Registration
+# & Healthcare Disclaimer located at http://opencrvs.org/license.
+#
+# Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
+
+# Development overrides for OpenCRVS services
+
+services:
+  auth:
+    ports:
+      - '4040:4040'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+      - '.secrets/private-key.pem:/secrets/private-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - CERT_PRIVATE_KEY_PATH=/secrets/private-key.pem
+      - REDIS_HOST=redis
+      - NOTIFICATION_SERVICE_URL=http://notification:2020/
+      - COUNTRY_CONFIG_URL_INTERNAL=http://countryconfig:3040
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+
+  user-mgnt:
+    ports:
+      - '3030:3030'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - MONGO_URL=mongodb://mongo1/user-mgnt
+      - HOST=0.0.0.0
+      - PORT=3030
+
+  config:
+    ports:
+      - '2021:2021'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - HOST=0.0.0.0
+      - PORT=2021
+      - MONGO_URL=mongodb://mongo1/application-config
+      - AUTH_URL=http://auth:4040
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - FHIR_URL=http://hearth:3447/fhir
+      - HEARTH_MONGO_URL=mongodb://mongo1/hearth-dev
+      - CHECK_INVALID_TOKEN=false
+
+  workflow:
+    ports:
+      - '5050:5050'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - LANGUAGES=en
+
+  events:
+    ports:
+      - '5555:5555'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+      - ES_URL=http://elasticsearch:9200
+      - EVENTS_MONGO_URL=mongodb://mongo1/events
+      - USER_MGNT_MONGO_URL=mongodb://mongo1/user-mgnt
+      - DOCUMENTS_URL=http://documents:9050
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - AUTH_URL=http://auth:4040
+
+  gateway:
+    ports:
+      - '7070:7070'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - APPLICATION_CONFIG_URL=http://config:2021
+      - AUTH_URL=http://auth:4040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - SEARCH_URL=http://search:9090/
+      - METRICS_URL=http://metrics:1050
+      - NOTIFICATION_URL=http://notification:2020
+      - WORKFLOW_URL=http://workflow:5050
+      - EVENTS_URL=http://events:5555
+      - WEBHOOKS_URL=http://webhooks:2525
+      - DOCUMENTS_URL=http://documents:9050
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+      - FHIR_URL=http://hearth:3447/fhir
+      - REDIS_HOST=redis
+
+  documents:
+    ports:
+      - '9050:9050'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - MINIO_HOST=minio
+      - MINIO_PORT=3535
+      - MINIO_URL=minio:3535
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+
+  notification:
+    ports:
+      - '2020:2020'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+
+  search:
+    ports:
+      - '9090:9090'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+
+  metrics:
+    ports:
+      - '1050:1050'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - METRICS_HOST=0.0.0.0
+      - METRICS_PORT=1050
+      - FHIR_URL=http://hearth:3447/fhir
+      - COUNTRY_CONFIG_URL=http://countryconfig:3040
+      - USER_MANAGEMENT_URL=http://user-mgnt:3030/
+      - DOCUMENTS_URL=http://documents:9050
+      - MONGO_URL=mongodb://mongo1/metrics
+      - SEARCH_URL=http://search:9090
+      - HEARTH_MONGO_URL=mongodb://mongo1/hearth-dev
+      - DASHBOARD_MONGO_URL=mongodb://mongo1/performance
+
+  webhooks:
+    ports:
+      - '2525:2525'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - REDIS_HOST=redis
+
+  client:
+    ports:
+      - '3000:80'
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:7070/graphql
+      - REACT_APP_CONFIG_API_URL=http://localhost:2021
+      - REACT_APP_AUTH_URL=http://localhost:4040
+      - REACT_APP_COUNTRY_CONFIG_URL=http://localhost:3040
+      - COUNTRY_CONFIG_URL=http://localhost:3040
+      - COUNTRY_CONFIG_URL_INTERNAL=http://countryconfig:3040
+      - GATEWAY_URL_INTERNAL=http://gateway:7070
+      - CONTENT_SECURITY_POLICY_WILDCARD=localhost:*
+
+  login:
+    ports:
+      - '3020:80'
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:7070/graphql
+      - REACT_APP_CONFIG_API_URL=http://localhost:2021
+      - REACT_APP_AUTH_URL=http://localhost:4040
+      - COUNTRY_CONFIG_URL=http://localhost:3040
+      - COUNTRY_CONFIG_URL_INTERNAL=http://countryconfig:3040
+      - GATEWAY_URL_INTERNAL=http://gateway:7070
+      - CONTENT_SECURITY_POLICY_WILDCARD=localhost:*
+
+  countryconfig:
+    ports:
+      - '3040:3040'
+    volumes:
+      - '.secrets/public-key.pem:/secrets/public-key.pem'
+    environment:
+      - NODE_ENV=development
+      - CERT_PUBLIC_KEY_PATH=/secrets/public-key.pem
+      - FHIR_URL=http://hearth:3447/fhir
+      - GATEWAY_URL=http://gateway:7070
+      - LOGIN_URL=http://localhost:3020
+      - AUTH_URL=http://auth:4040
+      - AUTH_URL_INTERNAL=http://auth:4040
+      - APPLICATION_CONFIG_URL=http://config:2021
+      - CLIENT_APP_URL=http://localhost:3000
+      - COUNTRY_CONFIG_URL=http://localhost:3040
+      - CONFIRM_REGISTRATION_URL=http://localhost:3020
+      - DOMAIN=localhost

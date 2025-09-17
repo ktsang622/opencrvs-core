@@ -37,3 +37,6 @@ deploy_key
 .lh
 .vscode
 data_*.tgz
+
+*.temp
+debug*
