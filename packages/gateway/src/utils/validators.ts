@@ -8,6 +8,27 @@
  *
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
+
+// TOPPAN MIGRATION NOTE - Enhanced Document Validation:
+// This file has been enhanced to support PDF document validation alongside images.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added feature flag integration for ENHANCED_DOCUMENT_VIEWER support
+// 2. Enhanced MIME type validation to accept application/pdf when flag is enabled
+// 3. Added file buffer validation using file-type library for both images and PDFs
+// 4. Comprehensive debugging logs for attachment validation process
+// 5. Dynamic error messages based on feature flag state
+//
+// Migration requirements for new OpenCRVS releases:
+// - Verify that isEnhancedDocumentViewerEnabled function remains available
+// - Check if attachment validation patterns change in new GraphQL schema
+// - Ensure MINIO_BUCKET constant and MinIO URL validation still work
+// - Test that fromBuffer library compatibility remains stable
+// - Validate that feature flag checks don't conflict with new validation logic
+//
+// Dependencies: @gateway/utils/applicationConfig, file-type library, GraphQL schema
+// Related: Works with applicationConfig.ts for feature flag resolution
+
 import { MINIO_BUCKET } from '@gateway/constants'
 import { isEnhancedDocumentViewerEnabled } from '@gateway/utils/applicationConfig'
 import {

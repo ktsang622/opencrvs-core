@@ -8,6 +8,25 @@
  *
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
+
+// TOPPAN MIGRATION NOTE - Universal Document Viewer:
+// This file has been significantly enhanced to support both images and PDFs.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added PDF detection and browser-native PDF rendering
+// 2. Implemented security validations to prevent XSS attacks
+// 3. Added graceful error handling with fallback options
+// 4. Enhanced responsive design for full viewport PDF display
+// 5. Conditional UI controls (zoom/rotate hidden for PDFs)
+//
+// Migration requirements for new OpenCRVS releases:
+// - Verify that PDF detection logic remains compatible
+// - Check if new release has conflicting document viewer features
+// - Ensure security validations don't break with new patterns
+// - Test that both modal previews and side panel viewers work
+// - Validate that responsive design works with new UI frameworks
+//
+// Dependencies: Feature flag ENHANCED_DOCUMENT_VIEWER, browser PDF support
 import React, { useEffect, useState } from 'react'
 import styled from 'styled-components'
 import { Select, ISelectOption as SelectComponentOptions } from '../Select'

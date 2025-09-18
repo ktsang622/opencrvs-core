@@ -9,6 +9,27 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+// TOPPAN MIGRATION NOTE - Document Preview with PDF Support:
+// This file has been enhanced to support PDF document previews alongside images.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added PDF detection logic for IFileValue and IAttachmentValue types
+// 2. Implemented browser-native PDF rendering with embed element
+// 3. Added security validation for PDF data URLs to prevent XSS
+// 4. Enhanced UI with PDF-specific error handling and loading states
+// 5. Conditional zoom/rotate controls (hidden for PDFs, shown for images)
+// 6. Added graceful fallback download option for unsupported PDF viewers
+//
+// Migration requirements for new OpenCRVS releases:
+// - Verify that IFileValue and IAttachmentValue interfaces remain compatible
+// - Check if new document upload patterns conflict with PDF detection
+// - Ensure security validation patterns don't break with new data formats
+// - Test that browser PDF support remains reliable across target browsers
+// - Validate that zoom/rotate controls work with new PanViewer implementations
+//
+// Dependencies: @opencrvs/components PanViewer/PanControls, styled-components
+// Related: Works with DocumentUploader components for complete PDF workflow
+
 import * as React from 'react'
 import styled from 'styled-components'
 import { IFileValue, IAttachmentValue } from '@client/forms'

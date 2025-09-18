@@ -7,6 +7,26 @@
 #
 # Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
 
+# TOPPAN MIGRATION NOTE - Development Runtime Overrides:
+# This file provides development-specific configurations for OpenCRVS with Toppan integration.
+#
+# Key changes made by Kevin Tsang:
+# 1. Added internal URL configuration for microservice communication
+# 2. Enhanced environment variables for Toppan service connectivity
+# 3. Added feature flag environment variables (ENHANCED_DOCUMENT_VIEWER)
+# 4. Configured port mappings for development access
+# 5. Set up volume mounts for secrets and configuration files
+#
+# Migration requirements for new OpenCRVS releases:
+# - Verify that internal URL patterns remain compatible with new service discovery
+# - Check if new environment variable requirements conflict with existing setup
+# - Ensure port assignments don't overlap with new OpenCRVS services
+# - Validate that volume mount patterns work with new security requirements
+# - Test that feature flag propagation works with new configuration systems
+#
+# Dependencies: Base service definitions from toppan-base.yml
+# Related: Used in combination with toppan-base.yml for development stack
+
 # Development overrides for OpenCRVS services
 
 services:

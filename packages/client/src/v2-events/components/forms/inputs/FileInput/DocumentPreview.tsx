@@ -9,6 +9,27 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+// TOPPAN MIGRATION NOTE - V2 Events Document Preview with PDF Support:
+// This file has been enhanced to support PDF document previews in the v2 events system.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added feature flag check for ENHANCED_DOCUMENT_VIEWER support
+// 2. Implemented PDF detection based on filename extension
+// 3. Added browser-native PDF rendering with embed element for v2 events
+// 4. Enhanced security validation for PDF URLs using full URL resolution
+// 5. Conditional zoom/rotate controls (hidden for PDFs, shown for images)
+// 6. Added graceful error handling and loading states for PDF display
+//
+// Migration requirements for new OpenCRVS releases:
+// - Verify that window.config.FEATURES pattern remains available
+// - Check if FileFieldValue and FileFieldValueWithOption interfaces remain compatible
+// - Ensure getFullUrl function from file upload hooks continues to work
+// - Test that browser PDF support remains reliable in v2 events context
+// - Validate that security validation patterns work with new URL schemes
+//
+// Dependencies: v2-events file upload system, window.config feature flags
+// Related: Works with v2-events FileInput components for complete PDF workflow
+
 import * as React from 'react'
 import { useState } from 'react'
 import styled from 'styled-components'

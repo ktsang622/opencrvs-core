@@ -9,6 +9,25 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+// TOPPAN MIGRATION NOTE - Data Mapping Utilities:
+// This file provides data transformation between OpenCRVS records and Toppan service format.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added birth record creation payload mapping for initial sync
+// 2. Implemented complex correction payload mapping for father relationship changes
+// 3. Enhanced correction detection for ADD_FATHER, REMOVE_FATHER, REPLACE_FATHER operations
+// 4. Added support for both person picker selections and manual father data entry
+// 5. Comprehensive logging for debugging correction workflows
+//
+// Migration requirements for new OpenCRVS releases:
+// - Verify that OpenCRVS record structure remains compatible
+// - Check if new correction types need mapping support
+// - Ensure FHIR data extraction patterns work with new schema
+// - Validate that person picker integration still works correctly
+//
+// Dependencies: OpenCRVS workflow record format, Toppan service API expectations
+// Related: Works with client.ts for API communication
+
 export function mapRecordToCreationPayload(record: any) {
   return { record }
 }

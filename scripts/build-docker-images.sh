@@ -9,6 +9,28 @@
 #
 # Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
 
+# TOPPAN MIGRATION NOTE - Enhanced Docker Build Script:
+# This script has been enhanced to support Toppan services and optimized Docker builds.
+#
+# Key changes made by Kevin Tsang:
+# 1. Added parallel build capabilities for faster build times
+# 2. Enhanced status checking with --status flag for build monitoring
+# 3. Added optimized base image creation for reduced image sizes
+# 4. Implemented selective service building (gateway, events, countryconfig, etc.)
+# 5. Added comprehensive error handling and colored output for better UX
+# 6. Integrated Toppan service build support with proper dependency management
+#
+# Migration requirements for new OpenCRVS releases:
+# - Verify that service names and build contexts remain compatible
+# - Check if new services need to be added to the build matrix
+# - Ensure Docker build patterns work with new package structures
+# - Validate that Node.js version constraints are properly handled
+# - Test that parallel builds don't conflict with new dependency patterns
+#
+# Usage: ./build-docker-images.sh [service] [--no-cache] [--status]
+# Dependencies: Docker, git, proper VERSION and REGISTRY environment variables
+# Related: Works with Docker Compose files for complete stack deployment
+
 set -e
 
 # Colors for output

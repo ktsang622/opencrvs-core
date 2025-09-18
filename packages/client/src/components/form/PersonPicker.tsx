@@ -8,6 +8,22 @@
  *
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
+
+// TOPPAN MIGRATION NOTE:
+// This file has been modified to fix PersonPicker DOB field population issue.
+//
+// Key changes made by Kevin Tsang:
+// 1. Fixed section detection preventing DOB field population when linking persons
+// 2. Enhanced person selection logic to work with Toppan family relationship data
+// 3. Improved field mapping for person data from enhanced search results
+//
+// Migration requirements for new OpenCRVS releases:
+// - Verify that section detection logic remains compatible
+// - Check if new PersonPicker features conflict with DOB field handling
+// - Ensure enhanced person search data structure is still supported
+// - Test person linking functionality after migration
+//
+// Related: Works with enhanced person search from packages/gateway/src/features/person-search/
 import React, { useState, useCallback, useEffect } from 'react'
 import styled from 'styled-components'
 import { injectIntl, WrappedComponentProps as IntlShapeProps } from 'react-intl'

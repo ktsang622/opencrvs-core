@@ -1,3 +1,23 @@
+# TOPPAN MIGRATION NOTE - Base Docker Compose Configuration:
+# This file defines the core OpenCRVS services with Toppan ecosystem integration.
+#
+# Key changes made by Kevin Tsang:
+# 1. Added Toppan service definitions (toppan-db, toppan-service, toppan-ui, toppan)
+# 2. Enhanced internal URL routing for microservice communication
+# 3. Added feature flag environment variables for PDF support
+# 4. Configured volume mounts for persistent data storage
+# 5. Set up service dependency chains and health checks
+#
+# Migration requirements for new OpenCRVS releases:
+# - Verify that service port assignments don't conflict with new OpenCRVS services
+# - Check if environment variable patterns change in new releases
+# - Ensure Docker image build contexts remain compatible
+# - Validate that internal URL routing patterns still work
+# - Test that Toppan service integration doesn't break with new architectures
+#
+# Dependencies: Toppan service images, PostgreSQL, OpenSearch
+# Related: Works with toppan-override.yml and toppan-deps.yml for complete stack
+
 # OpenCRVS Base Docker Compose
 # Core services without external dependencies
 

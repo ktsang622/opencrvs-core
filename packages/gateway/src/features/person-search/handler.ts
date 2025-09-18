@@ -9,6 +9,22 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+// TOPPAN MIGRATION NOTE:
+// This file has been modified to integrate with Toppan person search service.
+//
+// Key changes made by Kevin Tsang:
+// 1. Replaced native OpenCRVS person search with proxy to toppan-service
+// 2. Added OpenSearch integration with person_read/person_write aliases
+// 3. Enhanced search capabilities with family relationship mapping
+//
+// Migration requirements for new OpenCRVS releases:
+// - Ensure TOPPAN_SERVICE_URL constant is available
+// - Verify compatibility with any new person search features
+// - Check if OpenSearch integration conflicts with new search implementation
+// - Validate that toppan-service endpoints remain compatible
+//
+// Dependencies: packages/toppan-service, OpenSearch cluster
+
 import * as Hapi from '@hapi/hapi'
 import fetch from 'node-fetch'
 import { TOPPAN_SERVICE_URL } from '@gateway/constants'

@@ -9,6 +9,25 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+// TOPPAN MIGRATION NOTE - Country Configuration Reader:
+// This file provides centralized access to country configuration for feature flags.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added application config fetching from country config service
+// 2. Implemented caching mechanism for configuration data (5-minute cache)
+// 3. Added ENHANCED_DOCUMENT_VIEWER feature flag support for PDF functionality
+// 4. Enhanced error handling with fallback mechanisms
+// 5. Added comprehensive debugging for feature flag resolution
+//
+// Migration requirements for new OpenCRVS releases:
+// - Ensure COUNTRY_CONFIG_URL constant remains available from @gateway/constants
+// - Verify that country config service API remains compatible
+// - Check if new feature flags need to be added to IApplicationConfig interface
+// - Validate that caching strategy doesn't conflict with new config patterns
+//
+// Dependencies: Country config service, @gateway/constants
+// Related: Used by validators.ts for PDF feature flag checks
+
 import fetch from 'node-fetch'
 import { COUNTRY_CONFIG_URL } from '@gateway/constants'
 

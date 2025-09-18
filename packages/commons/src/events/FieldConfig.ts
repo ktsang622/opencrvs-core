@@ -123,6 +123,17 @@ export const ImageMimeType = z.enum([
   'image/svg+xml'
 ])
 
+// TOPPAN MIGRATION NOTE - PDF Support:
+// Added DocumentMimeType to support PDF file uploads alongside images.
+// This change enables PDF document support in file upload validation.
+//
+// Migration requirements for new OpenCRVS releases:
+// - Check if new release already has PDF support built-in
+// - Verify that PDF MIME type validation doesn't conflict
+// - Ensure feature flag ENHANCED_DOCUMENT_VIEWER is properly handled
+// - Test that both images and PDFs work in document upload fields
+//
+// Related: Works with PDF viewer components in packages/components/src/DocumentViewer/
 export const DocumentMimeType = z.enum(['application/pdf'])
 
 export const MimeType = z.union([ImageMimeType, DocumentMimeType])

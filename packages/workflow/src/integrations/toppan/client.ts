@@ -9,6 +9,24 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+// TOPPAN MIGRATION NOTE - Workflow Integration Client:
+// This file provides Toppan service integration for birth/death record synchronization.
+//
+// Key changes made by Kevin Tsang:
+// 1. Added birth record creation sync with Toppan service
+// 2. Implemented birth record correction sync for father data updates
+// 3. Integrated with OpenCRVS workflow events for automatic data sync
+// 4. Added comprehensive error handling and logging
+//
+// Migration requirements for new OpenCRVS releases:
+// - Ensure TOPPAN_URL environment variable is configured in workflow service
+// - Verify that fetch API and error handling patterns remain compatible
+// - Check if new workflow event types need Toppan integration
+// - Validate that authentication patterns don't conflict with new security models
+//
+// Dependencies: packages/toppan-service, environment.ts configuration
+// Related: Works with mappers.ts for data transformation
+
 import fetch from 'node-fetch'
 import {
   mapRecordToCreationPayload,
