@@ -11,7 +11,7 @@ pipeline {
     environment {
         // Git-based versioning (will be set dynamically)
         VERSION = ""
-        REGISTRY = "${env.DOCKER_REGISTRY ?: 'toppan-crvs'}"
+        REGISTRY = "${env.DOCKER_REGISTRY ?: '695491315778.dkr.ecr.us-east-1.amazonaws.com/toppan-crvs'}"
         BRANCH = "${env.GIT_BRANCH ?: 'develop'}"
 
         // Docker Configuration
@@ -32,7 +32,7 @@ pipeline {
         BUILD_REASON = ""
 
         // Credentials
-        DOCKER_REGISTRY_CREDENTIALS = credentials('docker-registry-credentials')
+        AWS_ECR_CREDENTIALS = credentials('aws-ecr-credentials')
         AWS_CREDENTIALS = credentials('aws-codecommit-credentials')
     }
 
@@ -65,7 +65,7 @@ pipeline {
         booleanParam(
             name: 'PUSH_TO_REGISTRY',
             defaultValue: true,
-            description: 'Push built images to Docker registry'
+            description: 'Push built images to AWS ECR (695491315778.dkr.ecr.us-east-1.amazonaws.com/toppan-crvs)'
         )
         booleanParam(
             name: 'DRY_RUN',
@@ -706,9 +706,10 @@ pipeline {
                 script {
                     echo "📦 Pushing images to registry..."
 
-                    withCredentials([usernamePassword(credentialsId: 'docker-registry-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    withCredentials([aws(credentialsId: 'aws-ecr-credentials', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         sh '''
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            # ECR authentication for us-east-1
+                            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 695491315778.dkr.ecr.us-east-1.amazonaws.com
 
                             # Push all built images
                             docker images | grep ${REGISTRY} | grep ${VERSION} | awk '{print $1":"$2}' | while read image; do
