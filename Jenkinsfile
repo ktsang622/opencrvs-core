@@ -3,7 +3,7 @@ pipeline {
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
-        timeout(time: 120, unit: 'MINUTES')
+        timeout(time: 90, unit: 'MINUTES')
         retry(2)
         skipStagesAfterUnstable()
     }
@@ -21,31 +21,28 @@ pipeline {
         // Build Optimization
         MAX_PARALLEL = "${env.MAX_PARALLEL ?: '3'}"
 
-        // Compose Files
+        // Compose Files (Core services only)
         BUILD_COMPOSE = '-f toppan-build.yml'
-        EXTERNAL_COMPOSE = '-f toppan-build-ext.yml'
 
         // Smart build variables (set dynamically)
         SERVICES_TO_BUILD = ""
-        EXTERNAL_SERVICES_TO_BUILD = ""
         FORCE_BASE_REBUILD = "false"
         BUILD_REASON = ""
 
         // Credentials
         AWS_ECR_CREDENTIALS = credentials('aws-ecr-credentials')
-        AWS_CREDENTIALS = credentials('aws-codecommit-credentials')
     }
 
     parameters {
         choice(
             name: 'BUILD_STRATEGY',
-            choices: ['smart', 'all', 'core-only', 'external-only', 'selective'],
+            choices: ['smart', 'all', 'selective'],
             description: 'Smart: Auto-detect changes | All: Build everything | Selective: Manual selection'
         )
         string(
             name: 'MANUAL_SERVICES',
             defaultValue: '',
-            description: 'Manual service selection (only used when BUILD_STRATEGY=selective)'
+            description: 'Manual service selection (comma-separated: gateway,auth,client,user-mgnt,workflow,events,etc.)'
         )
         booleanParam(
             name: 'NO_CACHE',
@@ -72,689 +69,324 @@ pipeline {
             defaultValue: false,
             description: 'Show what would be built without actually building'
         )
+        string(
+            name: 'CUSTOM_VERSION',
+            defaultValue: '',
+            description: 'Custom version tag (leave empty for auto-generated git hash)'
+        )
     }
 
     stages {
-        stage('Initialize') {
+        stage('🔧 Initialize & Setup') {
             steps {
                 script {
-                    // Clean workspace
-                    cleanWs()
-
-                    echo "🚀 OpenCRVS Smart Docker Build Pipeline"
-                    echo "Build Strategy: ${params.BUILD_STRATEGY}"
-                    echo "Branch: ${BRANCH}"
-                    echo "Force Full Build: ${params.FORCE_FULL_BUILD}"
-                    echo "Dry Run: ${params.DRY_RUN}"
-                }
-            }
-        }
-
-        stage('Generate Version') {
-            steps {
-                dir('opencrvs-core') {
-                    script {
-                        echo "🏷️ Generating version from Git..."
-
-                        // Get git information
-                        def gitCommit = sh(
-                            script: "git rev-parse --short=8 HEAD",
+                    // Set version from git hash or custom parameter
+                    if (params.CUSTOM_VERSION) {
+                        env.VERSION = params.CUSTOM_VERSION
+                    } else {
+                        env.VERSION = sh(
+                            script: 'git log -1 --pretty=format:%h',
                             returnStdout: true
                         ).trim()
-
-                        def gitTag = sh(
-                            script: "git describe --tags --abbrev=0 2>/dev/null || echo 'v1.8.0'",
-                            returnStdout: true
-                        ).trim().replaceAll('^v', '')
-
-                        def branch = env.BRANCH_NAME ?: 'develop'
-                        def buildNumber = env.BUILD_NUMBER ?: '1'
-
-                        // Generate version based on branch
-                        def version
-                        if (branch == 'main' || branch == 'master') {
-                            version = "${gitTag}"
-                        } else if (branch == 'develop') {
-                            version = "${gitTag}-dev.${buildNumber}.${gitCommit}"
-                        } else {
-                            def safeBranch = branch.replaceAll('[^a-zA-Z0-9]', '-').take(20)
-                            version = "${gitTag}-${safeBranch}.${buildNumber}.${gitCommit}"
-                        }
-
-                        env.VERSION = version
-                        env.GIT_COMMIT = gitCommit
-
-                        echo "📦 Generated Version: ${version}"
-                        echo "🔗 Git Commit: ${gitCommit}"
-                    }
-                }
-            }
-        }
-
-        stage('Detect Changes') {
-            when {
-                anyOf {
-                    expression { params.BUILD_STRATEGY == 'smart' }
-                    expression { params.FORCE_FULL_BUILD == false && params.BUILD_STRATEGY != 'selective' }
-                }
-            }
-            steps {
-                dir('opencrvs-core') {
-                    script {
-                        echo "🔍 Smart Change Detection..."
-
-                        // Get changed files since last successful build or last commit
-                        def changedFiles = []
-                        try {
-                            def changes = sh(
-                                script: """
-                                    # Try to get changes since last successful build
-                                    if [ "\${BUILD_NUMBER}" != "1" ]; then
-                                        git diff --name-only HEAD~1 2>/dev/null || git diff --name-only HEAD^ 2>/dev/null || echo ""
-                                    else
-                                        # First build - check last 5 commits for changes
-                                        git diff --name-only HEAD~5 HEAD 2>/dev/null || echo ""
-                                    fi
-                                """,
-                                returnStdout: true
-                            ).trim()
-
-                            if (changes) {
-                                changedFiles = changes.split('\n').findAll { it.trim() }
-                            }
-                        } catch (Exception e) {
-                            echo "⚠️ Could not detect changes, will do full build: ${e.message}"
-                            changedFiles = ['**/*']
-                        }
-
-                        if (!changedFiles) {
-                            echo "ℹ️ No changes detected, will skip build unless forced"
-                            env.SERVICES_TO_BUILD = ""
-                            env.EXTERNAL_SERVICES_TO_BUILD = ""
-                            env.BUILD_REASON = "No changes detected"
-                            return
-                        }
-
-                        echo "📋 Changed files:"
-                        changedFiles.each { echo "  - ${it}" }
-
-                        // Analyze changes to determine what to build
-                        def coreServices = [] as Set
-                        def externalServices = [] as Set
-                        def forceBaseRebuild = false
-                        def forceFullBuild = false
-
-                        def allCoreServices = [
-                            'config', 'auth', 'user-mgnt', 'notification', 'search',
-                            'metrics', 'documents', 'gateway', 'workflow', 'webhooks',
-                            'events', 'client', 'login', 'migration', 'data-seeder',
-                            'toppan', 'toppan-service', 'toppan-ui'
-                        ]
-
-                        def allExternalServices = ['countryconfig', 'opensearch', 'toppan-data-seeder']
-
-                        changedFiles.each { file ->
-                            echo "🔍 Analyzing: ${file}"
-
-                            // Base infrastructure changes - force full rebuild
-                            if (file.matches(/(Dockerfile\.base|package\.json|yarn\.lock|tsconfig\.json)/)) {
-                                echo "  ⚡ Infrastructure change detected - force full build"
-                                forceFullBuild = true
-                                return
-                            }
-
-                            // Commons/Components changes - affects all services
-                            if (file.startsWith('packages/commons/') || file.startsWith('packages/components/')) {
-                                echo "  ⚡ Commons/Components change - rebuilding all core services"
-                                forceBaseRebuild = true
-                                coreServices.addAll(allCoreServices)
-                            }
-
-                            // Individual service changes
-                            if (file.startsWith('packages/')) {
-                                def parts = file.split('/')
-                                if (parts.length > 1) {
-                                    def service = parts[1]
-                                    if (allCoreServices.contains(service)) {
-                                        echo "  📦 Core service change: ${service}"
-                                        coreServices.add(service)
-                                    }
-                                }
-                            }
-
-                            // Docker compose changes
-                            if (file.matches(/(toppan-.*\.yml|docker-compose.*\.yml)/)) {
-                                echo "  🐳 Docker configuration change detected"
-                                forceBaseRebuild = true
-                            }
-
-                            // Scripts changes
-                            if (file.startsWith('scripts/')) {
-                                echo "  📜 Build script change detected"
-                                forceBaseRebuild = true
-                            }
-
-                            // External service detection (check if external repos changed)
-                            // Note: This would require additional logic to check external repos
-                        }
-
-                        // Commit message analysis
-                        def commitMessage = sh(
-                            script: "git log -1 --pretty=%B",
-                            returnStdout: true
-                        ).trim().toLowerCase()
-
-                        if (commitMessage.contains('[full-build]') || commitMessage.contains('[build-all]')) {
-                            echo "🏗️ Full build requested in commit message"
-                            forceFullBuild = true
-                        }
-
-                        if (commitMessage.contains('[no-cache]')) {
-                            echo "🚫 No cache requested in commit message"
-                            env.NO_CACHE = 'true'
-                        }
-
-                        // Extract specific services from commit message
-                        def servicePattern = /\[build:([\w\-,\s]+)\]/
-                        def matcher = commitMessage =~ servicePattern
-                        if (matcher) {
-                            def requestedServices = matcher[0][1].split(',').collect { it.trim() }
-                            echo "🎯 Specific services requested in commit: ${requestedServices}"
-                            requestedServices.each { service ->
-                                if (allCoreServices.contains(service)) {
-                                    coreServices.add(service)
-                                } else if (allExternalServices.contains(service)) {
-                                    externalServices.add(service)
-                                }
-                            }
-                        }
-
-                        // Set build variables
-                        if (forceFullBuild || params.FORCE_FULL_BUILD) {
-                            env.SERVICES_TO_BUILD = allCoreServices.join(' ')
-                            env.EXTERNAL_SERVICES_TO_BUILD = allExternalServices.join(' ')
-                            env.FORCE_BASE_REBUILD = 'true'
-                            env.BUILD_REASON = "Full build (infrastructure changes or requested)"
-                        } else {
-                            env.SERVICES_TO_BUILD = coreServices.join(' ')
-                            env.EXTERNAL_SERVICES_TO_BUILD = externalServices.join(' ')
-                            env.FORCE_BASE_REBUILD = forceBaseRebuild.toString()
-                            env.BUILD_REASON = "Smart build (${coreServices.size()} core, ${externalServices.size()} external services)"
-                        }
-
-                        // Display build plan
-                        echo "📋 Smart Build Plan:"
-                        echo "  Build Reason: ${env.BUILD_REASON}"
-                        echo "  Force Base Rebuild: ${env.FORCE_BASE_REBUILD}"
-                        echo "  Core Services: ${env.SERVICES_TO_BUILD ?: 'none'}"
-                        echo "  External Services: ${env.EXTERNAL_SERVICES_TO_BUILD ?: 'none'}"
-                    }
-                }
-            }
-        }
-
-        stage('Manual Build Configuration') {
-            when {
-                expression { params.BUILD_STRATEGY != 'smart' }
-            }
-            steps {
-                script {
-                    echo "⚙️ Configuring manual build strategy..."
-
-                    def allCoreServices = [
-                        'config', 'auth', 'user-mgnt', 'notification', 'search',
-                        'metrics', 'documents', 'gateway', 'workflow', 'webhooks',
-                        'events', 'client', 'login', 'migration', 'data-seeder',
-                        'toppan', 'toppan-service', 'toppan-ui'
-                    ]
-                    def allExternalServices = ['countryconfig', 'opensearch', 'toppan-data-seeder']
-
-                    switch(params.BUILD_STRATEGY) {
-                        case 'all':
-                            env.SERVICES_TO_BUILD = allCoreServices.join(' ')
-                            env.EXTERNAL_SERVICES_TO_BUILD = allExternalServices.join(' ')
-                            env.FORCE_BASE_REBUILD = 'true'
-                            env.BUILD_REASON = "Manual full build"
-                            break
-                        case 'core-only':
-                            env.SERVICES_TO_BUILD = allCoreServices.join(' ')
-                            env.EXTERNAL_SERVICES_TO_BUILD = ""
-                            env.FORCE_BASE_REBUILD = 'true'
-                            env.BUILD_REASON = "Manual core-only build"
-                            break
-                        case 'external-only':
-                            env.SERVICES_TO_BUILD = ""
-                            env.EXTERNAL_SERVICES_TO_BUILD = allExternalServices.join(' ')
-                            env.FORCE_BASE_REBUILD = 'false'
-                            env.BUILD_REASON = "Manual external-only build"
-                            break
-                        case 'selective':
-                            def requestedServices = params.MANUAL_SERVICES ? params.MANUAL_SERVICES.split(' ') : []
-                            def coreServices = requestedServices.findAll { allCoreServices.contains(it) }
-                            def externalServices = requestedServices.findAll { allExternalServices.contains(it) }
-
-                            env.SERVICES_TO_BUILD = coreServices.join(' ')
-                            env.EXTERNAL_SERVICES_TO_BUILD = externalServices.join(' ')
-                            env.FORCE_BASE_REBUILD = (coreServices.size() > 0).toString()
-                            env.BUILD_REASON = "Manual selective build"
-                            break
                     }
 
-                    echo "📋 Manual Build Plan:"
-                    echo "  Build Reason: ${env.BUILD_REASON}"
-                    echo "  Force Base Rebuild: ${env.FORCE_BASE_REBUILD}"
-                    echo "  Core Services: ${env.SERVICES_TO_BUILD ?: 'none'}"
-                    echo "  External Services: ${env.EXTERNAL_SERVICES_TO_BUILD ?: 'none'}"
-                }
-            }
-        }
-
-        stage('Build Summary & Dry Run') {
-            steps {
-                script {
-                    echo "📊 Final Build Configuration:"
+                    echo "🚀 OpenCRVS Core Services Build Pipeline"
+                    echo "=================================================="
                     echo "  Version: ${env.VERSION}"
                     echo "  Registry: ${env.REGISTRY}"
-                    echo "  Build Reason: ${env.BUILD_REASON}"
-                    echo "  Force Base Rebuild: ${env.FORCE_BASE_REBUILD}"
-                    echo "  No Cache: ${params.NO_CACHE}"
-                    echo "  Sequential Build: ${params.SEQUENTIAL_BUILD}"
-                    echo ""
-                    echo "🎯 Services to Build:"
-                    if (env.SERVICES_TO_BUILD) {
-                        env.SERVICES_TO_BUILD.split(' ').each {
-                            echo "  📦 Core: ${it}"
+                    echo "  Branch: ${env.BRANCH}"
+                    echo "  Build Strategy: ${params.BUILD_STRATEGY}"
+                    echo "  Force Full Build: ${params.FORCE_FULL_BUILD}"
+                    echo "  Push to Registry: ${params.PUSH_TO_REGISTRY}"
+                    echo "  Dry Run: ${params.DRY_RUN}"
+                    echo "=================================================="
+                }
+            }
+        }
+
+        stage('🔍 Smart Change Detection') {
+            when {
+                allOf {
+                    expression { params.BUILD_STRATEGY == 'smart' }
+                    expression { params.FORCE_FULL_BUILD == false }
+                }
+            }
+            steps {
+                script {
+                    echo "🔍 Analyzing changes in core services..."
+
+                    // Define core OpenCRVS services
+                    def allCoreServices = [
+                        'gateway', 'auth', 'client', 'user-mgnt', 'workflow',
+                        'events', 'search', 'metrics', 'webhooks', 'documents',
+                        'notification', 'config', 'migration', 'login'
+                    ]
+
+                    def servicesToBuild = []
+                    def forceBaseRebuild = false
+
+                    // Check for changes in package directories
+                    def changedFiles = sh(
+                        script: '''
+                            if [ ! -f ".last_core_build" ]; then
+                                echo "First build - all services will be built"
+                                find packages/ -maxdepth 1 -type d -name "*" | sed 's|packages/||' | grep -v "toppan"
+                            else
+                                LAST_BUILD=$(cat .last_core_build)
+                                git diff --name-only $LAST_BUILD...HEAD | grep "^packages/"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Changed files: ${changedFiles}"
+
+                    if (changedFiles) {
+                        // Analyze which services are affected
+                        changedFiles.split('\n').each { file ->
+                            if (file.startsWith('packages/')) {
+                                def serviceName = file.split('/')[1]
+
+                                // Skip Toppan packages (handled by separate pipelines)
+                                if (!serviceName.startsWith('toppan') && serviceName in allCoreServices) {
+                                    if (!servicesToBuild.contains(serviceName)) {
+                                        servicesToBuild.add(serviceName)
+                                    }
+                                }
+
+                                // Check for commons/components changes (affects base image)
+                                if (serviceName in ['commons', 'components']) {
+                                    forceBaseRebuild = true
+                                }
+                            }
                         }
-                    }
-                    if (env.EXTERNAL_SERVICES_TO_BUILD) {
-                        env.EXTERNAL_SERVICES_TO_BUILD.split(' ').each {
-                            echo "  🌍 External: ${it}"
-                        }
-                    }
-                    if (!env.SERVICES_TO_BUILD && !env.EXTERNAL_SERVICES_TO_BUILD) {
-                        echo "  ℹ️ No services to build"
                     }
 
+                    if (servicesToBuild.isEmpty() && !forceBaseRebuild) {
+                        env.SERVICES_TO_BUILD = ""
+                        env.BUILD_REASON = "No changes detected in core services"
+                        echo "⏭️  No core service changes detected - skipping build"
+                    } else {
+                        env.SERVICES_TO_BUILD = servicesToBuild.join(',')
+                        env.FORCE_BASE_REBUILD = forceBaseRebuild.toString()
+                        env.BUILD_REASON = "Changes detected in: ${servicesToBuild.join(', ')}"
+                        echo "✅ Changes detected - will build: ${env.SERVICES_TO_BUILD}"
+                        if (forceBaseRebuild) {
+                            echo "🔄 Base image rebuild required due to commons/components changes"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('📋 Manual Service Selection') {
+            when {
+                expression { params.BUILD_STRATEGY == 'selective' }
+            }
+            steps {
+                script {
+                    if (params.MANUAL_SERVICES) {
+                        env.SERVICES_TO_BUILD = params.MANUAL_SERVICES
+                        env.BUILD_REASON = "Manual selection: ${params.MANUAL_SERVICES}"
+                        echo "🎯 Manual services selected: ${env.SERVICES_TO_BUILD}"
+                    } else {
+                        error("Manual services parameter is required when using selective build strategy")
+                    }
+                }
+            }
+        }
+
+        stage('🌍 Build All Core Services') {
+            when {
+                expression { params.BUILD_STRATEGY == 'all' || params.FORCE_FULL_BUILD == true }
+            }
+            steps {
+                script {
+                    def allCoreServices = [
+                        'gateway', 'auth', 'client', 'user-mgnt', 'workflow',
+                        'events', 'search', 'metrics', 'webhooks', 'documents',
+                        'notification', 'config', 'migration', 'login'
+                    ]
+
+                    env.SERVICES_TO_BUILD = allCoreServices.join(',')
+                    env.FORCE_BASE_REBUILD = "true"
+                    env.BUILD_REASON = "Full build requested"
+                    echo "🌍 Building all core services: ${env.SERVICES_TO_BUILD}"
+                }
+            }
+        }
+
+        stage('🏗️  Build Base Image') {
+            when {
+                anyOf {
+                    expression { env.FORCE_BASE_REBUILD == 'true' }
+                    expression { params.BUILD_STRATEGY == 'all' }
+                    expression { params.FORCE_FULL_BUILD == true }
+                }
+            }
+            steps {
+                script {
                     if (params.DRY_RUN) {
-                        echo ""
-                        echo "🔍 DRY RUN MODE - Build would proceed with above configuration"
-                        echo "Set DRY_RUN to false to execute actual build"
-                        currentBuild.result = 'SUCCESS'
+                        echo "🧪 DRY RUN: Would build base image"
                         return
                     }
 
-                    // Skip build if nothing to build
-                    if (!env.SERVICES_TO_BUILD && !env.EXTERNAL_SERVICES_TO_BUILD) {
-                        echo "✅ No services need building - skipping build stages"
-                        env.SKIP_BUILD = 'true'
-                    } else {
-                        env.SKIP_BUILD = 'false'
-                    }
+                    echo "🏗️  Building optimized OpenCRVS base image..."
 
-                    // Set build arguments
-                    env.CACHE_ARGS = params.NO_CACHE ? '--no-cache' : ''
-                    env.PARALLEL_MODE = params.SEQUENTIAL_BUILD ? 'false' : 'true'
+                    sh '''
+                        # Create optimized base image
+                        cat > Dockerfile.base << 'EOF'
+FROM node:18-slim
+
+RUN apt-get update && apt-get upgrade -y
+RUN apt-get clean && rm -rf /var/cache/apt/archives /var/lib/apt/lists/*
+
+USER node
+WORKDIR /app
+
+# Copy and install core dependencies
+COPY --chown=node:node package*.json yarn.lock ./
+COPY --chown=node:node packages/commons/package.json ./packages/commons/
+COPY --chown=node:node packages/components/package.json ./packages/components/
+
+RUN yarn install --frozen-lockfile --production=false
+
+# Build commons and components
+COPY --chown=node:node packages/commons/ ./packages/commons/
+COPY --chown=node:node packages/components/ ./packages/components/
+
+RUN yarn workspace @opencrvs/commons build
+RUN yarn workspace @opencrvs/components build
+
+CMD ["node", "--version"]
+EOF
+
+                        export DOCKER_REGISTRY=${REGISTRY}
+                        docker build -f Dockerfile.base -t ${REGISTRY}/ocrvs-base:${VERSION} .
+                        docker tag ${REGISTRY}/ocrvs-base:${VERSION} ${REGISTRY}/ocrvs-base:latest
+
+                        echo "✅ Base image built successfully"
+                    '''
                 }
             }
         }
 
-        stage('Checkout') {
+        stage('🚀 Build Core Services') {
             when {
-                expression { env.SKIP_BUILD != 'true' }
-            }
-            parallel {
-                stage('Checkout Core') {
-                    steps {
-                        dir('opencrvs-core') {
-                            checkout([
-                                $class: 'GitSCM',
-                                branches: [[name: "*/${BRANCH}"]],
-                                userRemoteConfigs: [[
-                                    url: 'https://git-codecommit.ap-east-1.amazonaws.com/v1/repos/opencrvs_core',
-                                    credentialsId: 'aws-codecommit-credentials'
-                                ]]
-                            ])
-                        }
-                    }
+                anyOf {
+                    expression { env.SERVICES_TO_BUILD != "" }
+                    expression { params.DRY_RUN == true }
                 }
-                stage('Checkout CountryConfig') {
-                    when {
-                        expression { env.EXTERNAL_SERVICES_TO_BUILD?.contains('countryconfig') }
-                    }
-                    steps {
-                        dir('opencrvs-countryconfig') {
-                            checkout([
-                                $class: 'GitSCM',
-                                branches: [[name: "*/${BRANCH}"]],
-                                userRemoteConfigs: [[
-                                    url: 'https://git-codecommit.ap-east-1.amazonaws.com/v1/repos/opencrvs_countryconfig',
-                                    credentialsId: 'aws-codecommit-credentials'
-                                ]]
-                            ])
-                        }
-                    }
-                }
-                stage('Checkout OpenSearch') {
-                    when {
-                        anyOf {
-                            expression { env.EXTERNAL_SERVICES_TO_BUILD?.contains('opensearch') }
-                            expression { env.EXTERNAL_SERVICES_TO_BUILD?.contains('toppan-data-seeder') }
-                        }
-                    }
-                    steps {
-                        dir('opensearch') {
-                            checkout([
-                                $class: 'GitSCM',
-                                branches: [[name: "*/master"]],
-                                userRemoteConfigs: [[
-                                    url: 'https://git-codecommit.ap-east-1.amazonaws.com/v1/repos/opencrvs_opensearch',
-                                    credentialsId: 'aws-codecommit-credentials'
-                                ]]
-                            ])
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Pre-build Setup') {
-            steps {
-                dir('opencrvs-core') {
-                    script {
-                        // Export environment variables
-                        sh '''
-                            export VERSION=${VERSION}
-                            export DOCKER_REGISTRY=${REGISTRY}
-                            export BRANCH=${BRANCH}
-
-                            echo "Environment variables set:"
-                            echo "VERSION=${VERSION}"
-                            echo "DOCKER_REGISTRY=${REGISTRY}"
-                            echo "BRANCH=${BRANCH}"
-                        '''
-
-                        // Check available services
-                        def availableServices = sh(
-                            script: "docker compose ${BUILD_COMPOSE} config --services",
-                            returnStdout: true
-                        ).trim().split('\n')
-
-                        echo "Available services: ${availableServices.join(', ')}"
-
-                        // Validate selective services if specified
-                        if (params.BUILD_MODE == 'selective' && params.SERVICES) {
-                            def requestedServices = params.SERVICES.split(' ')
-                            def externalServices = ['countryconfig', 'opensearch', 'toppan-data-seeder']
-
-                            for (service in requestedServices) {
-                                if (!availableServices.contains(service) && !externalServices.contains(service)) {
-                                    error("Service '${service}' not found in available services")
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Build Base Image') {
-            when {
-                allOf {
-                    expression { env.SKIP_BUILD != 'true' }
-                    anyOf {
-                        expression { env.FORCE_BASE_REBUILD == 'true' }
-                        expression { env.SERVICES_TO_BUILD?.contains('base') }
-                        expression { env.SERVICES_TO_BUILD?.trim() != '' } // Any core service needs base
-                    }
-                }
-            }
-            steps {
-                dir('opencrvs-core') {
-                    script {
-                        echo "🏗️ Building base image (commons/components)..."
-
-                        sh """
-                            export VERSION=${VERSION}
-                            export DOCKER_REGISTRY=${REGISTRY}
-                            export BRANCH=${BRANCH}
-
-                            docker compose ${BUILD_COMPOSE} build ${env.CACHE_ARGS} base
-
-                            # Tag with latest
-                            docker tag ${REGISTRY}/ocrvs-base:${VERSION} ${REGISTRY}/ocrvs-base:latest
-                        """
-                    }
-                }
-            }
-            post {
-                success {
-                    echo "✅ Base image built successfully"
-                }
-                failure {
-                    echo "❌ Base image build failed"
-                }
-            }
-        }
-
-        stage('Build Core Services') {
-            when {
-                allOf {
-                    expression { env.SKIP_BUILD != 'true' }
-                    expression { env.SERVICES_TO_BUILD?.trim() != '' }
-                }
-            }
-            steps {
-                dir('opencrvs-core') {
-                    script {
-                        echo "🚀 Building core services with dynamic Dockerfiles..."
-
-                        def servicesToBuild = env.SERVICES_TO_BUILD?.trim() ?: ''
-                        echo "Selected core services: ${servicesToBuild}"
-                        echo "Build reason: ${env.BUILD_REASON}"
-
-                        sh """
-                            export VERSION=${VERSION}
-                            export DOCKER_REGISTRY=${REGISTRY}
-                            export BRANCH=${BRANCH}
-
-                            # Make build script executable
-                            chmod +x scripts/build-docker-compose.sh
-
-                            # Set build flags
-                            BUILD_FLAGS=""
-                            if [ "${params.SEQUENTIAL_BUILD}" = "true" ]; then
-                                BUILD_FLAGS="\$BUILD_FLAGS --sequential"
-                            fi
-                            if [ "${params.NO_CACHE}" = "true" ]; then
-                                BUILD_FLAGS="\$BUILD_FLAGS --no-cache"
-                            fi
-                            if [ "${env.MAX_PARALLEL}" != "0" ]; then
-                                BUILD_FLAGS="\$BUILD_FLAGS --max-parallel ${env.MAX_PARALLEL}"
-                            fi
-
-                            echo "🔧 Build flags: \$BUILD_FLAGS"
-                            echo "🎯 Services to build: ${servicesToBuild}"
-
-                            # Execute build with proper service selection
-                            if [ -n "${servicesToBuild}" ]; then
-                                ./scripts/build-docker-compose.sh \$BUILD_FLAGS ${servicesToBuild}
-                            else
-                                ./scripts/build-docker-compose.sh \$BUILD_FLAGS
-                            fi
-                        """
-                    }
-                }
-            }
-            post {
-                always {
-                    script {
-                        // List any temporary files created
-                        sh '''
-                            echo "📋 Temporary files created during build:"
-                            find . -name "Dockerfile.*.temp" -type f || echo "No temporary Dockerfiles found"
-                            ls -la toppan-build-dynamic.yml 2>/dev/null || echo "No dynamic compose file found"
-                        '''
-                    }
-                }
-                success {
-                    echo "✅ Core services built successfully"
-                }
-                failure {
-                    echo "❌ Core services build failed"
-                    script {
-                        // Show build logs for debugging
-                        sh '''
-                            echo "🔍 Checking for build artifacts:"
-                            ls -la packages/*/Dockerfile.*.temp 2>/dev/null || echo "No temp Dockerfiles found"
-                            cat toppan-build-dynamic.yml 2>/dev/null || echo "No dynamic compose file to show"
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Build External Services') {
-            when {
-                allOf {
-                    expression { env.SKIP_BUILD != 'true' }
-                    expression { env.EXTERNAL_SERVICES_TO_BUILD?.trim() != '' }
-                }
-            }
-            parallel {
-                stage('Build CountryConfig') {
-                    when {
-                        expression { env.EXTERNAL_SERVICES_TO_BUILD?.contains('countryconfig') }
-                    }
-                    steps {
-                        dir('opencrvs-core') {
-                            script {
-                                echo "🌍 Building CountryConfig..."
-                                sh """
-                                    export VERSION=${VERSION}
-                                    export DOCKER_REGISTRY=${REGISTRY}
-                                    export BRANCH=${BRANCH}
-
-                                    docker compose ${EXTERNAL_COMPOSE} build ${env.CACHE_ARGS} countryconfig
-                                    docker tag ${REGISTRY}/countryconfig:${VERSION} ${REGISTRY}/countryconfig:latest
-                                """
-                            }
-                        }
-                    }
-                    post {
-                        success {
-                            echo "✅ CountryConfig built successfully"
-                        }
-                        failure {
-                            echo "❌ CountryConfig build failed"
-                        }
-                    }
-                }
-
-                stage('Build OpenSearch Services') {
-                    when {
-                        anyOf {
-                            expression { env.EXTERNAL_SERVICES_TO_BUILD?.contains('opensearch') }
-                            expression { env.EXTERNAL_SERVICES_TO_BUILD?.contains('toppan-data-seeder') }
-                        }
-                    }
-                    steps {
-                        dir('opencrvs-core') {
-                            script {
-                                echo "🔍 Building OpenSearch services..."
-
-                                def opensearchServices = []
-                                def externalServices = env.EXTERNAL_SERVICES_TO_BUILD?.split(' ') ?: []
-
-                                externalServices.each { service ->
-                                    if (service in ['opensearch', 'toppan-data-seeder']) {
-                                        opensearchServices.add(service)
-                                    }
-                                }
-
-                                echo "OpenSearch services to build: ${opensearchServices}"
-
-                                for (service in opensearchServices) {
-                                    sh """
-                                        export VERSION=${VERSION}
-                                        export DOCKER_REGISTRY=${REGISTRY}
-                                        export BRANCH=${BRANCH}
-
-                                        docker compose ${EXTERNAL_COMPOSE} build ${env.CACHE_ARGS} ${service}
-                                        docker tag ${REGISTRY}/${service}:${VERSION} ${REGISTRY}/${service}:latest
-                                    """
-                                }
-                            }
-                        }
-                    }
-                    post {
-                        success {
-                            echo "✅ OpenSearch services built successfully"
-                        }
-                        failure {
-                            echo "❌ OpenSearch services build failed"
-                        }
-                    }
-                }
-            }
-        }
-
-        stage('Push to Registry') {
-            when {
-                expression { params.PUSH_TO_REGISTRY == true }
             }
             steps {
                 script {
-                    echo "📦 Pushing images to registry..."
+                    if (params.DRY_RUN) {
+                        echo "🧪 DRY RUN: Would build services: ${env.SERVICES_TO_BUILD ?: 'none'}"
+                        return
+                    }
+
+                    if (!env.SERVICES_TO_BUILD) {
+                        echo "⏭️  No services to build"
+                        return
+                    }
+
+                    echo "🚀 Building core services: ${env.SERVICES_TO_BUILD}"
+
+                    // Set cache arguments
+                    env.CACHE_ARGS = params.NO_CACHE ? '--no-cache' : ''
+
+                    def servicesList = env.SERVICES_TO_BUILD.split(',')
+
+                    if (params.SEQUENTIAL_BUILD) {
+                        // Build services sequentially
+                        for (service in servicesList) {
+                            sh """
+                                export DOCKER_REGISTRY=${REGISTRY}
+                                echo "Building ${service}..."
+                                docker compose ${BUILD_COMPOSE} build ${env.CACHE_ARGS} ${service}
+                                docker tag ${REGISTRY}/${service}:${VERSION} ${REGISTRY}/${service}:latest
+                            """
+                        }
+                    } else {
+                        // Build services in parallel (default)
+                        sh """
+                            export DOCKER_REGISTRY=${REGISTRY}
+                            echo "Building services in parallel: ${env.SERVICES_TO_BUILD}"
+                            docker compose ${BUILD_COMPOSE} build ${env.CACHE_ARGS} ${env.SERVICES_TO_BUILD.replace(',', ' ')}
+
+                            # Tag all built services as latest
+                            for service in ${env.SERVICES_TO_BUILD.replace(',', ' ')}; do
+                                docker tag ${REGISTRY}/\$service:${VERSION} ${REGISTRY}/\$service:latest
+                            done
+                        """
+                    }
+
+                    echo "✅ Core services build completed"
+                }
+            }
+        }
+
+        stage('📦 Push to Registry') {
+            when {
+                allOf {
+                    expression { params.PUSH_TO_REGISTRY == true }
+                    expression { params.DRY_RUN == false }
+                    anyOf {
+                        expression { env.SERVICES_TO_BUILD != "" }
+                        expression { env.FORCE_BASE_REBUILD == 'true' }
+                    }
+                }
+            }
+            steps {
+                script {
+                    echo "📦 Pushing images to ECR..."
 
                     withCredentials([aws(credentialsId: 'aws-ecr-credentials', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
                         sh '''
                             # ECR authentication for us-east-1
                             aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 695491315778.dkr.ecr.us-east-1.amazonaws.com
 
-                            # Push all built images
-                            docker images | grep ${REGISTRY} | grep ${VERSION} | awk '{print $1":"$2}' | while read image; do
-                                echo "Pushing $image"
-                                docker push $image || echo "Failed to push $image"
-                            done
+                            # Push base image if rebuilt
+                            if [ "${FORCE_BASE_REBUILD}" = "true" ]; then
+                                echo "Pushing base image..."
+                                docker push ${REGISTRY}/ocrvs-base:${VERSION}
+                                docker push ${REGISTRY}/ocrvs-base:latest
+                            fi
 
-                            # Push latest tags
-                            docker images | grep ${REGISTRY} | grep latest | awk '{print $1":"$2}' | while read image; do
-                                echo "Pushing $image"
-                                docker push $image || echo "Failed to push $image"
-                            done
+                            # Push all built service images
+                            if [ -n "${SERVICES_TO_BUILD}" ]; then
+                                for service in $(echo ${SERVICES_TO_BUILD} | tr ',' ' '); do
+                                    echo "Pushing ${REGISTRY}/$service:${VERSION}"
+                                    docker push ${REGISTRY}/$service:${VERSION} || echo "Failed to push $service"
+
+                                    echo "Pushing ${REGISTRY}/$service:latest"
+                                    docker push ${REGISTRY}/$service:latest || echo "Failed to push $service:latest"
+                                done
+                            fi
+
+                            echo "✅ Images pushed to ECR successfully"
                         '''
                     }
                 }
             }
-            post {
-                success {
-                    echo "✅ Images pushed to registry successfully"
-                }
-                failure {
-                    echo "⚠️ Some images failed to push to registry"
-                }
-            }
         }
 
-        stage('Cleanup') {
+        stage('📝 Update Build Record') {
+            when {
+                allOf {
+                    expression { params.DRY_RUN == false }
+                    anyOf {
+                        expression { env.SERVICES_TO_BUILD != "" }
+                        expression { env.FORCE_BASE_REBUILD == 'true' }
+                    }
+                }
+            }
             steps {
                 script {
-                    echo "🧹 Cleaning up temporary build files..."
                     sh '''
-                        # Remove dangling images
-                        docker image prune -f || true
-
-                        # Clean up dynamic Dockerfiles created by build script
-                        echo "Removing temporary Dockerfiles..."
-                        find . -name "Dockerfile.*.temp" -type f -exec echo "Removing: {}" \\; -delete || true
-
-                        # Clean up dynamic compose file created by build script
-                        echo "Removing dynamic compose files..."
-                        rm -f toppan-build-dynamic.yml || true
-
-                        # Clean up any other temporary build artifacts
-                        find . -name "*.tmp" -type f -delete || true
-                        find . -name ".dockerignore.temp" -type f -delete || true
+                        CURRENT_COMMIT=$(git log -1 --pretty=format:%h)
+                        echo $CURRENT_COMMIT > .last_core_build
+                        echo "📝 Updated core build record: $CURRENT_COMMIT"
                     '''
                 }
             }
@@ -764,64 +396,45 @@ pipeline {
     post {
         always {
             script {
-                // Display build summary
-                echo "📊 Build Summary:"
-                echo "Version: ${VERSION}"
-                echo "Registry: ${REGISTRY}"
-                echo "Build Mode: ${params.BUILD_MODE}"
-
-                if (params.BUILD_MODE == 'selective' && params.SERVICES) {
-                    echo "Services Built: ${params.SERVICES}"
-                }
-
-                // Show built images
+                echo "🧹 Cleaning up..."
                 sh '''
-                    echo "📦 Built Images:"
-                    docker images | grep ${REGISTRY} | grep ${VERSION} | head -20 || echo "No images found"
+                    # Clean up Docker images to save space
+                    docker system prune -f || true
+
+                    # Remove temporary Dockerfiles
+                    rm -f Dockerfile.base || true
                 '''
             }
         }
-
         success {
-            echo "🎉 Build completed successfully!"
-
-            // Archive build artifacts if needed
-            archiveArtifacts artifacts: '**/*.log', allowEmptyArchive: true
-        }
-
-        failure {
-            echo "❌ Build failed!"
-
-            // Archive logs and build artifacts for debugging
-            archiveArtifacts artifacts: '**/*.log', allowEmptyArchive: true
-
             script {
-                // Show any remaining temporary files for debugging
-                sh '''
-                    echo "🔍 Checking remaining temporary files for debugging:"
-                    find . -name "Dockerfile.*.temp" -type f -exec echo "Found temp Dockerfile: {}" \\; || true
-                    ls -la toppan-build-dynamic.yml 2>/dev/null && echo "Found dynamic compose file" || echo "No dynamic compose file"
-                '''
+                if (params.DRY_RUN) {
+                    echo "✅ DRY RUN: Core pipeline completed successfully"
+                    echo "📋 Would have built: ${env.SERVICES_TO_BUILD ?: 'nothing'}"
+                } else {
+                    echo "✅ Core OpenCRVS pipeline completed successfully"
+                    echo "📋 Summary:"
+                    echo "  Build Reason: ${env.BUILD_REASON}"
+                    echo "  Services Built: ${env.SERVICES_TO_BUILD ?: 'none'}"
+                    echo "  Base Image Rebuilt: ${env.FORCE_BASE_REBUILD}"
+                    echo "  Version: ${env.VERSION}"
+                    echo "  Registry: ${env.REGISTRY}"
+                    if (params.PUSH_TO_REGISTRY) {
+                        echo "  Status: Built and pushed to ECR"
+                    } else {
+                        echo "  Status: Built locally (not pushed)"
+                    }
+                }
             }
-
-            // Clean up on failure
-            sh '''
-                # Clean up dynamic build files on failure
-                echo "🧹 Emergency cleanup after build failure..."
-                find . -name "Dockerfile.*.temp" -type f -exec echo "Removing: {}" \\; -delete || true
-                rm -f toppan-build-dynamic.yml || true
-                find . -name "*.tmp" -type f -delete || true
-                docker image prune -f || true
-            '''
         }
-
-        unstable {
-            echo "⚠️ Build completed with warnings!"
-        }
-
-        cleanup {
-            // Final cleanup
-            cleanWs()
+        failure {
+            script {
+                echo "❌ Core OpenCRVS pipeline failed"
+                echo "📋 Build Details:"
+                echo "  Services: ${env.SERVICES_TO_BUILD ?: 'none'}"
+                echo "  Build Reason: ${env.BUILD_REASON}"
+                echo "Check the logs above for error details"
+            }
         }
     }
 }

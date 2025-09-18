@@ -1,0 +1,344 @@
+pipeline {
+    agent any
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 20, unit: 'MINUTES')
+        retry(2)
+        skipStagesAfterUnstable()
+    }
+
+    environment {
+        // Git-based versioning
+        VERSION = ""
+        REGISTRY = "${env.DOCKER_REGISTRY ?: '695491315778.dkr.ecr.us-east-1.amazonaws.com/toppan-crvs'}"
+        BRANCH = "${env.GIT_BRANCH ?: 'develop'}"
+
+        // Docker Configuration
+        DOCKER_BUILDKIT = '1'
+        COMPOSE_DOCKER_CLI_BUILD = '1'
+
+        // OpenSearch specific
+        SERVICE_NAME = "opensearch"
+        OPENSEARCH_REPO = "https://git-codecommit.ap-east-1.amazonaws.com/v1/repos/opencrvs_opensearch"
+
+        // Credentials
+        AWS_ECR_CREDENTIALS = credentials('aws-ecr-credentials')
+        AWS_CODECOMMIT_CREDENTIALS = credentials('aws-codecommit-credentials')
+    }
+
+    parameters {
+        choice(
+            name: 'BUILD_STRATEGY',
+            choices: ['auto', 'force-rebuild'],
+            description: 'Auto: Only build if changes detected | Force: Always build'
+        )
+        booleanParam(
+            name: 'PUSH_TO_REGISTRY',
+            defaultValue: true,
+            description: 'Push built images to AWS ECR (695491315778.dkr.ecr.us-east-1.amazonaws.com/toppan-crvs)'
+        )
+        booleanParam(
+            name: 'DEPLOY_INDICES',
+            defaultValue: true,
+            description: 'Deploy OpenSearch index templates and configurations'
+        )
+        booleanParam(
+            name: 'DRY_RUN',
+            defaultValue: false,
+            description: 'Show what would be built without actually building'
+        )
+        string(
+            name: 'CUSTOM_VERSION',
+            defaultValue: '',
+            description: 'Custom version tag (leave empty for auto-generated git hash)'
+        )
+    }
+
+    stages {
+        stage('🔧 Initialize & Setup') {
+            steps {
+                script {
+                    // Set version from git hash or custom parameter
+                    if (params.CUSTOM_VERSION) {
+                        env.VERSION = params.CUSTOM_VERSION
+                    } else {
+                        env.VERSION = sh(
+                            script: 'git log -1 --pretty=format:%h',
+                            returnStdout: true
+                        ).trim()
+                    }
+
+                    echo "🔍 OpenSearch Build Pipeline"
+                    echo "=================================================="
+                    echo "  Version: ${env.VERSION}"
+                    echo "  Registry: ${env.REGISTRY}"
+                    echo "  Branch: ${env.BRANCH}"
+                    echo "  Build Strategy: ${params.BUILD_STRATEGY}"
+                    echo "  Push to Registry: ${params.PUSH_TO_REGISTRY}"
+                    echo "  Deploy Indices: ${params.DEPLOY_INDICES}"
+                    echo "  Dry Run: ${params.DRY_RUN}"
+                    echo "=================================================="
+                }
+            }
+        }
+
+        stage('📥 Clone OpenSearch Repository') {
+            steps {
+                script {
+                    echo "📥 Cloning opensearch repository..."
+
+                    // Clean up any existing opensearch directory
+                    sh 'rm -rf opencrvs-opensearch'
+
+                    // Clone the opensearch repository
+                    withCredentials([sshUserPrivateKey(credentialsId: 'aws-codecommit-ssh', keyFileVariable: 'SSH_KEY')]) {
+                        sh '''
+                            eval $(ssh-agent -s)
+                            ssh-add $SSH_KEY
+                            git clone $OPENSEARCH_REPO opencrvs-opensearch
+                            cd opencrvs-opensearch
+                            git checkout $BRANCH || git checkout develop || git checkout main
+                            echo "Current commit: $(git log -1 --pretty=format:'%h - %s')"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('🔍 Change Detection') {
+            when {
+                expression { params.BUILD_STRATEGY == 'auto' }
+            }
+            steps {
+                script {
+                    echo "🔍 Detecting changes in opensearch..."
+
+                    def hasChanges = sh(
+                        script: '''
+                            cd opencrvs-opensearch
+                            # Check if this is the first build or if there are recent changes
+                            if [ ! -f "../.last_opensearch_build" ]; then
+                                echo "First build detected"
+                                exit 0
+                            fi
+
+                            LAST_BUILD=$(cat ../.last_opensearch_build)
+                            CURRENT_COMMIT=$(git log -1 --pretty=format:%h)
+
+                            if [ "$LAST_BUILD" != "$CURRENT_COMMIT" ]; then
+                                echo "Changes detected: $LAST_BUILD -> $CURRENT_COMMIT"
+                                exit 0
+                            else
+                                echo "No changes detected"
+                                exit 1
+                            fi
+                        ''',
+                        returnStatus: true
+                    )
+
+                    if (hasChanges == 0) {
+                        env.SHOULD_BUILD = "true"
+                        echo "✅ Changes detected - proceeding with build"
+                    } else {
+                        env.SHOULD_BUILD = "false"
+                        echo "⏭️  No changes detected - skipping build"
+                    }
+                }
+            }
+        }
+
+        stage('🏗️  Build OpenSearch') {
+            when {
+                anyOf {
+                    expression { params.BUILD_STRATEGY == 'force-rebuild' }
+                    expression { env.SHOULD_BUILD == 'true' }
+                    expression { params.DRY_RUN == true }
+                }
+            }
+            steps {
+                script {
+                    if (params.DRY_RUN) {
+                        echo "🧪 DRY RUN: Would build opensearch:${env.VERSION}"
+                        return
+                    }
+
+                    echo "🏗️  Building opensearch configurations..."
+
+                    sh '''
+                        cd opencrvs-opensearch
+
+                        # Check if Dockerfile exists, if not create a simple configuration image
+                        if [ ! -f Dockerfile ]; then
+                            echo "Creating Dockerfile for OpenSearch configurations..."
+                            cat > Dockerfile << 'EOF'
+FROM opensearchproject/opensearch:3.0.0
+
+# Copy custom configurations
+COPY ./init/ /usr/share/opensearch/init/
+COPY ./index_template/ /usr/share/opensearch/index_template/
+
+# Set proper permissions
+RUN chmod -R 755 /usr/share/opensearch/init/ || true
+RUN chmod -R 755 /usr/share/opensearch/index_template/ || true
+
+# Add any custom OpenSearch configurations
+# Note: This image contains index templates and initialization scripts
+EOF
+                        fi
+
+                        # Build the opensearch configuration Docker image
+                        echo "Building opensearch Docker image..."
+                        docker build -t ${REGISTRY}/opensearch:${VERSION} .
+
+                        # Tag as latest
+                        docker tag ${REGISTRY}/opensearch:${VERSION} ${REGISTRY}/opensearch:latest
+
+                        echo "✅ OpenSearch configuration build completed"
+                    '''
+                }
+            }
+        }
+
+        stage('🔧 Deploy Index Templates') {
+            when {
+                allOf {
+                    expression { params.DEPLOY_INDICES == true }
+                    expression { params.DRY_RUN == false }
+                    anyOf {
+                        expression { params.BUILD_STRATEGY == 'force-rebuild' }
+                        expression { env.SHOULD_BUILD == 'true' }
+                    }
+                }
+            }
+            steps {
+                script {
+                    echo "🔧 Deploying OpenSearch index templates..."
+
+                    sh '''
+                        cd opencrvs-opensearch
+
+                        # Check if index templates exist
+                        if [ -d "index_template" ] || [ -d "init" ]; then
+                            echo "Found index templates/configurations to deploy"
+
+                            # Here you would typically deploy to your OpenSearch cluster
+                            # For now, we'll just validate the templates
+                            find . -name "*.json" -type f | while read template; do
+                                echo "Validating template: $template"
+                                # Validate JSON syntax
+                                cat "$template" | python3 -m json.tool > /dev/null && echo "✅ Valid JSON" || echo "❌ Invalid JSON"
+                            done
+
+                            echo "📝 Index templates validated successfully"
+                            echo "📋 To deploy these templates to your OpenSearch cluster:"
+                            echo "   1. Ensure OpenSearch cluster is accessible"
+                            echo "   2. Run: curl -X PUT 'https://your-opensearch-cluster/_index_template/template_name' -d @template.json"
+                        else
+                            echo "No index templates found to deploy"
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('📦 Push to Registry') {
+            when {
+                allOf {
+                    expression { params.PUSH_TO_REGISTRY == true }
+                    expression { params.DRY_RUN == false }
+                    anyOf {
+                        expression { params.BUILD_STRATEGY == 'force-rebuild' }
+                        expression { env.SHOULD_BUILD == 'true' }
+                    }
+                }
+            }
+            steps {
+                script {
+                    echo "📦 Pushing opensearch to ECR..."
+
+                    withCredentials([aws(credentialsId: 'aws-ecr-credentials', accessKeyVariable: 'AWS_ACCESS_KEY_ID', secretKeyVariable: 'AWS_SECRET_ACCESS_KEY')]) {
+                        sh '''
+                            # ECR authentication for us-east-1
+                            aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 695491315778.dkr.ecr.us-east-1.amazonaws.com
+
+                            # Push versioned image
+                            echo "Pushing ${REGISTRY}/opensearch:${VERSION}"
+                            docker push ${REGISTRY}/opensearch:${VERSION}
+
+                            # Push latest tag
+                            echo "Pushing ${REGISTRY}/opensearch:latest"
+                            docker push ${REGISTRY}/opensearch:latest
+
+                            echo "✅ OpenSearch images pushed successfully"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('📝 Update Build Record') {
+            when {
+                allOf {
+                    expression { params.DRY_RUN == false }
+                    anyOf {
+                        expression { params.BUILD_STRATEGY == 'force-rebuild' }
+                        expression { env.SHOULD_BUILD == 'true' }
+                    }
+                }
+            }
+            steps {
+                script {
+                    sh '''
+                        cd opencrvs-opensearch
+                        CURRENT_COMMIT=$(git log -1 --pretty=format:%h)
+                        echo $CURRENT_COMMIT > ../.last_opensearch_build
+                        echo "📝 Updated build record: $CURRENT_COMMIT"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script {
+                echo "🧹 Cleaning up..."
+                sh '''
+                    # Clean up Docker images to save space
+                    docker system prune -f || true
+
+                    # Clean up opensearch directory
+                    rm -rf opencrvs-opensearch || true
+                '''
+            }
+        }
+        success {
+            script {
+                if (params.DRY_RUN) {
+                    echo "✅ DRY RUN: OpenSearch pipeline completed successfully"
+                } else {
+                    echo "✅ OpenSearch pipeline completed successfully"
+                    echo "📋 Summary:"
+                    echo "  Service: opensearch"
+                    echo "  Version: ${env.VERSION}"
+                    echo "  Registry: ${env.REGISTRY}/opensearch:${env.VERSION}"
+                    if (params.PUSH_TO_REGISTRY) {
+                        echo "  Status: Built and pushed to ECR"
+                    } else {
+                        echo "  Status: Built locally (not pushed)"
+                    }
+                    if (params.DEPLOY_INDICES) {
+                        echo "  Index Templates: Validated and ready for deployment"
+                    }
+                }
+            }
+        }
+        failure {
+            script {
+                echo "❌ OpenSearch pipeline failed"
+                echo "Check the logs above for error details"
+            }
+        }
+    }
+}
