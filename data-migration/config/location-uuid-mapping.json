@@ -1,0 +1,124 @@
+{
+  "parishes": {
+    "Ibombo": {
+      "uuid": "7935c2d5-35bc-494f-858a-20079c3579f8",
+      "name": "Ibombo",
+      "pcode": "ADMIN_STRUCTURE_oEBf29y8JP8",
+      "parentRef": "Location/b8c5ff04-0acd-4730-a327-2499e49baf12"
+    },
+    "Ilanga": {
+      "uuid": "37b4bc5b-b8c7-46f3-848e-9179c2d52793",
+      "name": "Ilanga",
+      "pcode": "ADMIN_STRUCTURE_HPGiE9Jjh2r",
+      "parentRef": "Location/b531d156-da54-4205-9020-5630079d284e"
+    },
+    "Embe": {
+      "uuid": "c43cd98e-5b2e-4a68-9b55-96383fceecad",
+      "name": "Embe",
+      "pcode": "ADMIN_STRUCTURE_BxrIbNW7f3K",
+      "parentRef": "Location/bb83287b-7d64-4e00-a9d6-9bf8960237e4"
+    },
+    "Ama": {
+      "uuid": "9967b0a6-e69f-4dca-ac17-36607374acb1",
+      "name": "Ama",
+      "pcode": "ADMIN_STRUCTURE_SQT8xjbvWwf",
+      "parentRef": "Location/935c515a-e42e-44ca-9541-54902a923f6e"
+    },
+    "Isamba": {
+      "uuid": "fba43ad7-cc63-440c-b509-dfa8aac5c013",
+      "name": "Isamba",
+      "pcode": "ADMIN_STRUCTURE_ntoX1PkiWri",
+      "parentRef": "Location/b8c5ff04-0acd-4730-a327-2499e49baf12"
+    },
+    "Irundu": {
+      "uuid": "aceb440e-4f6f-42d4-950e-bad4a8e196cc",
+      "name": "Irundu",
+      "pcode": "ADMIN_STRUCTURE_SvFNQpplnch",
+      "parentRef": "Location/b531d156-da54-4205-9020-5630079d284e"
+    },
+    "Ienge": {
+      "uuid": "b9179771-b947-4716-a1d9-ea2e41054562",
+      "name": "Ienge",
+      "pcode": "ADMIN_STRUCTURE_NLjvK1QsrN3",
+      "parentRef": "Location/bb83287b-7d64-4e00-a9d6-9bf8960237e4"
+    },
+    "Nsali": {
+      "uuid": "2986fe4f-f226-44a5-828c-0a65c1865a1a",
+      "name": "Nsali",
+      "pcode": "ADMIN_STRUCTURE_hywxVKv48Xp",
+      "parentRef": "Location/935c515a-e42e-44ca-9541-54902a923f6e"
+    },
+    "Itambo": {
+      "uuid": "f147e879-89e9-48e2-bf7f-84632c0d31df",
+      "name": "Itambo",
+      "pcode": "ADMIN_STRUCTURE_QTtxiWj8ONP",
+      "parentRef": "Location/b8c5ff04-0acd-4730-a327-2499e49baf12"
+    },
+    "Zobwe": {
+      "uuid": "c42d0b16-90a5-438b-9c54-367333456997",
+      "name": "Zobwe",
+      "pcode": "ADMIN_STRUCTURE_Oapn6R4rt3D",
+      "parentRef": "Location/b531d156-da54-4205-9020-5630079d284e"
+    },
+    "Funabuli": {
+      "uuid": "c0fe94e3-64f8-45a7-a119-7641317f2ce9",
+      "name": "Funabuli",
+      "pcode": "ADMIN_STRUCTURE_idR0pJWLqcR",
+      "parentRef": "Location/bb83287b-7d64-4e00-a9d6-9bf8960237e4"
+    },
+    "Soka": {
+      "uuid": "85d4f54c-9691-48c6-9c48-8763bae57336",
+      "name": "Soka",
+      "pcode": "ADMIN_STRUCTURE_jCJxK8sFH40",
+      "parentRef": "Location/935c515a-e42e-44ca-9541-54902a923f6e"
+    },
+    "Ezhi": {
+      "uuid": "fc751b1f-4b33-45b5-b369-c441333ca886",
+      "name": "Ezhi",
+      "pcode": "ADMIN_STRUCTURE_ydyJb1RAy4U",
+      "parentRef": "Location/b8c5ff04-0acd-4730-a327-2499e49baf12"
+    },
+    "Afue": {
+      "uuid": "c55a8cfa-1a4d-4326-9c84-63c8d77514f2",
+      "name": "Afue",
+      "pcode": "ADMIN_STRUCTURE_nO68NTtcdw2",
+      "parentRef": "Location/b531d156-da54-4205-9020-5630079d284e"
+    },
+    "Pili": {
+      "uuid": "23f2682d-4869-473e-8973-11f175bfafb8",
+      "name": "Pili",
+      "pcode": "ADMIN_STRUCTURE_FuvOOwvBw0p",
+      "parentRef": "Location/bb83287b-7d64-4e00-a9d6-9bf8960237e4"
+    },
+    "Chibiya": {
+      "uuid": "38a9c544-411b-4461-a665-2d4a2d03c000",
+      "name": "Chibiya",
+      "pcode": "ADMIN_STRUCTURE_R22tRIhdm5Y",
+      "parentRef": "Location/935c515a-e42e-44ca-9541-54902a923f6e"
+    }
+  },
+  "states": {
+    "Central": {
+      "uuid": "b8c5ff04-0acd-4730-a327-2499e49baf12",
+      "name": "Central",
+      "pcode": "ADMIN_STRUCTURE_AWn3s2RqgAN"
+    },
+    "Sulaka": {
+      "uuid": "b531d156-da54-4205-9020-5630079d284e",
+      "name": "Sulaka",
+      "pcode": "ADMIN_STRUCTURE_KozcEjeTyuD"
+    },
+    "Pualula": {
+      "uuid": "bb83287b-7d64-4e00-a9d6-9bf8960237e4",
+      "name": "Pualula",
+      "pcode": "ADMIN_STRUCTURE_B1u1bVtIA92"
+    },
+    "Chuminga": {
+      "uuid": "935c515a-e42e-44ca-9541-54902a923f6e",
+      "name": "Chuminga",
+      "pcode": "ADMIN_STRUCTURE_dbTLdTi7s8F"
+    }
+  },
+  "country": null,
+  "generatedAt": "2025-09-19T11:20:33.145Z"
+}

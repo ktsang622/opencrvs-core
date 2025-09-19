@@ -29,6 +29,7 @@ packages/*/dist/
 .idea/*
 .vim
 data
+data-atg
 grafana
 
 .vscode/launch.json
