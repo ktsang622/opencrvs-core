@@ -64,11 +64,63 @@ fi
 
 if $services; then
   yarn dev:secrets:gen
+
+  echo
+  openCRVSPorts=( 3447 9200 27017 6379 8086 4444 3040 5050 2020 7070 9090 1050 3030 3000 3020 2525 2021 3535 3536 9050 9998 3888 3889)
+  for x in "${openCRVSPorts[@]}"
+  do
+     :
+      if lsof -nP -iTCP:$x -sTCP:LISTEN -iUDP:$x >/dev/null; then
+        echo -e "OpenCRVS thinks that port: $x is in use by another application.\r"
+        echo "You need to find out which application is using this port and quit the application."
+        echo "You can find out the application by running:"
+        echo "lsof -nP -iTCP:$x -sTCP:LISTEN -iUDP:$x"
+        exit 1
+      else
+          echo -e "$x \033[32m port is available!\033[0m :)"
+      fi
+  done
+
+  echo "Waiting for dependencies to be ready..."
+  wait-on tcp:27017 tcp:6379 tcp:9200 tcp:3447 tcp:8086 tcp:5432 tcp:19200
+  echo "Dependencies ready. Starting OpenCRVS services..."
   yarn run start2
   exit 0
 fi
 
 yarn dev:secrets:gen
-concurrently \
-  "yarn run start2" \
-  "yarn compose:deps-atg"
+
+echo
+echo -e "\033[32m:::::::::: Stopping any currently running Docker containers ::::::::::\033[0m"
+echo
+if [[ $(docker ps -aq) ]] ; then
+  docker stop $(docker ps -aq)
+  sleep 5
+fi
+
+echo
+openCRVSPorts=( 3447 9200 27017 6379 8086 4444 3040 5050 2020 7070 9090 1050 3030 3000 3020 2525 2021 3535 3536 9050 9998 3888 3889 5555 19200 19600 5432)
+for x in "${openCRVSPorts[@]}"
+do
+   :
+    if lsof -nP -iTCP:$x -sTCP:LISTEN -iUDP:$x >/dev/null; then
+      echo -e "OpenCRVS thinks that port: $x is in use by another application.\r"
+      echo "You need to find out which application is using this port and quit the application."
+      echo "You can find out the application by running:"
+      echo "lsof -nP -iTCP:$x -sTCP:LISTEN -iUDP:$x"
+      exit 1
+    else
+        echo -e "$x \033[32m port is available!\033[0m :)"
+    fi
+done
+
+echo
+echo -e "\033[32m:::::::::: STARTING OPENCRVS ATG ::::::::::\033[0m"
+echo "Starting dependencies..."
+yarn compose:deps-atg &
+
+echo "Waiting for dependencies to be ready..."
+wait-on tcp:27017 tcp:6379 tcp:9200 tcp:3447 tcp:8086 tcp:5432 tcp:19200
+
+echo "Dependencies ready. Starting OpenCRVS services..."
+yarn run start2

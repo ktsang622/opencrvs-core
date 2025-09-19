@@ -13,6 +13,7 @@ services:
       - '6379:6379'
 
   elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.16.4
     ports:
       - '9200:9200'
       - '9300:9300'
@@ -79,6 +80,7 @@ services:
       - plugins.security.disabled=true
       - bootstrap.memory_lock=true
       - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=WelcomeDemo1.23@
     volumes:
       - opensearch_data_atg:/usr/share/opensearch/data
       - '../opensearch/init:/init'
