@@ -11,6 +11,9 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+export COMPOSE_ENV_FILE
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -285,12 +288,12 @@ echo "  • OpenSearch:          http://localhost:19200"
 echo "  • OpenSearch Dash:     http://localhost:5601"
 echo ""
 echo -e "${BLUE}💡 Management Commands:${NC}"
-echo "  • View logs:           docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f [service]"
-echo "  • Stop everything:     docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml down"
+echo "  • View logs:           docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f [service]"
+echo "  • Stop everything:     docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs -f toppan-deps.yml -f toppan-base.yml down"
 echo "  • Stop external:       cd $OPENSEARCH_DIR && docker compose down"
-echo "  • Scale service:       docker compose -p opencrvs -f toppan-base.yml up -d --scale [service]=N"
+echo "  • Scale service:       docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs -f toppan-base.yml up -d --scale [service]=N"
 echo "  • Clear database:      ./scripts/clear-db.sh --all"
-echo "  • Migration logs:      docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f migration"
+echo "  • Migration logs:      docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f migration"
 echo ""
 echo -e "${GREEN}🚀 Ready for development!${NC}"
 

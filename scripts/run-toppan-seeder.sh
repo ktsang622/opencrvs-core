@@ -11,6 +11,8 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+
 echo "🌱 Running OpenCRVS Data Seeder..."
 
 # Set defaults
@@ -23,7 +25,7 @@ export GATEWAY_HOST=http://localhost:7070
 export COUNTRY_CONFIG_HOST=http://localhost:3040
 
 # Run the data seeder independently without affecting existing services
-docker compose -p opencrvs-seeder \
+docker compose --env-file "$COMPOSE_ENV_FILE" -p opencrvs-seeder \
   -f toppan-seeder.yml \
   --profile seeder \
   run --rm data-seeder

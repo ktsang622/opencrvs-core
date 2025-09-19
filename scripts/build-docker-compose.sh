@@ -11,6 +11,12 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+
+docker_compose() {
+  docker compose --env-file "$COMPOSE_ENV_FILE" "$@"
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -39,7 +45,7 @@ while [[ $# -gt 0 ]]; do
     --status|-s)
       echo -e "${BLUE}🔍 Checking Docker Compose build status...${NC}"
       echo ""
-      docker compose $BUILD_COMPOSE config --services
+      docker_compose $BUILD_COMPOSE config --services
       echo ""
       echo -e "${BLUE}Current images:${NC}"
       docker images | grep -E "(${REGISTRY}|opencrvs)" | head -20
@@ -239,10 +245,10 @@ build_external_services() {
     if [ ${#services_to_include[@]} -gt 0 ]; then
         echo -e "${BLUE}External services to build: ${services_to_include[*]}${NC}"
         echo -e "${BLUE}🔨 Docker Compose build command:${NC}"
-        echo "docker compose $EXTERNAL_COMPOSE build $ALL_BUILD_ARGS ${services_to_include[*]}"
+        echo "docker compose --env-file $COMPOSE_ENV_FILE $EXTERNAL_COMPOSE build $ALL_BUILD_ARGS ${services_to_include[*]}"
         echo ""
 
-        docker compose $EXTERNAL_COMPOSE build $ALL_BUILD_ARGS "${services_to_include[@]}"
+        docker_compose $EXTERNAL_COMPOSE build $ALL_BUILD_ARGS "${services_to_include[@]}"
 
         if [ $? -eq 0 ]; then
             # Tag external services with latest
@@ -264,7 +270,7 @@ tag_services_with_latest() {
 
     # If no specific services provided, get all services except base
     if [ ${#services_to_tag[@]} -eq 0 ]; then
-        services_to_tag=($(docker compose $BUILD_COMPOSE config --services | grep -v "^base$"))
+        services_to_tag=($(docker_compose $BUILD_COMPOSE config --services | grep -v "^base$"))
     fi
 
     for service in "${services_to_tag[@]}"; do
@@ -314,10 +320,10 @@ build_base_image() {
     echo ""
 
     echo -e "${BLUE}🔨 Docker Compose build command:${NC}"
-    echo "docker compose $BUILD_COMPOSE build $ALL_BUILD_ARGS base"
+    echo "docker compose --env-file $COMPOSE_ENV_FILE $BUILD_COMPOSE build $ALL_BUILD_ARGS base"
     echo ""
 
-    docker compose $BUILD_COMPOSE build $ALL_BUILD_ARGS base
+    docker_compose $BUILD_COMPOSE build $ALL_BUILD_ARGS base
 
     if [ $? -eq 0 ]; then
         # Tag with latest
@@ -344,7 +350,7 @@ build_core_services() {
         echo -e "${BLUE}Selected services: ${services_list[*]}${NC}"
     else
         # Get all services except base
-        services_list=($(docker compose $BUILD_COMPOSE config --services | grep -v "^base$"))
+        services_list=($(docker_compose $BUILD_COMPOSE config --services | grep -v "^base$"))
         echo -e "${BLUE}Building all core services: ${services_list[*]}${NC}"
     fi
 
@@ -360,7 +366,7 @@ build_core_services() {
         local build_result=0
         for service in "${services_list[@]}"; do
             echo -e "${YELLOW}Building $service...${NC}"
-            docker compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "$service"
+            docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "$service"
             if [ $? -ne 0 ]; then
                 build_result=1
                 break
@@ -378,7 +384,7 @@ build_core_services() {
 
             if [ $count -eq "$MAX_PARALLEL" ] || [ $service = "${services_list[-1]}" ]; then
                 echo -e "${YELLOW}Building batch: ${batch[*]}${NC}"
-                docker compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${batch[@]}"
+                docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${batch[@]}"
                 if [ $? -ne 0 ]; then
                     build_result=1
                     break
@@ -391,9 +397,9 @@ build_core_services() {
         done
     else
         echo -e "${BLUE}🔨 Building all services in parallel...${NC}"
-        echo "docker compose -f $dynamic_compose_file build $ALL_BUILD_ARGS ${services_list[*]}"
+        echo "docker compose --env-file $COMPOSE_ENV_FILE -f $dynamic_compose_file build $ALL_BUILD_ARGS ${services_list[*]}"
         echo ""
-        docker compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${services_list[@]}"
+        docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${services_list[@]}"
         local build_result=$?
     fi
 
@@ -418,7 +424,7 @@ if [ ${#SERVICES[@]} -gt 0 ]; then
     echo ""
 
     # Validate services exist in compose file
-    AVAILABLE_SERVICES=$(docker compose $BUILD_COMPOSE config --services)
+    AVAILABLE_SERVICES=$(docker_compose $BUILD_COMPOSE config --services)
     CORE_SERVICES=()
     EXTERNAL_SERVICES=()
     EXTERNAL_SERVICE_LIST=("countryconfig" "opensearch" "toppan-data-seeder")
@@ -502,9 +508,9 @@ if [ $? -eq 0 ]; then
 
     echo ""
     echo -e "${YELLOW}💡 Useful commands:${NC}"
-    echo "List all built services:  docker compose $BUILD_COMPOSE config --services"
+    echo "List all built services:  docker compose --env-file $COMPOSE_ENV_FILE $BUILD_COMPOSE config --services"
     echo "Start services:           ./scripts/start-docker.sh"
-    echo "View service logs:        docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f [service]"
+    echo "View service logs:        docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs -f toppan-deps.yml -f toppan-base.yml logs -f [service]"
     echo "Clean up:                 docker image prune"
 
 else
@@ -512,8 +518,8 @@ else
     echo -e "${RED}❌ Build failed${NC}"
     echo ""
     echo -e "${YELLOW}🔍 Troubleshooting:${NC}"
-    echo "Check service config:     docker compose $BUILD_COMPOSE config"
-    echo "View available services:  docker compose $BUILD_COMPOSE config --services"
+    echo "Check service config:     docker compose --env-file $COMPOSE_ENV_FILE $BUILD_COMPOSE config"
+    echo "View available services:  docker compose --env-file $COMPOSE_ENV_FILE $BUILD_COMPOSE config --services"
     echo "Check Dockerfiles exist:  ls packages/*/Dockerfile"
     exit 1
 fi

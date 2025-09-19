@@ -11,6 +11,12 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+
+docker_compose() {
+  docker compose --env-file "$COMPOSE_ENV_FILE" "$@"
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -61,7 +67,7 @@ echo -e "${YELLOW}🔽 Step 1: Stopping OpenCRVS core services...${NC}"
 echo -e "${BLUE}Directory: $(pwd)${NC}"
 
 echo -e "${BLUE}🔨 Stopping OpenCRVS services...${NC}"
-docker compose -p opencrvs -f docker-compose.deps.yml -f toppan-base.yml -f toppan-override.yml down
+docker_compose -p opencrvs -f docker-compose.deps.yml -f toppan-base.yml -f toppan-override.yml down
 
 echo -e "${GREEN}✅ OpenCRVS core services stopped${NC}"
 

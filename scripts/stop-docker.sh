@@ -11,6 +11,12 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+
+docker_compose() {
+  docker compose --env-file "$COMPOSE_ENV_FILE" "$@"
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -110,19 +116,19 @@ fi
 # Stop services
 echo -e "${BLUE}🔨 Docker Compose command:${NC}"
 if [ -n "$STOP_SERVICES" ]; then
-    echo "docker compose -p opencrvs $COMPOSE_FILES stop $STOP_SERVICES"
+    echo "docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES stop $STOP_SERVICES"
     echo ""
-    docker compose -p opencrvs $COMPOSE_FILES stop $STOP_SERVICES
+    docker_compose -p opencrvs $COMPOSE_FILES stop $STOP_SERVICES
 
     if [ "$SERVICES_ONLY" = true ]; then
         echo ""
         echo -e "${BLUE}🗑️  Removing stopped service containers...${NC}"
-        docker compose -p opencrvs $COMPOSE_FILES rm -f $STOP_SERVICES
+        docker_compose -p opencrvs $COMPOSE_FILES rm -f $STOP_SERVICES
     fi
 else
-    echo "docker compose -p opencrvs $COMPOSE_FILES down"
+    echo "docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES down"
     echo ""
-    docker compose -p opencrvs $COMPOSE_FILES down
+    docker_compose -p opencrvs $COMPOSE_FILES down
 fi
 
 if [ $? -eq 0 ]; then
@@ -149,7 +155,7 @@ if [ $? -eq 0 ]; then
 
     echo ""
     echo -e "${BLUE}💡 Useful commands:${NC}"
-    echo "View remaining containers: docker compose -p opencrvs $COMPOSE_FILES ps"
+    echo "View remaining containers: docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES ps"
     if [ "$SERVICES_ONLY" = true ]; then
         echo "Restart services:          ./scripts/start-docker.sh --services-only"
     elif [ "$DEPS_ONLY" = true ]; then

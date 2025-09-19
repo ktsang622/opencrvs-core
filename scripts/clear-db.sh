@@ -11,6 +11,12 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+
+docker_compose() {
+    docker compose --env-file "$COMPOSE_ENV_FILE" "$@"
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -152,7 +158,7 @@ if [ "$CLEAR_VOLUMES" = true ]; then
     confirm_action "This will stop all services and remove all Docker volumes (complete data loss)"
 
     echo -e "${YELLOW}🛑 Stopping OpenCRVS core services and removing volumes...${NC}"
-    docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml down -v 2>/dev/null || true
+    docker_compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml down -v 2>/dev/null || true
 
     if [ -d "$OPENSEARCH_DIR" ]; then
         echo -e "${YELLOW}🛑 Stopping external services and removing volumes...${NC}"
@@ -270,7 +276,7 @@ if [ "$RUN_MIGRATIONS" = true ]; then
     if [ "$services_running" = true ]; then
         # Restart migration service to trigger migrations
         echo -e "${BLUE}🔨 Restarting migration service to run migrations...${NC}"
-        docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml restart migration 2>/dev/null || \
+        docker_compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml restart migration 2>/dev/null || \
         {
             echo -e "${YELLOW}⚠️  Docker migration restart failed, trying local yarn command...${NC}"
             # Fallback to local yarn command
@@ -286,7 +292,7 @@ if [ "$RUN_MIGRATIONS" = true ]; then
     else
         echo -e "${RED}❌ Cannot run migrations - required services are not running${NC}"
         echo -e "${BLUE}💡 Start services first, then restart migration:${NC}"
-        echo "   docker compose -p opencrvs -f toppan-deps.yml -f toppan-base.yml restart migration"
+        echo "   docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs -f toppan-deps.yml -f toppan-base.yml restart migration"
     fi
 fi
 

@@ -11,6 +11,12 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+
+docker_compose() {
+  docker compose --env-file "$COMPOSE_ENV_FILE" "$@"
+}
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -129,14 +135,14 @@ if [ "$SERVICES_ONLY" = true ]; then
     # Only start OpenCRVS core services, not dependencies
     CORE_SERVICES="config auth user-mgnt notification search metrics documents workflow gateway webhooks events client login countryconfig migration toppan toppan-service toppan-ui"
     echo -e "${BLUE}🔨 Docker Compose command:${NC}"
-    echo "docker compose -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES"
+    echo "docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES"
     echo ""
-    docker compose -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES
+    docker_compose -p opencrvs $COMPOSE_FILES up -d $CORE_SERVICES
 else
     echo -e "${BLUE}🔨 Docker Compose command:${NC}"
-    echo "docker compose -p opencrvs $COMPOSE_FILES up -d"
+    echo "docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES up -d"
     echo ""
-    docker compose -p opencrvs $COMPOSE_FILES up -d
+    docker_compose -p opencrvs $COMPOSE_FILES up -d
 fi
 
 if [ $? -eq 0 ]; then
@@ -168,20 +174,20 @@ if [ $? -eq 0 ]; then
 
     echo ""
     echo -e "${BLUE}📊 Container Status:${NC}"
-    docker compose -p opencrvs $COMPOSE_FILES ps
+    docker_compose -p opencrvs $COMPOSE_FILES ps
 
     echo ""
     echo -e "${YELLOW}💡 Useful commands:${NC}"
-    echo "View logs:        docker compose -p opencrvs $COMPOSE_FILES logs -f [service-name]"
-    echo "Stop services:    docker compose -p opencrvs $COMPOSE_FILES down"
-    echo "Restart service:  docker compose -p opencrvs $COMPOSE_FILES restart [service-name]"
-    echo "Scale service:    docker compose -p opencrvs $COMPOSE_FILES up -d --scale [service-name]=N"
+    echo "View logs:        docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES logs -f [service-name]"
+    echo "Stop services:    docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES down"
+    echo "Restart service:  docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES restart [service-name]"
+    echo "Scale service:    docker compose --env-file $COMPOSE_ENV_FILE -p opencrvs $COMPOSE_FILES up -d --scale [service-name]=N"
 
 else
     echo -e "${RED}❌ Failed to start OpenCRVS${NC}"
     echo ""
     echo -e "${YELLOW}Checking logs...${NC}"
-    docker compose -p opencrvs $COMPOSE_FILES logs --tail=20
+    docker_compose -p opencrvs $COMPOSE_FILES logs --tail=20
     exit 1
 fi
 

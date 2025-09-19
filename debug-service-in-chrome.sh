@@ -21,6 +21,7 @@ SERVICES=(
   "user-mgnt:3030"
   "webhooks:2525"
   "countryconfig:3040"
+  "toppan-service:3888"
 )
 
 # ANSI color codes

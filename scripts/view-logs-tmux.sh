@@ -11,6 +11,9 @@
 
 set -e
 
+COMPOSE_ENV_FILE=${COMPOSE_ENV_FILE:-docker.env}
+COMPOSE_WITH_ENV="docker compose --env-file $COMPOSE_ENV_FILE"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -319,9 +322,9 @@ suggest_recovery() {
         if [ $missing_count -eq $total_count ]; then
             echo "   • Start all services: ./scripts/start-complete-stack.sh"
         else
-            echo "   • Start missing services: docker compose -p $COMPOSE_PROJECT $COMPOSE_FILES up -d [service-name]"
-            echo "   • Restart all services: docker compose -p $COMPOSE_PROJECT $COMPOSE_FILES restart"
-            echo "   • Check service status: docker compose -p $COMPOSE_PROJECT ps"
+            echo "   • Start missing services: $COMPOSE_WITH_ENV -p $COMPOSE_PROJECT $COMPOSE_FILES up -d [service-name]"
+            echo "   • Restart all services: $COMPOSE_WITH_ENV -p $COMPOSE_PROJECT $COMPOSE_FILES restart"
+            echo "   • Check service status: $COMPOSE_WITH_ENV -p $COMPOSE_PROJECT ps"
         fi
         echo ""
 
@@ -424,7 +427,7 @@ create_service_group_tab() {
         # External services use different compose project
         tmux send-keys -t "$window_name" "cd $EXTERNAL_DIR && docker compose logs -f --tail $TAIL_LINES $first_service 2>/dev/null || echo 'Service $first_service not available'" C-m
     else
-        tmux send-keys -t "$window_name" "docker compose -p $COMPOSE_PROJECT $COMPOSE_FILES logs -f --tail $TAIL_LINES $first_service 2>/dev/null || echo 'Service $first_service not available'" C-m
+        tmux send-keys -t "$window_name" "$COMPOSE_WITH_ENV -p $COMPOSE_PROJECT $COMPOSE_FILES logs -f --tail $TAIL_LINES $first_service 2>/dev/null || echo 'Service $first_service not available'" C-m
     fi
 
     # Add remaining services in split panes
@@ -447,7 +450,7 @@ create_service_group_tab() {
         if [ "$group_name" = "external" ]; then
             tmux send-keys -t "$window_name" "cd $EXTERNAL_DIR && docker compose logs -f --tail $TAIL_LINES $service 2>/dev/null || echo 'Service $service not available'" C-m
         else
-            tmux send-keys -t "$window_name" "docker compose -p $COMPOSE_PROJECT $COMPOSE_FILES logs -f --tail $TAIL_LINES $service 2>/dev/null || echo 'Service $service not available'" C-m
+            tmux send-keys -t "$window_name" "$COMPOSE_WITH_ENV -p $COMPOSE_PROJECT $COMPOSE_FILES logs -f --tail $TAIL_LINES $service 2>/dev/null || echo 'Service $service not available'" C-m
         fi
 
         # Balance the layout every few panes
@@ -495,9 +498,9 @@ if [ -z "$FILTER_GROUP" ]; then
     tmux send-keys -t "$TMUX_SESSION:control" "echo 'OpenCRVS Log Viewer Control Panel'" C-m
     tmux send-keys -t "$TMUX_SESSION:control" "echo ''" C-m
     tmux send-keys -t "$TMUX_SESSION:control" "echo 'Available commands:'" C-m
-    tmux send-keys -t "$TMUX_SESSION:control" "echo '  docker compose -p $COMPOSE_PROJECT ps                    # List running services'" C-m
-    tmux send-keys -t "$TMUX_SESSION:control" "echo '  docker compose -p $COMPOSE_PROJECT restart <service>    # Restart a service'" C-m
-    tmux send-keys -t "$TMUX_SESSION:control" "echo '  docker compose -p $COMPOSE_PROJECT logs <service>       # View specific service logs'" C-m
+    tmux send-keys -t "$TMUX_SESSION:control" "echo '  $COMPOSE_WITH_ENV -p $COMPOSE_PROJECT ps                    # List running services'" C-m
+    tmux send-keys -t "$TMUX_SESSION:control" "echo '  $COMPOSE_WITH_ENV -p $COMPOSE_PROJECT restart <service>    # Restart a service'" C-m
+    tmux send-keys -t "$TMUX_SESSION:control" "echo '  $COMPOSE_WITH_ENV -p $COMPOSE_PROJECT logs <service>       # View specific service logs'" C-m
     tmux send-keys -t "$TMUX_SESSION:control" "echo ''" C-m
     tmux send-keys -t "$TMUX_SESSION:control" "echo 'Navigation: Ctrl+b then 1,2,3,4 to switch tabs'" C-m
     tmux send-keys -t "$TMUX_SESSION:control" "echo 'Exit: Ctrl+b then d (detach) or Ctrl+c then exit'" C-m
