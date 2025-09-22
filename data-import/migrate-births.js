@@ -10,6 +10,22 @@ function generateShortId() {
   return Math.random().toString(36).substr(2, 8)
 }
 
+function generateDeterministicId(name, dob, type) {
+  // Create deterministic ID based on name and DOB for consistent deduplication
+  const nameStr = name ? `${name.firstNames || ''}-${name.middleName || ''}-${name.familyName || ''}` : 'UNKNOWN'
+  const dobStr = dob || '1900-01-01'
+  const input = `${type}-${nameStr}-${dobStr}`.toUpperCase().replace(/[^A-Z0-9-]/g, '')
+
+  // Simple hash function for deterministic short ID
+  let hash = 0
+  for (let i = 0; i < input.length; i++) {
+    const char = input.charCodeAt(i)
+    hash = ((hash << 5) - hash) + char
+    hash = hash & hash // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36).substr(0, 8).toUpperCase()
+}
+
 const CONFIG = {
   authUrl: process.env.AUTH_URL || 'http://localhost:4040',
   graphQlUrl: process.env.GRAPHQL_URL || 'http://localhost:7070/graphql',
@@ -100,21 +116,98 @@ async function graphQlRequest(query, variables, token) {
   return body.data
 }
 
+function convertExcelDate(serialDate) {
+  if (!serialDate || serialDate === 'NULL') return null
+
+  // If it's already a valid date string (YYYY-MM-DD), return as is
+  if (typeof serialDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(serialDate.trim())) {
+    return serialDate.trim()
+  }
+
+  // Convert string to number if it's a string number
+  const serialNumber = typeof serialDate === 'string' ? parseFloat(serialDate) : serialDate
+
+  // Check if it's a valid Excel serial date (should be a positive number)
+  if (isNaN(serialNumber) || serialNumber <= 0) return null
+
+  // Excel epoch starts on January 1, 1900, but Excel incorrectly treats 1900 as a leap year
+  // Excel serial date 1 = January 1, 1900
+  // We need to account for this leap year bug (add 1 day for dates after Feb 28, 1900)
+  const excelEpoch = new Date(1900, 0, 1) // January 1, 1900
+  const msPerDay = 24 * 60 * 60 * 1000
+
+  // Subtract 1 because Excel serial date 1 = January 1, 1900 (not January 0)
+  // Add 1 day to account for Excel's leap year bug for 1900
+  const adjustedSerial = serialNumber > 59 ? serialNumber + 1 : serialNumber
+  const targetDate = new Date(excelEpoch.getTime() + (adjustedSerial - 1) * msPerDay)
+
+  // Format as YYYY-MM-DD
+  const year = targetDate.getFullYear()
+  const month = String(targetDate.getMonth() + 1).padStart(2, '0')
+  const day = String(targetDate.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
+}
+
+function normalizeDate(value) {
+  if (!value || value === 'NULL') return undefined
+
+  const trimmed = typeof value === 'string' ? value.trim() : value
+
+  // Try Excel serial date conversion first
+  const converted = convertExcelDate(trimmed)
+  if (converted) return converted
+
+  // If not an Excel date, return undefined for invalid dates
+  return undefined
+}
+
+function cleanNameForGraphQL(nameObject) {
+  if (!nameObject) return undefined
+
+  // Remove internal flags that shouldn't be sent to GraphQL
+  const { _isReferenceNote, ...cleanedName } = nameObject
+  return cleanedName
+}
+
 function normaliseName(first = '', middle = '', family = '', isChild = false) {
   const cleanse = (value) =>
     value && value !== 'NULL' ? value.trim() : ''
 
-  const cleanedFirst = cleanse(first)
+  let cleanedFirst = cleanse(first)
   const cleanedMiddle = cleanse(middle)
   const cleanedFamily = cleanse(family)
 
+  // Check if first name is a reference note (like "RE REG ON PAGE 164 #120 1994")
+  const isReferenceNote = cleanedFirst && (
+    cleanedFirst.includes('RE REG ON PAGE') ||
+    cleanedFirst.includes('REG ON PAGE') ||
+    cleanedFirst.includes('SEE PAGE') ||
+    /PAGE\s+\d+.*#\d+/.test(cleanedFirst) ||
+    /^\d{4}$/.test(cleanedFirst) // Just a year
+  )
+
+  if (isReferenceNote) {
+    // Replace # with Nr. to make it valid, but this is still clearly a reference
+    const sanitizedReference = cleanedFirst.replace(/#/g, 'Nr.')
+    return {
+      use: 'en',
+      firstNames: sanitizedReference,
+      middleName: cleanedMiddle || undefined,
+      familyName: cleanedFamily || undefined,
+      _isReferenceNote: true // Flag for comment generation
+    }
+  }
+
   if (isChild) {
-    // For children: combine first and middle names, set family name to UNKNOWN if missing
+    // For children: combine first and middle names, leave family name undefined if missing
     const combinedFirstNames = [cleanedFirst, cleanedMiddle].filter(Boolean).join(' ')
     return {
       use: 'en',
       firstNames: combinedFirstNames || undefined,
-      familyName: cleanedFamily || 'UNKNOWN'
+      familyName: cleanedFamily || undefined,
+      _originalFamilyName: cleanedFamily, // Keep track of original value
+      _needsFamilyNameFromParent: !cleanedFamily // Flag if we need to inherit from parent
     }
   } else {
     // For parents: keep original structure
@@ -491,10 +584,10 @@ async function loadLocationsFromHearth() {
 }
 
 function mapRowToBirthInput(row, locationIndex) {
-  const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
+  const clean = (value) => (value && value !== 'NULL' && value.trim() !== '' ? value.trim() : undefined)
 
   const childFamilyName = clean(row.c_last_nm) || undefined
-  const childGender = (clean(row.gender_standardized) || '').toLowerCase()
+  const childGender = (clean(row.c_sex) || '').toLowerCase()
   const locationResource = resolveLocation(row, locationIndex)
 
   const childName = normaliseName(row.c_frst_nm, row.c_mid_nm, childFamilyName, true)
@@ -515,6 +608,37 @@ function mapRowToBirthInput(row, locationIndex) {
   const fatherName = fatherPresent
     ? normaliseName(row.f_frst_nm, row.f_mid_nm, row.f_last_nm)
     : undefined
+
+  // Define parent DOBs for deterministic ID generation
+  const motherDob = normalizeDate(row.m_dob) || '1900-01-01'
+  const fatherDob = normalizeDate(row.f_dob) || '1900-01-01'
+
+  // Inherit family name from parents for better deduplication, if child doesn't have one
+  let finalChildName = childName
+  let familyNameInheritanceComment = null
+
+  if (childName._needsFamilyNameFromParent) {
+    // Prefer father's family name, then mother's
+    const inheritedFamilyName = fatherName?.familyName || motherName?.familyName
+
+    if (inheritedFamilyName) {
+      finalChildName = {
+        use: 'en',
+        firstNames: childName.firstNames,
+        familyName: inheritedFamilyName
+      }
+
+      const parentSource = fatherName?.familyName ? "father's" : "mother's"
+      familyNameInheritanceComment = `Child's family name inherited from ${parentSource} for deduplication purposes (original had no family name)`
+    } else {
+      // Neither parent has a family name, keep as undefined
+      finalChildName = {
+        use: 'en',
+        firstNames: childName.firstNames,
+        familyName: undefined
+      }
+    }
+  }
 
   // Get shared address if parents live together
   const sharedAddress = getSharedAddress(row.f_address, row.m_address, locationResource, row)
@@ -540,8 +664,8 @@ function mapRowToBirthInput(row, locationIndex) {
         // Only add i_desc if not already captured in affidavit comments
         comments.push(`Informant Details: ${clean(row.i_desc)}`)
       }
-      if (clean(row.reg_dt)) {
-        comments.push(`Registration Date: ${clean(row.reg_dt)}`)
+      if (normalizeDate(row.reg_dt)) {
+        comments.push(`Registration Date: ${normalizeDate(row.reg_dt)}`)
       }
 
       informantAnalysis = {
@@ -564,8 +688,8 @@ function mapRowToBirthInput(row, locationIndex) {
     if (clean(row.i_desc)) {
       comments.push(`Informant Details: ${clean(row.i_desc)}`)
     }
-    if (clean(row.reg_dt)) {
-      comments.push(`Registration Date: ${clean(row.reg_dt)}`)
+    if (normalizeDate(row.reg_dt)) {
+      comments.push(`Registration Date: ${normalizeDate(row.reg_dt)}`)
     }
 
     informantAnalysis = {
@@ -617,7 +741,8 @@ function mapRowToBirthInput(row, locationIndex) {
     ? `draft-${clean(row.entry_yr) || '0000'}-${clean(row.entry_nbr)}`
     : randomUUID()
 
-  const createdAt = clean(row.reg_dt) || new Date().toISOString()
+  const normalizedRegDate = normalizeDate(row.reg_dt)
+  const createdAt = normalizedRegDate ? `${normalizedRegDate}T00:00:00.000Z` : new Date().toISOString()
 
   // Build comments array for registration status
   let statusComments = []
@@ -628,10 +753,7 @@ function mapRowToBirthInput(row, locationIndex) {
     allComments.push(`Source page number: ${clean(row.page_nbr)}`)
   }
 
-  // Add registration date if available
-  if (clean(row.reg_dt)) {
-    allComments.push(`Registration Date: ${clean(row.reg_dt)}`)
-  }
+  // Note: Registration date is already included in informant analysis comments
 
   // Add informant analysis comments
   if (informantAnalysis.comments) {
@@ -639,12 +761,26 @@ function mapRowToBirthInput(row, locationIndex) {
   }
 
   // Add DOB missing comments for parents
-  if (motherPresent && (!clean(row.m_dob) || clean(row.m_dob) === 'NULL')) {
+  if (motherPresent && !normalizeDate(row.m_dob)) {
     allComments.push("Mother's date of birth not provided in source, assigned default 1900-01-01")
   }
 
-  if (fatherPresent && (!clean(row.f_dob) || clean(row.f_dob) === 'NULL')) {
+  if (fatherPresent && !normalizeDate(row.f_dob)) {
     allComments.push("Father's date of birth not provided in source, assigned default 1900-01-01")
+  }
+
+  // Add comments for reference notes in parent names
+  if (motherName && motherName._isReferenceNote) {
+    allComments.push(`Mother name field contains reference note: ${clean(row.m_frst_nm)}`)
+  }
+
+  if (fatherName && fatherName._isReferenceNote) {
+    allComments.push(`Father name field contains reference note: ${clean(row.f_frst_nm)}`)
+  }
+
+  // Add family name inheritance comment if applicable
+  if (familyNameInheritanceComment) {
+    allComments.push(familyNameInheritanceComment)
   }
 
   // Combine all comments into one comment entry
@@ -705,7 +841,7 @@ function mapRowToBirthInput(row, locationIndex) {
   const birthInput = {
     createdAt,
     registration: {
-      draftId: registrationDraftId,
+      // draftId: registrationDraftId, // Removed to enable deduplication
       informantType,
       contactPhoneNumber: clean(row.i_phone) || clean(row.i_address),
       contactEmail: clean(row.i_email) || 'not.provided@migration.test',
@@ -718,9 +854,9 @@ function mapRowToBirthInput(row, locationIndex) {
       ]
     },
     child: {
-      name: [childName],
-      gender: childGender || 'unknown',
-      birthDate: clean(row.c_dob),
+      name: [finalChildName],
+      gender: childGender === 'male' || childGender === 'female' ? childGender : 'unknown',
+      birthDate: normalizeDate(row.c_dob),
       identifier: [],
       address: normaliseAddress(row.c_address, locationResource, row) ? [normaliseAddress(row.c_address, locationResource, row)] : undefined
     },
@@ -728,14 +864,14 @@ function mapRowToBirthInput(row, locationIndex) {
     mother: motherPresent
       ? {
           detailsExist: true,
-          name: [motherName],
-          birthDate: clean(row.m_dob) || '1900-01-01',
+          name: [cleanNameForGraphQL(motherName)],
+          birthDate: normalizeDate(row.m_dob) || '1900-01-01',
           nationality: clean(row.m_nationality)
             ? [clean(row.m_nationality)]
             : ['ATG'],
           identifier: [
             {
-              id: clean(row.m_id) || 'MIGRATION-M-' + randomUUID().slice(0, 8),
+              id: clean(row.m_id) || `MIGRATION-M-${generateDeterministicId(motherName, motherDob, 'MOTHER')}`,
               type: 'NONE'
             }
           ],
@@ -753,20 +889,20 @@ function mapRowToBirthInput(row, locationIndex) {
     father: fatherPresent
       ? {
           detailsExist: true,
-          name: [fatherName],
+          name: [cleanNameForGraphQL(fatherName)],
           nationality: clean(row.f_nationality)
             ? [clean(row.f_nationality)]
             : ['ATG'],
           identifier: [
             {
-              id: clean(row.f_id) || 'MIGRATION-F-' + randomUUID().slice(0, 8),
+              id: clean(row.f_id) || `MIGRATION-F-${generateDeterministicId(fatherName, fatherDob, 'FATHER')}`,
               type: 'NONE'
             }
           ],
           ageOfIndividualInYears: clean(row.f_age)
             ? Number(clean(row.f_age))
             : undefined,
-          birthDate: clean(row.f_dob) || '1900-01-01',
+          birthDate: normalizeDate(row.f_dob) || '1900-01-01',
           address: sharedAddress
             ? [sharedAddress]
             : (normaliseAddress(row.f_address, locationResource, row)
@@ -945,11 +1081,35 @@ async function migrateRow(row, token) {
     throw new Error('Location index not initialised')
   }
   const details = mapRowToBirthInput(row, globalThis.locationIndex)
-  console.log('   • Payload:', JSON.stringify(details, null, 2))
+  // console.log('   • Payload:', JSON.stringify(details, null, 2)) // Commented for performance
+
+  // Debug: Log duplicate search criteria for verification
+  console.log(`   • Deduplication data - Child: ${details.child?.name?.[0]?.firstNames || 'N/A'} ${details.child?.name?.[0]?.familyName || '[no family name]'}, DOB: ${details.child?.birthDate || 'N/A'}`)
+
   const created = await createBirth(details, token.userToken)
 
   if (!created?.compositionId) {
     throw new Error('createBirthRegistration did not return compositionId')
+  }
+
+  // Check for potential duplicates
+  if (created.isPotentiallyDuplicate) {
+    const childName = `${details.child?.name?.[0]?.firstNames || ''}.trim() ${details.child?.name?.[0]?.familyName || ''}`.trim()
+    const dob = details.child?.birthDate || 'Unknown'
+    console.log(`🚨 POTENTIAL DUPLICATE DETECTED for ${childName} (DOB: ${dob})`)
+    console.log(`   • Composition ID: ${created.compositionId}`)
+    console.log(`   • Tracking ID: ${created.trackingId}`)
+    console.log('   • This record will NOT be auto-confirmed due to duplicate detection')
+
+    // Return early without confirming the registration
+    return {
+      created: {
+        ...created,
+        isDuplicateSkipped: true,
+        reason: 'Potential duplicate detected by OpenCRVS deduplication system'
+      },
+      fetched: null
+    }
   }
 
   const recordToken = await exchangeForRecordToken(
@@ -1036,7 +1196,9 @@ async function main() {
 
     const batchSize = options.batchSize
     const failures = []
+    const duplicates = []
     let processedCount = 0
+    let duplicateCount = 0
 
     for (let i = 0; i < limitedRows.length; i += batchSize) {
       const batch = limitedRows.slice(i, i + batchSize)
@@ -1050,21 +1212,33 @@ async function main() {
 
         try {
           const result = await migrateRow(row, token)
-          processedCount += 1
-          console.log(
-            `   • Created composition ${result.created.compositionId} (tracking ${result.created.trackingId})`
-          )
-          if (result.fetched) {
+
+          if (result.created.isDuplicateSkipped) {
+            duplicateCount += 1
+            duplicates.push({
+              label,
+              compositionId: result.created.compositionId,
+              trackingId: result.created.trackingId,
+              reason: result.created.reason
+            })
+            console.log(`   • ⏭️  SKIPPED: ${result.created.reason}`)
+          } else {
+            processedCount += 1
             console.log(
-              `   • Confirmed registration number ${
-                result.fetched.registration?.registrationNumber || 'UNKNOWN'
-              }`
+              `   • Created composition ${result.created.compositionId} (tracking ${result.created.trackingId})`
             )
-            console.log(
-              `   • Child: ${
-                result.fetched.child?.name?.[0]?.firstNames || 'N/A'
-              } ${result.fetched.child?.name?.[0]?.familyName || ''}`
-            )
+            if (result.fetched) {
+              console.log(
+                `   • Confirmed registration number ${
+                  result.fetched.registration?.registrationNumber || 'UNKNOWN'
+                }`
+              )
+              console.log(
+                `   • Child: ${
+                  result.fetched.child?.name?.[0]?.firstNames || 'N/A'
+                } ${result.fetched.child?.name?.[0]?.familyName || ''}`
+              )
+            }
           }
         } catch (error) {
           console.error(`❌ Failed to process record (${label}): ${error.message}`)
@@ -1075,11 +1249,23 @@ async function main() {
     }
 
     console.log('\n📊 Migration summary')
-    console.log(`   • Total rows processed: ${processedCount}`)
+    console.log(`   • Successfully processed: ${processedCount}`)
+    console.log(`   • Potential duplicates skipped: ${duplicateCount}`)
     console.log(`   • Failures: ${failures.length}`)
-    failures.forEach((failure) =>
-      console.log(`     - ${failure.label}: ${failure.error}`)
-    )
+
+    if (duplicates.length > 0) {
+      console.log('\n🚨 Potential duplicates detected:')
+      duplicates.forEach((duplicate) =>
+        console.log(`     - ${duplicate.label}: ${duplicate.compositionId} (${duplicate.trackingId})`)
+      )
+    }
+
+    if (failures.length > 0) {
+      console.log('\n❌ Failed records:')
+      failures.forEach((failure) =>
+        console.log(`     - ${failure.label}: ${failure.error}`)
+      )
+    }
   } catch (error) {
     console.error('Migration aborted:', error.message)
     console.error(error.stack)

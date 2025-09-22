@@ -85,12 +85,13 @@ export const searchForBirthDuplicates = async (
   const mothersDetailsMatch = {
     bool: {
       must: [
+        // Note: motherIdentifier field is not indexed in Elasticsearch, so commenting out
         // If mother identifier is provided, it needs to match 100%
-        body.motherIdentifier && {
-          match_phrase: {
-            motherIdentifier: body.motherIdentifier
-          }
-        },
+        // body.motherIdentifier && {
+        //   match_phrase: {
+        //     motherIdentifier: body.motherIdentifier
+        //   }
+        // },
         body.motherFirstNames && {
           match: {
             motherFirstNames: {
