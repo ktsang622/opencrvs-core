@@ -914,7 +914,7 @@ function mapRowToBirthInput(row, locationIndex) {
           detailsExist: false,
           reasonNotApplying: 'Not Provided'
         },
-    ...(informantType === 'OTHER' && !motherPresent && !fatherPresent ? {
+    ...(informantType === 'OTHER' ? {
       informant: {
         name: [{
           use: 'en',
