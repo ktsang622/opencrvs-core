@@ -1,8 +1,6 @@
 // Script to fetch location UUIDs from OpenCRVS Country Config API
 // This will create the mapping table for migration cleansing
 
-const fetch = require('node-fetch');
-
 const COUNTRY_CONFIG_URL = process.env.COUNTRY_CONFIG_URL || 'http://localhost:3040';
 const APPLICATION_CONFIG_URL = process.env.APPLICATION_CONFIG_URL || 'http://localhost:2021';
 
@@ -66,6 +64,7 @@ class LocationUUIDFetcher {
     try {
       console.log('🔍 Fetching all locations from OpenCRVS...');
 
+      const fetch = (await import('node-fetch')).default;
       const response = await fetch(`${APPLICATION_CONFIG_URL}/locations?type=ADMIN_STRUCTURE&_count=0`);
 
       if (!response.ok) {
