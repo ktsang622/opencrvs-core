@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-09-23T14:44:52.614Z",
+  "summary": {
+    "totalFiles": 3,
+    "totalRecords": 137567,
+    "chunksCreated": 2754,
+    "avgRecordsPerChunk": 50
+  },
+  "configuration": {
+    "inputDir": "../../data-migration/data/processed/high-quality",
+    "outputDir": "./chunks",
+    "chunkSize": 50,
+    "maxChunks": null,
+    "preserveHeaders": true
+  },
+  "chunkDirectories": [
+    {
+      "directory": "AB_MERGE (0221)_BI_high_quality",
+      "chunks": 2752
+    },
+    {
+      "directory": "test_10_records_high_quality",
+      "chunks": 1
+    },
+    {
+      "directory": "test_2_records_high_quality",
+      "chunks": 1
+    }
+  ]
+}

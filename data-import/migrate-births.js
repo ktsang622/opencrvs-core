@@ -6,6 +6,9 @@ const { parse } = require('csv-parse')
 const { randomUUID } = require('crypto')
 const { program } = require('commander')
 
+// Global clean function used throughout the script
+const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
+
 function generateShortId() {
   return Math.random().toString(36).substr(2, 8)
 }
@@ -205,9 +208,7 @@ function normaliseName(first = '', middle = '', family = '', isChild = false) {
     return {
       use: 'en',
       firstNames: combinedFirstNames || undefined,
-      familyName: cleanedFamily || undefined,
-      _originalFamilyName: cleanedFamily, // Keep track of original value
-      _needsFamilyNameFromParent: !cleanedFamily // Flag if we need to inherit from parent
+      familyName: cleanedFamily || undefined
     }
   } else {
     // For parents: keep original structure
@@ -220,78 +221,32 @@ function normaliseName(first = '', middle = '', family = '', isChild = false) {
   }
 }
 
-function normalizeAddressText(raw) {
-  if (!raw || raw === 'NULL') {
-    return ''
-  }
-  return raw.trim()
-    .toUpperCase()
-    .replace(/\bRD\.?\b/g, 'ROAD')
-    .replace(/\bST\.?\b/g, 'STREET')
-    .replace(/\bAVE\.?\b/g, 'AVENUE')
-    .replace(/\bBLVD\.?\b/g, 'BOULEVARD')
-    .replace(/\bPL\.?\b/g, 'PLACE')
-    .replace(/\bDR\.?\b/g, 'DRIVE')
-    .replace(/\bCT\.?\b/g, 'COURT')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
+// Simplified address building using pre-processed fields from data preparation
+function buildAddressFromPreprocessed(row, addressPrefix) {
 
-function buildCompleteAddress(addressText, locationResource, row) {
-  if (!addressText) {
+  const type = clean(row[`${addressPrefix}_type`])
+  const use = clean(row[`${addressPrefix}_use`])
+  const city = clean(row[`${addressPrefix}_city`])
+  const state = clean(row[`${addressPrefix}_state`])
+  const country = clean(row[`${addressPrefix}_country`])
+  const district = clean(row[`${addressPrefix}_district`])
+  const text = clean(row[`${addressPrefix}_text`])
+
+  // If no address data, return undefined
+  if (!city && !text) {
     return undefined
   }
 
-  const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
-
-  // Build a complete address using location context
-  const parish = locationResource ? locationResource.name : clean(row.parish_nm)
-  const stateName = locationResource?.partOf?.reference?.includes('BARBUDA') ? 'Barbuda' : 'Antigua'
-  const stateUuid = locationResource?.partOf?.reference?.replace('Location/', '') ||
-                   (stateName === 'Barbuda' ? 'BARBUDA_UUID' : 'ee206508-d08e-4c58-ba74-2b466d091b7b')
-
+  // Build address using pre-processed structure
   return {
-    type: 'PRIMARY_ADDRESS',
-    use: 'home',
-    city: addressText, // Put the address as city/town instead of line
-    state: stateUuid,
-    country: 'ATG',
-    district: locationResource ? locationResource.id : clean(row.location_uuid),
-    text: `${addressText}, ${parish}, ${stateName}`
+    type: type || 'PRIMARY_ADDRESS',
+    use: use || 'home',
+    city: city,
+    state: state,
+    country: country || 'ATG',
+    district: district,
+    text: text
   }
-}
-
-function normaliseAddress(raw, locationResource, row) {
-  const addressText = normalizeAddressText(raw)
-  return buildCompleteAddress(addressText, locationResource, row)
-}
-
-function getSharedAddress(fatherAddr, motherAddr, locationResource, row) {
-  const normalizedFather = normalizeAddressText(fatherAddr)
-  const normalizedMother = normalizeAddressText(motherAddr)
-
-  // If addresses are the same or very similar, use one shared address
-  if (normalizedFather && normalizedMother) {
-    if (normalizedFather === normalizedMother) {
-      return buildCompleteAddress(normalizedFather, locationResource, row)
-    }
-
-    // Check if one address contains the other (e.g., "TINDALE" vs "TINDALE ROAD")
-    if (normalizedFather.includes(normalizedMother) || normalizedMother.includes(normalizedFather)) {
-      const longerAddress = normalizedFather.length > normalizedMother.length ? normalizedFather : normalizedMother
-      return buildCompleteAddress(longerAddress, locationResource, row)
-    }
-  }
-
-  // If only one parent has an address, use that
-  if (normalizedFather && !normalizedMother) {
-    return buildCompleteAddress(normalizedFather, locationResource, row)
-  }
-  if (normalizedMother && !normalizedFather) {
-    return buildCompleteAddress(normalizedMother, locationResource, row)
-  }
-
-  return undefined
 }
 
 function buildLocationIndex(locations) {
@@ -332,7 +287,6 @@ function buildLocationIndex(locations) {
 }
 
 function resolveLocation(row, index) {
-  const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
   const directId = clean(row.location_uuid)
   if (directId && index.byId.has(directId)) {
     return index.byId.get(directId)
@@ -364,7 +318,6 @@ function resolveLocation(row, index) {
 }
 
 function buildFallbackAddress(row) {
-  const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
   return {
     country: clean(row.country) || 'ATG',
     state: clean(row.state_uuid) || undefined,
@@ -617,7 +570,7 @@ function mapRowToBirthInput(row, locationIndex) {
   let finalChildName = childName
   let familyNameInheritanceComment = null
 
-  if (childName._needsFamilyNameFromParent) {
+  if (!childName.familyName) {
     // Prefer father's family name, then mother's
     const inheritedFamilyName = fatherName?.familyName || motherName?.familyName
 
@@ -641,7 +594,14 @@ function mapRowToBirthInput(row, locationIndex) {
   }
 
   // Get shared address if parents live together
-  const sharedAddress = getSharedAddress(row.f_address, row.m_address, locationResource, row)
+  // Use pre-processed shared address from data preparation phase
+  const sharedAddressText = clean(row.shared_address)
+  const sharedAddress = sharedAddressText ? {
+    type: 'PRIMARY_ADDRESS',
+    use: 'home',
+    city: sharedAddressText.split(',')[0],
+    text: sharedAddressText
+  } : null
 
   const informantName = clean(row.i_name)
 
@@ -698,44 +658,14 @@ function mapRowToBirthInput(row, locationIndex) {
     }
   }
 
-  const manualInformantType = clean(row.informant_type_mapped)?.toUpperCase()
+  // Use pre-processed informant type from Phase 1 (data preparation)
+  const informantType = clean(row.informant_type_mapped)?.toUpperCase() || 'OTHER'
 
   // Valid informant types for birth registrations
   const validInformantTypes = ['MOTHER', 'FATHER', 'GRANDMOTHER', 'GRANDFATHER', 'EXTENDED_FAMILY', 'HEALTHCARE_PROVIDER', 'HEALTH_FACILITY', 'LEGAL_GUARDIAN', 'OTHER']
 
-  // For hospital deliveries, use MOTHER if mother is present, otherwise use analysis
-  let informantType
-  if (informantAnalysis.isHospitalDelivery && motherPresent) {
-    informantType = 'MOTHER'
-  } else {
-    // Prioritize intelligent analysis when there are clear parent name matches
-    const validManualType = manualInformantType && validInformantTypes.includes(manualInformantType) ? manualInformantType : null
-
-    // If analysis found MOTHER or FATHER (clear name matches), use that instead of manual override
-    if (informantAnalysis.type === 'MOTHER' || informantAnalysis.type === 'FATHER') {
-      informantType = informantAnalysis.type
-    } else {
-      // Otherwise use manual type or fall back to analysis
-      informantType = validManualType || informantAnalysis.type
-    }
-  }
-  // Validate informant type against available parents
-  if (informantType === 'MOTHER' && !motherPresent) {
-    informantType = fatherPresent ? 'FATHER' : 'OTHER'
-  }
-  if (informantType === 'FATHER' && !fatherPresent) {
-    informantType = motherPresent ? 'MOTHER' : 'OTHER'
-  }
-  // Final validation - ensure informant type is valid for OpenCRVS
-  if (!informantType || !validInformantTypes.includes(informantType)) {
-    if (motherPresent) {
-      informantType = 'MOTHER'
-    } else if (fatherPresent) {
-      informantType = 'FATHER'
-    } else {
-      informantType = 'OTHER'
-    }
-  }
+  // Simple validation - use OTHER if invalid type
+  const validatedInformantType = validInformantTypes.includes(informantType) ? informantType : 'OTHER'
 
   const registrationDraftId = clean(row.entry_nbr)
     ? `draft-${clean(row.entry_yr) || '0000'}-${clean(row.entry_nbr)}`
@@ -842,7 +772,7 @@ function mapRowToBirthInput(row, locationIndex) {
     createdAt,
     registration: {
       // draftId: registrationDraftId, // Removed to enable deduplication
-      informantType,
+      informantType: validatedInformantType,
       contactPhoneNumber: clean(row.i_phone) || clean(row.i_address),
       contactEmail: clean(row.i_email) || 'not.provided@migration.test',
       status: [
@@ -856,9 +786,9 @@ function mapRowToBirthInput(row, locationIndex) {
     child: {
       name: [finalChildName],
       gender: childGender === 'male' || childGender === 'female' ? childGender : 'unknown',
-      birthDate: normalizeDate(row.c_dob),
+      birthDate: row.birth_date || normalizeDate(row.c_dob), // Use clean birth_date if available
       identifier: [],
-      address: normaliseAddress(row.c_address, locationResource, row) ? [normaliseAddress(row.c_address, locationResource, row)] : undefined
+      address: buildAddressFromPreprocessed(row, 'c_address') ? [buildAddressFromPreprocessed(row, 'c_address')] : undefined
     },
     eventLocation,
     mother: motherPresent
@@ -877,8 +807,8 @@ function mapRowToBirthInput(row, locationIndex) {
           ],
           address: sharedAddress
             ? [sharedAddress]
-            : (normaliseAddress(row.m_address, locationResource, row)
-              ? [normaliseAddress(row.m_address, locationResource, row)]
+            : (buildAddressFromPreprocessed(row, 'm_address')
+              ? [buildAddressFromPreprocessed(row, 'm_address')]
               : undefined),
           occupation: clean(row.m_occn)
         }
@@ -905,8 +835,8 @@ function mapRowToBirthInput(row, locationIndex) {
           birthDate: normalizeDate(row.f_dob) || '1900-01-01',
           address: sharedAddress
             ? [sharedAddress]
-            : (normaliseAddress(row.f_address, locationResource, row)
-              ? [normaliseAddress(row.f_address, locationResource, row)]
+            : (buildAddressFromPreprocessed(row, 'f_address')
+              ? [buildAddressFromPreprocessed(row, 'f_address')]
               : undefined),
           occupation: clean(row.f_occn)
         }
@@ -914,7 +844,7 @@ function mapRowToBirthInput(row, locationIndex) {
           detailsExist: false,
           reasonNotApplying: 'Not Provided'
         },
-    ...(informantType === 'OTHER' ? {
+    ...(validatedInformantType === 'OTHER' ? {
       informant: {
         name: [{
           use: 'en',
@@ -927,13 +857,13 @@ function mapRowToBirthInput(row, locationIndex) {
         }],
         nationality: ['ATG'],
         birthDate: '1900-01-01',
-        address: normaliseAddress(row.i_address, locationResource, row) ? [normaliseAddress(row.i_address, locationResource, row)] : undefined
+        address: buildAddressFromPreprocessed(row, 'i_address') ? [buildAddressFromPreprocessed(row, 'i_address')] : undefined
       }
     } : {}),
     // attendantAtBirth: clean(row.dr_name) || 'NURSE',
     // birthType: clean(row.birth_type) || 'SINGLE',
     // weightAtBirth: clean(row.birth_weight) ? parseFloat(clean(row.birth_weight)) : 3.0,
-    questionnaire: buildQuestionnaireEntries(motherPresent, fatherPresent, informantType === 'OTHER')
+    questionnaire: buildQuestionnaireEntries(motherPresent, fatherPresent, validatedInformantType === 'OTHER')
   }
 
   return birthInput
@@ -1053,7 +983,6 @@ async function fetchRegistrationById(compositionId, token) {
 }
 
 function buildIdentifierPayload(row) {
-  const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
   const identifiers = []
   if (clean(row.entry_nbr)) {
     identifiers.push({
@@ -1117,7 +1046,6 @@ async function migrateRow(row, token) {
     created.compositionId
   )
 
-  const clean = (value) => (value && value !== 'NULL' ? value.trim() : undefined)
   const legacyRegistrationNumber = clean(row.cert_nbr)
 
   await confirmBirth(

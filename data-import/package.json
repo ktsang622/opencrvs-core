@@ -1,0 +1,15 @@
+{
+  "name": "opencrvs-data-import",
+  "version": "0.1.0",
+  "description": "CSV-driven migration utilities for OpenCRVS",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "migrate:births": "node migrate-births.js"
+  },
+  "dependencies": {
+    "csv-parse": "^5.5.6",
+    "csv-stringify": "^6.6.0",
+    "uuid": "^13.0.0"
+  }
+}
