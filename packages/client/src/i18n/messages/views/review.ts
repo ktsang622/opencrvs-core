@@ -148,7 +148,7 @@ const messagesToDefine = {
   },
   registerActionDescriptionComplete: {
     defaultMessage:
-      'By clicking register, you confirm that the information is correct and has been reviewed by the informant. The informant understands that it will be used to register the {eventType, select, birth {birth declaration} death {death declaration}} and for planning purposes.\n\nBy registering this {eventType, select, birth {birth declaration} death {death declaration}}, a {eventType, select, birth {birth} death {death}} certificate will be generated with your signature for issuance.',
+      'By clicking register, you confirm that the information is correct and has been reviewed by the informant. The informant understands that it will be used to register the {eventType, select, birth {birth declaration} death {death declaration} other {declaration}} and for planning purposes.\n\nBy registering this {eventType, select, birth {birth declaration} death {death declaration} other {declaration}}, a {eventType, select, birth {birth} death {death} other {}} certificate will be generated with your signature for issuance.',
     id: 'review.actions.desc.regConfComp'
   },
   registerActionDescriptionIncomplete: {
@@ -265,8 +265,8 @@ const messagesToDefine = {
   },
   govtName: {
     id: 'review.header.title.govtName',
-    defaultMessage: 'Government of the peoples republic of Bangladesh',
-    description: 'Header title that shows bgd govt name'
+    defaultMessage: 'Government of Antigua and Barbuda',
+    description: 'Header title that shows government name'
   },
   clear: {
     defaultMessage: 'Clear',

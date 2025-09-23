@@ -237,6 +237,34 @@ export async function insertEventParticipant(part: {
   ])
 }
 
+export async function eventParticipantExists(
+  eventId: string,
+  crvsPersonId: string | null,
+  role: string,
+  tx?: PoolClient
+): Promise<boolean> {
+  if (!crvsPersonId) {
+    // We only attempt a duplicate check when we can reliably match on CRVS person id.
+    return false
+  }
+  try {
+    const { rows } = await (tx ?? pool).query(
+      `SELECT 1
+         FROM event_participant
+        WHERE event_id = $1
+          AND crvs_person_id = $2
+          AND role = $3
+          AND status = 'active'
+        LIMIT 1`,
+      [eventId, crvsPersonId, role]
+    )
+    return rows.length > 0
+  } catch (error) {
+    console.error('Database query error (eventParticipantExists):', error)
+    return false
+  }
+}
+
 export async function deactivateEventParticipant(
   id: string,
   endedAtISO: string,

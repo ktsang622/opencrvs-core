@@ -36,19 +36,19 @@ const messagesToDefine: IRegisterMessages = {
   newVitalEventRegistration: {
     id: 'register.form.newVitalEventRegistration',
     defaultMessage:
-      '{event, select, birth {Birth} death {Death} marriage {Marriage} divorce {Divorce} adoption {Adoption}} declaration',
+      '{event, select, birth {Birth} death {Death} marriage {Marriage} divorce {Divorce} adoption {Adoption} other {Event}} declaration',
     description: 'The message that appears for new vital event registration'
   },
   previewEventRegistration: {
     id: 'register.form.previewEventRegistration',
     defaultMessage:
-      '{event, select, birth {Birth} death {Death} marriage {Marriage} divorce {Divorce} adoption {Adoption}} Declaration Preview',
+      '{event, select, birth {Birth} death {Death} marriage {Marriage} divorce {Divorce} adoption {Adoption} other {Event}} Declaration Preview',
     description: 'The message that appears for new birth registrations'
   },
   reviewEventRegistration: {
     id: 'register.form.reviewEventRegistration',
     defaultMessage:
-      '{event, select, birth {Birth} death {Death} marriage {Marriage} divorce {Divorce} adoption {Adoption}} Declaration Review',
+      '{event, select, birth {Birth} death {Death} marriage {Marriage} divorce {Divorce} adoption {Adoption} other {Event}} Declaration Review',
     description: 'The message that appears for new birth registrations'
   },
   submitDescription: {

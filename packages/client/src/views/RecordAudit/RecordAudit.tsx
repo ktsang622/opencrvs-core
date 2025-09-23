@@ -292,6 +292,7 @@ function RecordAuditBody({
 
   actions.push(
     <ActionMenu
+      key="action-menu"
       declaration={declaration}
       duplicates={duplicates}
       draft={draft}
@@ -302,23 +303,29 @@ function RecordAuditBody({
 
   if (!isDownloaded) {
     actions.push(
-      ShowDownloadButton({
-        declaration,
-        draft,
-        userDetails
-      })
-    )
-    desktopActionsView.push(actions[actions.length - 1])
-  } else {
-    if (draft?.submissionStatus === SUBMISSION_STATUS.DRAFT) {
-      actions.push(<Downloaded />)
-    } else {
-      actions.push(
+      React.cloneElement(
         ShowDownloadButton({
           declaration,
           draft,
           userDetails
-        })
+        }),
+        { key: 'download-button' }
+      )
+    )
+    desktopActionsView.push(actions[actions.length - 1])
+  } else {
+    if (draft?.submissionStatus === SUBMISSION_STATUS.DRAFT) {
+      actions.push(<Downloaded key="downloaded" />)
+    } else {
+      actions.push(
+        React.cloneElement(
+          ShowDownloadButton({
+            declaration,
+            draft,
+            userDetails
+          }),
+          { key: 'download-button-else' }
+        )
       )
     }
     desktopActionsView.push(actions[actions.length - 1])

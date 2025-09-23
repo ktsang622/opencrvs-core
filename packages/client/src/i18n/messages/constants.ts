@@ -253,7 +253,7 @@ const messagesToDefine: IConstantsMessages = {
     id: 'constants.comment'
   },
   countryName: {
-    defaultMessage: 'Farajaland',
+    defaultMessage: 'Antigua and Barbuda',
     description: 'Name of the OpenCRVS implementation country',
     id: 'constants.countryName'
   },

@@ -130,7 +130,7 @@ export const intlReducer: LoopReducer<IntlState, any> = (
           [language.lang]: {
             ...language,
             messages: {
-              ...state.languages[language.lang].messages,
+              ...(state.languages[language.lang]?.messages || {}),
               ...language.messages
             }
           }
