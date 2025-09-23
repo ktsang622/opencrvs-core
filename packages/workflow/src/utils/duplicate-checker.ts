@@ -92,10 +92,11 @@ async function findBirthDuplicateIds(
   birthRegDetails: BirthRegistration
 ): Promise<{ id: UUID; trackingId: string }[]> {
   if (!birthRegDetails || !birthRegDetails.child) {
+    console.log('🔍 DEDUP: No birth details or child, returning empty')
     return []
   }
 
-  const res = await searchBirthDuplicates(authHeader, {
+  const searchCriteria = {
     motherIdentifier: birthRegDetails.mother?.identifier?.[0]?.id,
     childFirstNames: birthRegDetails.child.name?.[0]?.firstNames,
     childFamilyName: birthRegDetails.child.name?.[0]?.familyName,
@@ -103,7 +104,13 @@ async function findBirthDuplicateIds(
     motherFirstNames: birthRegDetails.mother?.name?.[0]?.firstNames,
     motherFamilyName: birthRegDetails.mother?.name?.[0]?.familyName,
     motherDoB: birthRegDetails.mother?.birthDate
-  })
+  }
+
+  console.log('🔍 DEDUP: Searching for duplicates with criteria:', JSON.stringify(searchCriteria, null, 2))
+
+  const res = await searchBirthDuplicates(authHeader, searchCriteria)
+
+  console.log(`🔍 DEDUP: Found ${res.length} duplicate(s):`, res)
 
   return res
 }
@@ -132,7 +139,10 @@ export async function findDuplicateIds(
   authHeader: IAuthHeader,
   event: EVENT_TYPE
 ) {
+  console.log(`🔍 DEDUP: findDuplicateIds called for event: ${event}`)
+
   if (event === EVENT_TYPE.BIRTH) {
+    console.log('🔍 DEDUP: Processing birth registration for duplicates')
     return findBirthDuplicateIds(
       authHeader,
       registrationDetails as BirthRegistration

@@ -75,6 +75,7 @@ services:
       context: ../opensearch
       dockerfile: Dockerfile.opensearch
     container_name: opensearch_atg
+    restart: always
     environment:
       - discovery.type=single-node
       - plugins.security.disabled=true

@@ -7,6 +7,7 @@ import {
   insertPerson,
   insertEvent,
   insertEventParticipant,
+  eventParticipantExists,
   upsertEvent,
   getEventIdByCrvs,
   insertSyncRequest,
@@ -71,7 +72,14 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
       console.log(`📝 Inserting ${mapped.newEvents.length} provisional events...`)
       for (const e of mapped.newEvents) await insertEvent(e, tx)
       console.log(`📝 Inserting ${mapped.newParticipants.length} provisional participants...`)
-      for (const ep of mapped.newParticipants) await insertEventParticipant(ep, tx)
+      for (const ep of mapped.newParticipants) {
+        // Idempotency: skip if this participant was already created in a previous run for the same event/person.
+        if (await eventParticipantExists(ep.event_id, ep.crvs_person_id, ep.role, tx)) {
+          console.log(`   • Skipping existing provisional participant (${ep.role}/${ep.crvs_person_id})`)
+          continue
+        }
+        await insertEventParticipant(ep, tx)
+      }
 
       // 2) Insert the child person and the main event (idempotent-ish: your schema uses server-side defaults)
       console.log('📝 Inserting main child person...')
@@ -93,7 +101,14 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
 
       // 3) Insert main participants (child/subject + mother + maybe father + maybe informant)
       console.log(`📝 Inserting ${updatedParticipants.length} participants...`)
-      for (const ep of updatedParticipants) await insertEventParticipant(ep, tx)
+      for (const ep of updatedParticipants) {
+        // Idempotency: participants may already exist if the same record is replayed. Skip duplicates gracefully.
+        if (await eventParticipantExists(ep.event_id, ep.crvs_person_id, ep.role, tx)) {
+          console.log(`   • Participant already exists (${ep.role}/${ep.crvs_person_id}), skipping`)
+          continue
+        }
+        await insertEventParticipant(ep, tx)
+      }
 
       // Touch remarks/time on the real event row (no-op if just inserted)
       await upsertEvent({

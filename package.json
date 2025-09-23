@@ -44,6 +44,7 @@
     "check:license": "license-check-and-add check -f license-config.json",
     "seed:dev": "NODE_ENV=development lerna run seed --stream --scope @opencrvs/data-seeder",
     "seed:atg": "bash scripts/seed-atg.sh",
+    "logs:parse": "bash scripts/parse-service-logs.sh",
     "seed:prod": "NODE_ENV=production lerna run seed --stream --scope @opencrvs/data-seeder",
     "add:license": "license-check-and-add add -f license-config.json",
     "build:components": "lerna run build --scope @opencrvs/components",

@@ -1,0 +1,10 @@
+#!/bin/bash
+export API_GATEWAY_URL='http://localhost:7070/'
+export CONFIG_API_URL='http://localhost:2021'
+export LOGIN_URL='http://localhost:3020'
+export AUTH_URL='http://localhost:7070/auth/'
+export MINIO_BUCKET='ocrvs'
+export MINIO_URL='http://localhost:3535/ocrvs/'
+export COUNTRY_CONFIG_URL='http://localhost:3040'
+export COUNTRY='ATG'
+export LANGUAGES='en'
