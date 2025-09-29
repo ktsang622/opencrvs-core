@@ -151,61 +151,40 @@ export const PersonInfoCard: React.FC<IPersonInfoCardProps> = ({
         </div>
 
         <div>
-          <DetailItem>
-            <DetailLabel>
-              {(() => {
-                // Debug logging
-                console.log('PersonInfoCard person:', person)
-                console.log('PersonInfoCard identifiers:', person.identifiers)
-                console.log('PersonInfoCard nationalId:', person.nationalId)
+{(() => {
+            // Parse identifiers if it's a JSON string
+            const identifiers =
+              typeof person.identifiers === 'string'
+                ? JSON.parse(person.identifiers)
+                : person.identifiers || []
 
-                // Parse identifiers if it's a JSON string
-                const identifiers =
-                  typeof person.identifiers === 'string'
-                    ? JSON.parse(person.identifiers)
-                    : person.identifiers || []
+            // Find National ID
+            const nationalId = identifiers.find(
+              (id: any) => id.type === 'NATIONAL_ID'
+            )?.value
 
-                console.log('PersonInfoCard parsed identifiers:', identifiers)
+            // Find first non-migration identifier
+            const firstId = identifiers.find(
+              (id: any) => id.value?.trim() && id.type !== 'crvs' && id.type !== 'NONE'
+            )
 
-                // Find National ID
-                const nationalId = identifiers.find(
-                  (id: any) => id.type === 'NATIONAL_ID'
-                )?.value
-
-                if (nationalId) return 'National ID:'
-
-                // If no National ID, use first available identifier type
-                const firstId = identifiers.find(
-                  (id: any) => id.value?.trim() && id.type !== 'crvs'
-                )
-                if (firstId?.type === 'PASSPORT') return 'Passport Number:'
-                if (firstId?.type) return `${firstId.type}:`
-                return 'ID:'
-              })()}
-            </DetailLabel>
-            <DetailValue>
-              {(() => {
-                // Parse identifiers if it's a JSON string
-                const identifiers =
-                  typeof person.identifiers === 'string'
-                    ? JSON.parse(person.identifiers)
-                    : person.identifiers || []
-
-                // Find National ID
-                const nationalId = identifiers.find(
-                  (id: any) => id.type === 'NATIONAL_ID'
-                )?.value
-
-                if (nationalId) return nationalId
-
-                // If no National ID, show first available identifier value
-                const firstId = identifiers.find(
-                  (id: any) => id.value?.trim() && id.type !== 'crvs'
-                )
-                return firstId?.value || 'Not assigned'
-              })()}
-            </DetailValue>
-          </DetailItem>
+            // Only show this field if there are regular (non-migration) identifiers
+            if (nationalId || firstId?.value) {
+              return (
+                <DetailItem>
+                  <DetailLabel>
+                    {nationalId ? 'National ID:' :
+                     firstId?.type === 'PASSPORT' ? 'Passport Number:' :
+                     firstId?.type ? `${firstId.type}:` : 'ID:'}
+                  </DetailLabel>
+                  <DetailValue>
+                    {nationalId || firstId?.value || 'Not assigned'}
+                  </DetailValue>
+                </DetailItem>
+              )
+            }
+            return null
+          })()}
 
           <DetailItem>
             <DetailLabel>Age:</DetailLabel>
@@ -239,6 +218,29 @@ export const PersonInfoCard: React.FC<IPersonInfoCardProps> = ({
                     : person.placeOfBirth || 'Not specified'}
                 </DetailValue>
               </DetailItem>
+
+              {(() => {
+                // Parse identifiers for migration/remark data
+                const identifiers =
+                  typeof person.identifiers === 'string'
+                    ? JSON.parse(person.identifiers)
+                    : person.identifiers || []
+
+                // Find NONE type identifiers (migration data)
+                const noneId = identifiers.find(
+                  (id: any) => id.type === 'NONE' && id.value?.trim()
+                )
+
+                if (noneId?.value) {
+                  return (
+                    <DetailItem>
+                      <DetailLabel>Remark:</DetailLabel>
+                      <DetailValue>{noneId.value}</DetailValue>
+                    </DetailItem>
+                  )
+                }
+                return null
+              })()}
             </>
           )}
         </div>
