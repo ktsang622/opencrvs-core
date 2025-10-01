@@ -164,7 +164,7 @@ if $services; then
   done
 
   echo "Waiting for dependencies to be ready..."
-  wait_for_ready tcp:localhost:27017 tcp:localhost:6379 tcp:localhost:9200 tcp:localhost:3447 tcp:localhost:8086 tcp:localhost:5432 tcp:localhost:19200
+  wait_for_ready tcp:localhost:27017 tcp:localhost:6379 tcp:localhost:9200 tcp:localhost:3447 tcp:localhost:8086 tcp:localhost:35432 tcp:localhost:19200
   echo "Dependencies ready. Starting OpenCRVS services..."
 
   # Enhanced logging for services-only mode
@@ -281,7 +281,7 @@ yarn compose:deps-atg &
 started_deps=true
 
 echo "Waiting for dependencies to be ready..."
-wait_for_ready tcp:localhost:27017 tcp:localhost:6379 tcp:localhost:9200 tcp:localhost:3447 tcp:localhost:8086 tcp:localhost:5432 tcp:localhost:19200
+wait_for_ready tcp:localhost:27017 tcp:localhost:6379 tcp:localhost:9200 tcp:localhost:3447 tcp:localhost:8086 tcp:localhost:35432 tcp:localhost:19200
 
 echo "Dependencies ready. Starting OpenCRVS services..."
 

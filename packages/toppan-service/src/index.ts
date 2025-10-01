@@ -7,6 +7,8 @@ const start = async (): Promise<void> => {
     console.log('OPENSEARCH_HOST:', process.env.OPENSEARCH_HOST);
     console.log('PORT:', process.env.PORT);
     console.log('TOPPAN_DB_HOST:', process.env.TOPPAN_DB_HOST);
+    console.log('TOPPAN_DB_PORT:', process.env.TOPPAN_DB_PORT);
+
     await startServer();
   } catch (error) {
     console.error('Failed to start server:', error);

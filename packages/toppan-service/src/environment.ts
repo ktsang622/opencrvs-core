@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 export const TOPPAN_DB_HOST = process.env.TOPPAN_DB_HOST || process.env.DB_HOST || 'localhost'
-export const TOPPAN_DB_PORT = parseInt(process.env.TOPPAN_DB_PORT || process.env.DB_PORT || '5432')
+export const TOPPAN_DB_PORT = parseInt(process.env.TOPPAN_DB_PORT || process.env.DB_PORT || '35432')
 export const TOPPAN_DB_NAME = process.env.TOPPAN_DB_NAME || process.env.DB_NAME || 'person_registry'
 export const TOPPAN_DB_USER = process.env.TOPPAN_DB_USER || process.env.DB_USER || 'registry_user'
 export const TOPPAN_DB_PASSWORD = process.env.TOPPAN_DB_PASSWORD || process.env.DB_PASSWORD || 'registry_pass'
