@@ -165,29 +165,8 @@ const PersonPicker = (
         props.id
       )
 
-      // Check for duplicate person selection across sections
+      // Set the person UUID
       if (personData.uuid) {
-        const currentFormValues = formik.values as any
-        const otherSections = ['mother', 'father', 'deceased', 'spouse'].filter(
-          (s) => s !== sectionPrefix
-        )
-
-        for (const section of otherSections) {
-          // Check both direct field and nested section field
-          const otherSectionId =
-            currentFormValues[section]?.searchPersonId ||
-            currentFormValues.searchPersonId
-          if (otherSectionId && otherSectionId === personData.uuid) {
-            alert(
-              `⚠️ This person is already selected as the ${section}. Please choose a different person.`
-            )
-            console.warn(
-              `Duplicate person selection prevented: ${personData.uuid} is already selected as ${section}`
-            )
-            return // Stop the selection
-          }
-        }
-
         formik.setFieldValue('searchPersonId', personData.uuid)
       }
       if (personData.given_name) {
