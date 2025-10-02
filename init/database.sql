@@ -400,39 +400,82 @@ BEGIN
          AND fl.end_date IS NULL;
     END IF;
 
-    -- Create informational spouse link when spouse is listed on death registration
-    IF ep.role = 'spouse' AND is_ready AND ep.person_id IS NOT NULL THEN
-      SELECT ep2.person_id
-        INTO anchor_id
-      FROM event_participant ep2
-      WHERE ep2.event_id = ep.event_id
-        AND ep2.role = 'subject'
-        AND ep2.status = 'active'
-        AND ep2.ended_at IS NULL
-      ORDER BY ep2.created_at
-      LIMIT 1;
+    -- Death: Handle subject (deceased) - close spouse links
+    IF ep.role = 'subject' AND is_ready AND ep.person_id IS NOT NULL THEN
+      -- Close all active spouse links for the deceased person
+      UPDATE family_links_forward
+      SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
+          notes = COALESCE(notes, '') || ' [Ended by death]'
+      WHERE (person_id = ep.person_id OR related_person_id = ep.person_id)
+        AND relationship_type = 'spouse'
+        AND end_date IS NULL;
 
-      IF anchor_id IS NOT NULL THEN
-        -- Create the informational spouse link
-        PERFORM upsert_family_link_forward_shadow(
-          ep.person_id,
-          anchor_id,
-          'spouse'::relationship_type_enum,
-          ep.event_id,
-          start_d,
-          NULL,
-          'death_registration'
-        );
+      RAISE NOTICE 'Death: Closed spouse links for deceased person %', ep.person_id;
+    END IF;
 
-        -- Immediately close it (relationship ends at death)
-        UPDATE family_links_forward
-        SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
-            notes = COALESCE(notes,'') || ' [Informational from death registration - not legal marriage]'
-        WHERE source_event_id = ep.event_id
-          AND relationship_type = 'spouse'
-          AND (person_id = ep.person_id OR related_person_id = ep.person_id)
-          AND end_date IS NULL;
-      END IF;
+    -- Death: Handle informant claiming spouse - create informational link if no marriage
+    IF ep.role = 'informant' AND is_ready AND ep.person_id IS NOT NULL THEN
+      -- Check if relationship_details indicates spouse informant
+      DECLARE
+        v_relationship_details jsonb;
+        v_informant_type text;
+        v_deceased_id uuid;
+        v_marriage_count integer;
+      BEGIN
+        v_relationship_details := ep.relationship_details::jsonb;
+        v_informant_type := v_relationship_details->>'informantType';
+
+        -- Only proceed if informant type is SPOUSE
+        IF v_informant_type = 'SPOUSE' THEN
+          -- Get deceased person (subject participant)
+          SELECT ep2.person_id INTO v_deceased_id
+          FROM event_participant ep2
+          WHERE ep2.event_id = ep.event_id
+            AND ep2.role = 'subject'
+            AND ep2.status = 'active'
+            AND ep2.ended_at IS NULL
+          ORDER BY ep2.created_at
+          LIMIT 1;
+
+          IF v_deceased_id IS NOT NULL THEN
+            -- Check if marriage spouse exists
+            SELECT COUNT(*) INTO v_marriage_count
+            FROM family_links_forward
+            WHERE (person_id = v_deceased_id OR related_person_id = v_deceased_id)
+              AND relationship_type = 'spouse'
+              AND source = 'marriage_registration'
+              AND (end_date IS NULL OR end_date >= COALESCE(start_d, CURRENT_DATE));
+
+            -- Only create informational link if NO marriage exists
+            IF v_marriage_count = 0 THEN
+              -- Create informational spouse link (will be closed immediately)
+              PERFORM upsert_family_link_forward_shadow(
+                ep.person_id,
+                v_deceased_id,
+                'spouse'::relationship_type_enum,
+                ep.event_id,
+                start_d,
+                NULL,
+                'death_registration'
+              );
+
+              -- Immediately close it (relationship ends at death)
+              UPDATE family_links_forward
+              SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
+                  notes = COALESCE(notes, '') || ' [Informational - no marriage record found. Reported by informant on death form]'
+              WHERE source_event_id = ep.event_id
+                AND relationship_type = 'spouse'
+                AND (person_id = ep.person_id OR related_person_id = ep.person_id)
+                AND end_date IS NULL;
+
+              RAISE NOTICE 'Death: Created informational spouse link (no marriage) for deceased % and informant spouse %', v_deceased_id, ep.person_id;
+            ELSE
+              -- Marriage exists - informational link NOT needed (marriage link already closed by subject trigger)
+              RAISE NOTICE 'Death: Skipped informational spouse link - marriage exists for deceased %', v_deceased_id;
+            END IF;
+          END IF;
+        END IF;
+      END;
     END IF;
 
     RETURN;
