@@ -42,3 +42,6 @@ data_*.tgz
 *.temp
 debug*
 archive
+
+# Development logs
+logs/
