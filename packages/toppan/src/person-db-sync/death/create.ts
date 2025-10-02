@@ -74,6 +74,28 @@ export async function createDeathHandler(
     const mapped = mapDeathBundleToSql(record, existingPerson)
     if (!mapped) return h.response({ error: 'Unable to parse death bundle' }).code(400)
 
+    // Validate no duplicate person UUIDs (deceased cannot be same as spouse)
+    const deceasedCrvsIdFromBundle = deceased?.id
+    const spouseEntry = entries.find((e: any) =>
+      e.resource?.resourceType === 'Patient' &&
+      composition?.section?.find((s: any) => s.title === "Spouse details")
+        ?.entry?.[0]?.reference?.includes(e.resource?.id)
+    )?.resource
+    const spouseCrvsId = spouseEntry?.id
+
+    if (deceasedCrvsIdFromBundle && spouseCrvsId && deceasedCrvsIdFromBundle === spouseCrvsId) {
+      console.error('❌ VALIDATION ERROR: Deceased and spouse cannot be the same person')
+      console.error(`   - Deceased CRVS ID: ${deceasedCrvsIdFromBundle}`)
+      console.error(`   - Spouse CRVS ID: ${spouseCrvsId}`)
+      return h.response({
+        error: 'Deceased and spouse cannot be the same person',
+        details: {
+          deceasedCrvsId: deceasedCrvsIdFromBundle,
+          spouseCrvsId: spouseCrvsId
+        }
+      }).code(400)
+    }
+
     const now = new Date().toISOString()
 
     console.log('\n📊 DEATH DATABASE INSERT SUMMARY:')

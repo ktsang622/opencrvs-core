@@ -42,6 +42,37 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
     const mapped = mapBundleToSql(record)
     if (!mapped) return h.response({ error: 'Unable to parse birth bundle' }).code(400)
 
+    // Validate no duplicate person UUIDs (mother cannot be same as father)
+    const entries = record?.entry || []
+    const composition = entries.find((e: any) => e.resource?.resourceType === 'Composition')?.resource
+
+    const motherSection = composition?.section?.find((s: any) => s.title === "Mother's details")
+    const fatherSection = composition?.section?.find((s: any) => s.title === "Father's details")
+
+    const motherEntry = motherSection?.entry?.[0]?.reference
+      ? entries.find((e: any) => e.fullUrl?.includes(motherSection.entry[0].reference))?.resource
+      : null
+
+    const fatherEntry = fatherSection?.entry?.[0]?.reference
+      ? entries.find((e: any) => e.fullUrl?.includes(fatherSection.entry[0].reference))?.resource
+      : null
+
+    const motherCrvsId = motherEntry?.id
+    const fatherCrvsId = fatherEntry?.id
+
+    if (motherCrvsId && fatherCrvsId && motherCrvsId === fatherCrvsId) {
+      console.error('❌ VALIDATION ERROR: Mother and father cannot be the same person')
+      console.error(`   - Mother CRVS ID: ${motherCrvsId}`)
+      console.error(`   - Father CRVS ID: ${fatherCrvsId}`)
+      return h.response({
+        error: 'Mother and father cannot be the same person',
+        details: {
+          motherCrvsId: motherCrvsId,
+          fatherCrvsId: fatherCrvsId
+        }
+      }).code(400)
+    }
+
     const now = new Date().toISOString()
 
     // Debug summary
