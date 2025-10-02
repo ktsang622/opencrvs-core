@@ -94,6 +94,17 @@ const PersonDetails = styled.div`
   ${({ theme }) => theme.fonts.reg14};
 `
 
+const DeceasedBadge = styled.span`
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background-color: ${({ theme }) => theme.colors.negative};
+  color: white;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+`
+
 const ErrorMessage = styled.div`
   color: ${({ theme }) => theme.colors.negative};
   margin-top: 12px;
@@ -360,6 +371,7 @@ const PersonPicker = (
                 {!isSearching &&
                   searchResults.map((hit, index) => {
                     const person = hit.source || hit
+                    const isDeceased = person.status === 'deceased'
                     return (
                       <PersonItem
                         key={person.uuid || person.id || index}
@@ -372,9 +384,14 @@ const PersonPicker = (
                             alignItems: 'center'
                           }}
                         >
-                          <PersonName>
-                            {person.full_name || person.name}
-                          </PersonName>
+                          <div>
+                            <PersonName>
+                              {person.full_name || person.name}
+                              {isDeceased && (
+                                <DeceasedBadge>DECEASED</DeceasedBadge>
+                              )}
+                            </PersonName>
+                          </div>
                           <div style={{ fontSize: '12px', color: '#999' }}>
                             {person.score?.toFixed(1)}
                           </div>
@@ -382,6 +399,12 @@ const PersonPicker = (
                         <PersonDetails>
                           DOB: {person.dateOfBirth?.substring(0, 10) || 'N/A'} |
                           Gender: {person.gender}
+                          {isDeceased && person.death_date && (
+                            <>
+                              {' '}
+                              | Death: {person.death_date.substring(0, 10)}
+                            </>
+                          )}
                           <br />
                           ID:{' '}
                           {person.identifiers?.find(
