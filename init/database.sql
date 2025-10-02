@@ -388,16 +388,53 @@ BEGIN
     RETURN;
   END IF;
 
-  -- ========= DEATH ========= (unchanged)
+  -- ========= DEATH =========
   IF lower(ev.event_type) = 'death' THEN
-    IF m_row.closes_links AND ep.person_id IS NOT NULL THEN
+    -- Close spouse/partner links for the deceased person (subject)
+    IF ep.role = 'subject' AND ep.person_id IS NOT NULL THEN
       UPDATE family_links_forward fl
          SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
              notes    = COALESCE(fl.notes,'') || ' [Closed by death]'
-       WHERE fl.person_id = ep.person_id
+       WHERE (fl.person_id = ep.person_id OR fl.related_person_id = ep.person_id)
          AND fl.relationship_type IN ('spouse','partner')
          AND fl.end_date IS NULL;
     END IF;
+
+    -- Create informational spouse link when spouse is listed on death registration
+    IF ep.role = 'spouse' AND is_ready AND ep.person_id IS NOT NULL THEN
+      SELECT ep2.person_id
+        INTO anchor_id
+      FROM event_participant ep2
+      WHERE ep2.event_id = ep.event_id
+        AND ep2.role = 'subject'
+        AND ep2.status = 'active'
+        AND ep2.ended_at IS NULL
+      ORDER BY ep2.created_at
+      LIMIT 1;
+
+      IF anchor_id IS NOT NULL THEN
+        -- Create the informational spouse link
+        PERFORM upsert_family_link_forward_shadow(
+          ep.person_id,
+          anchor_id,
+          'spouse'::relationship_type_enum,
+          ep.event_id,
+          start_d,
+          NULL,
+          'death_registration'
+        );
+
+        -- Immediately close it (relationship ends at death)
+        UPDATE family_links_forward
+        SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
+            notes = COALESCE(notes,'') || ' [Informational from death registration - not legal marriage]'
+        WHERE source_event_id = ep.event_id
+          AND relationship_type = 'spouse'
+          AND (person_id = ep.person_id OR related_person_id = ep.person_id)
+          AND end_date IS NULL;
+      END IF;
+    END IF;
+
     RETURN;
   END IF;
 
@@ -679,19 +716,20 @@ LEFT JOIN ep_roles rr
  AND rr.pid = fl.related_person_id
  AND rr.etype = 'marriage';
 
--- Get family view
+-- Get family view (updated to use family_links_bidirectional)
 CREATE OR REPLACE VIEW get_family AS
-SELECT
-  f.person_id,
-  f.relationship_type,
-  json_agg(json_build_object(
-    'related_person_id', f.related_person_id,
-    'subtype', f.relationship_subtype,
-    'start_date', f.start_date,
-    'end_date', f.end_date,
-    'source_event_id', f.source_event_id
-  )) AS relatives
-FROM family_link f
+SELECT f.person_id,
+    f.relationship_type,
+    json_agg(json_build_object(
+        'related_person_id', f.related_person_id,
+        'relationship_subtype', f.relationship_subtype,
+        'start_date', f.start_date,
+        'end_date', f.end_date,
+        'source_event_id', f.source_event_id,
+        'source', f.source,
+        'notes', f.notes
+    )) AS relatives
+FROM family_links_bidirectional f
 GROUP BY f.person_id, f.relationship_type;
 
 -- 8. Triggers (after all functions exist)
