@@ -174,156 +174,231 @@ LEFT JOIN ep_roles rr
  AND rr.pid      = fl.related_person_id
  AND rr.etype    = 'marriage';
 
--- 4) Upsert helper (event-date start, spouse normalization, safe auto-close)
+-- 4) Upsert helper (modern version with support for end_date and death spouse logic)
 CREATE OR REPLACE FUNCTION upsert_family_link_forward_shadow(
-  p_person_id           uuid,
-  p_related_person_id   uuid,
-  p_relationship        relationship_type_enum,
-  p_event_id            uuid,
-  p_source              text
+    p_person_id uuid,
+    p_related_person_id uuid,
+    p_relationship relationship_type_enum,
+    p_event_id uuid,
+    p_start_date date,
+    p_end_date date,
+    p_source text
 ) RETURNS void AS $$
-DECLARE
-  e_rec     RECORD;
-  v_person  uuid;
-  v_related uuid;
-  v_start   date;
 BEGIN
-  SELECT e.event_date::date AS ev_date, e.created_at::date AS ev_created
-  INTO e_rec
-  FROM event e
-  WHERE e.id = p_event_id;
+  -- Close any active conflicting link (same anchor/role/event pointing elsewhere)
+  UPDATE family_links_forward fl
+     SET end_date = COALESCE(p_start_date, CURRENT_DATE),
+         notes = COALESCE(fl.notes,'') || ' [Auto-ended due to revision]'
+   WHERE fl.person_id = p_person_id
+     AND fl.relationship_type = p_relationship
+     AND fl.source_event_id = p_event_id
+     AND fl.end_date IS NULL
+     AND fl.related_person_id <> p_related_person_id;
 
-  v_start := COALESCE(e_rec.ev_date, e_rec.ev_created);
-
-  IF p_relationship IN ('spouse','partner') THEN
-    v_person  := LEAST(p_person_id, p_related_person_id);
-    v_related := GREATEST(p_person_id, p_related_person_id);
-  ELSE
-    v_person  := p_person_id;
-    v_related := p_related_person_id;
-  END IF;
-
-  -- Auto-close only for parental links revised within the same event
-  IF p_relationship IN ('mother','father') THEN
-    UPDATE family_links_forward fl
-    SET end_date = GREATEST(v_start, COALESCE(fl.start_date, v_start)),
-        notes    = COALESCE(fl.notes,'') || ' [Auto-ended: revision]'
-    WHERE fl.person_id = v_person
-      AND fl.relationship_type = p_relationship
-      AND fl.source_event_id = p_event_id
-      AND fl.end_date IS NULL
-      AND fl.related_person_id <> v_related;
-  END IF;
-
+  -- Upsert the current link
   INSERT INTO family_links_forward(
-    person_id, related_person_id, relationship_type, relationship_subtype,
+    person_id, related_person_id, relationship_type,
     source_event_id, start_date, end_date, source, notes
   )
   VALUES (
-    v_person, v_related, p_relationship, NULL,
-    p_event_id, v_start, NULL, p_source, 'Auto-linked from event'
+    p_person_id, p_related_person_id, p_relationship,
+    p_event_id, p_start_date, p_end_date, p_source, 'From EP (shadow)'
   )
-  ON CONFLICT (person_id, related_person_id, relationship_type, source_event_id, start_date)
+  ON CONFLICT (person_id, related_person_id, relationship_type, source_event_id)
   DO UPDATE SET
-    start_date = LEAST(family_links_forward.start_date, EXCLUDED.start_date),
+    start_date = COALESCE(family_links_forward.start_date, EXCLUDED.start_date),
+    end_date   = COALESCE(EXCLUDED.end_date, family_links_forward.end_date),
     source     = COALESCE(EXCLUDED.source, family_links_forward.source);
 END;
 $$ LANGUAGE plpgsql;
 
--- 5) Worker (uses event_date, created_at, last_update_at; clamps closes)
+-- 5) Worker (modern version with death spouse informational link support)
 CREATE OR REPLACE FUNCTION apply_event_participant_change_shadow(p_event_participant_id uuid)
 RETURNS void AS $$
 DECLARE
-  ep_rec      RECORD;
-  subject_id  uuid;
-  v_start     date;
-  v_close     date;
-  counterpart uuid;
+  ep    event_participant%ROWTYPE;
+  ev    event%ROWTYPE;
+  m_row relationship_role_map%ROWTYPE;
+
+  start_d   date;
+  end_d     date;
+  is_active boolean;
+  is_ready  boolean;
+
+  anchor_id uuid;
+  other_id  uuid;
 BEGIN
-  -- NB: table aliases (epx/ex) avoid collision with ep_rec variable
-  SELECT epx.*, ex.event_type,
-         ex.event_date::date      AS ev_date,
-         ex.created_at::date      AS ev_created,
-         ex.last_update_at::date  AS ev_updated,
-         COALESCE(ex.source,'OpenCRVS') AS ev_source
-  INTO ep_rec
-  FROM event_participant epx
-  JOIN event ex ON ex.id = epx.event_id
-  WHERE epx.id = p_event_participant_id;
+  SELECT * INTO ep FROM event_participant WHERE id = p_event_participant_id;
+  IF NOT FOUND THEN RETURN; END IF;
 
-  IF ep_rec.id IS NULL THEN RETURN; END IF;
+  SELECT * INTO ev FROM event WHERE id = ep.event_id;
+  IF NOT FOUND THEN RETURN; END IF;
 
-  v_start := COALESCE(ep_rec.ev_date, ep_rec.ev_created);
+  SELECT * INTO m_row
+  FROM relationship_role_map
+  WHERE event_type = lower(ev.event_type)
+    AND role_text  = ep.role;
+  IF NOT FOUND THEN RETURN; END IF;
 
-  -- Birth: child <- mother/father (subject is the child)
-  IF lower(ep_rec.event_type) = 'birth' THEN
-    SELECT person_id INTO subject_id
-    FROM event_participant
-    WHERE event_id = ep_rec.event_id AND role = 'subject'
-    ORDER BY created_at NULLS FIRST, id
+  is_active := (ep.status = 'active' AND ep.ended_at IS NULL);
+  is_ready  := (ep.status IN ('active','review') AND ep.ended_at IS NULL);
+
+  start_d := COALESCE(ev.event_date, ep.created_at::date, CURRENT_DATE);
+  end_d   := NULL;
+
+  -- ========= BIRTH =========
+  IF lower(ev.event_type) = 'birth' THEN
+    SELECT ep2.person_id
+      INTO anchor_id
+    FROM event_participant ep2
+    WHERE ep2.event_id = ep.event_id
+      AND ep2.role = 'subject'
+      AND ep2.status = 'active'
+      AND ep2.ended_at IS NULL
+    ORDER BY ep2.created_at
     LIMIT 1;
 
-    IF subject_id IS NOT NULL AND ep_rec.role IN ('mother','father') THEN
+    IF anchor_id IS NULL THEN RETURN; END IF;
+
+    IF is_ready AND m_row.creates_link AND ep.person_id IS NOT NULL THEN
       PERFORM upsert_family_link_forward_shadow(
-        subject_id, ep_rec.person_id, ep_rec.role::relationship_type_enum,
-        ep_rec.event_id, ep_rec.ev_source
+        anchor_id,
+        ep.person_id,
+        m_row.forward_relationship,
+        ep.event_id,
+        start_d,
+        NULL,
+        COALESCE(ev.source,'OpenCRVS')
       );
     END IF;
 
-    IF subject_id IS NOT NULL AND ep_rec.role IN ('mother','father') AND ep_rec.ended_at IS NOT NULL THEN
-      v_close := COALESCE(ep_rec.ended_at::date, ep_rec.ev_updated, v_start);
+    IF ep.ended_at IS NOT NULL AND m_row.creates_link AND ep.person_id IS NOT NULL THEN
       UPDATE family_links_forward fl
-      SET end_date = GREATEST(v_close, COALESCE(fl.start_date, v_close)),
-          notes    = COALESCE(fl.notes,'') || ' [Closed by EP ended_at]'
-      WHERE fl.person_id = subject_id
-        AND fl.related_person_id = ep_rec.person_id
-        AND fl.relationship_type = ep_rec.role::relationship_type_enum
-        AND fl.source_event_id = ep_rec.event_id
-        AND fl.end_date IS NULL;
+         SET end_date = ep.ended_at::date,
+             notes = COALESCE(fl.notes,'') || ' [Closed by EP ended_at]'
+       WHERE fl.person_id = anchor_id
+         AND fl.related_person_id = ep.person_id
+         AND fl.relationship_type = m_row.forward_relationship
+         AND fl.source_event_id = ep.event_id
+         AND fl.end_date IS NULL;
     END IF;
+
+    RETURN;
   END IF;
 
-  -- Marriage: spouse (normalize pair; either EP can arrive first)
-  IF lower(ep_rec.event_type) = 'marriage' AND ep_rec.role IN ('bride','groom') THEN
-    SELECT person_id INTO counterpart
-    FROM event_participant
-    WHERE event_id = ep_rec.event_id
-      AND role IN ('bride','groom')
-      AND person_id <> ep_rec.person_id
-    ORDER BY created_at NULLS FIRST, id
+  -- ========= MARRIAGE =========
+  IF lower(ev.event_type) = 'marriage' THEN
+    IF NOT is_active OR NOT m_row.creates_link OR ep.person_id IS NULL THEN
+      RETURN;
+    END IF;
+
+    SELECT ep2.person_id
+      INTO other_id
+    FROM event_participant ep2
+    WHERE ep2.event_id = ep.event_id
+      AND ep2.role IN (
+        SELECT role_text FROM relationship_role_map
+        WHERE event_type = 'marriage'
+          AND counterpart_group = m_row.counterpart_group
+      )
+      AND ep2.id <> ep.id
+      AND ep2.status = 'active'
+      AND ep2.ended_at IS NULL
     LIMIT 1;
 
-    IF counterpart IS NOT NULL THEN
-      PERFORM upsert_family_link_forward_shadow(
-        ep_rec.person_id, counterpart, 'spouse',
-        ep_rec.event_id, ep_rec.ev_source
-      );
-    END IF;
+    IF other_id IS NULL THEN RETURN; END IF;
 
-    IF ep_rec.ended_at IS NOT NULL THEN
-      v_close := COALESCE(ep_rec.ended_at::date, ep_rec.ev_updated, v_start);
-      UPDATE family_links_forward fl
-      SET end_date = GREATEST(v_close, COALESCE(fl.start_date, v_close)),
-          notes    = COALESCE(fl.notes,'') || ' [Closed by EP ended_at]'
-      WHERE fl.source_event_id = ep_rec.event_id
-        AND fl.relationship_type = 'spouse'
-        AND (fl.person_id, fl.related_person_id) = (
-             LEAST(ep_rec.person_id, COALESCE(counterpart, ep_rec.person_id)),
-             GREATEST(ep_rec.person_id, COALESCE(counterpart, ep_rec.person_id))
-           )
-        AND fl.end_date IS NULL;
-    END IF;
+    INSERT INTO family_links_forward(
+      person_id, related_person_id, relationship_type,
+      source_event_id, start_date, end_date, source, notes
+    )
+    SELECT
+      LEAST(ep.person_id, other_id),
+      GREATEST(ep.person_id, other_id),
+      'spouse'::relationship_type_enum,
+      ep.event_id,
+      start_d,
+      NULL,
+      COALESCE(ev.source,'OpenCRVS'),
+      'From marriage event (shadow)'
+    ON CONFLICT (person_id, related_person_id, relationship_type, source_event_id)
+    DO NOTHING;
+
+    RETURN;
   END IF;
 
-  -- Death: close spouse/partner links for subject on death date
-  IF lower(ep_rec.event_type) = 'death' AND ep_rec.role = 'subject' THEN
-    v_close := COALESCE(v_start, ep_rec.ev_updated);
-    UPDATE family_links_forward fl
-    SET end_date = GREATEST(v_close, COALESCE(fl.start_date, v_close)),
-        notes    = COALESCE(fl.notes,'') || ' [Closed by death]'
-    WHERE (fl.person_id = ep_rec.person_id OR fl.related_person_id = ep_rec.person_id)
-      AND fl.relationship_type IN ('spouse','partner')
-      AND fl.end_date IS NULL;
+  -- ========= DEATH =========
+  IF lower(ev.event_type) = 'death' THEN
+    -- Death: Handle subject (deceased) - close spouse links
+    IF ep.role = 'subject' AND is_ready AND ep.person_id IS NOT NULL THEN
+      UPDATE family_links_forward
+      SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
+          notes = COALESCE(notes, '') || ' [Ended by death]'
+      WHERE (person_id = ep.person_id OR related_person_id = ep.person_id)
+        AND relationship_type = 'spouse'
+        AND end_date IS NULL;
+
+      RAISE NOTICE 'Death: Closed spouse links for deceased person %', ep.person_id;
+    END IF;
+
+    -- Death: Handle informant claiming spouse - create informational link if no marriage
+    IF ep.role = 'informant' AND is_ready AND ep.person_id IS NOT NULL THEN
+      DECLARE
+        v_relationship_details jsonb;
+        v_informant_type text;
+        v_deceased_id uuid;
+        v_marriage_count integer;
+      BEGIN
+        v_relationship_details := ep.relationship_details::jsonb;
+        v_informant_type := v_relationship_details->>'informantType';
+
+        IF v_informant_type = 'SPOUSE' THEN
+          SELECT ep2.person_id INTO v_deceased_id
+          FROM event_participant ep2
+          WHERE ep2.event_id = ep.event_id
+            AND ep2.role = 'subject'
+            AND ep2.status = 'active'
+            AND ep2.ended_at IS NULL
+          ORDER BY ep2.created_at
+          LIMIT 1;
+
+          IF v_deceased_id IS NOT NULL THEN
+            SELECT COUNT(*) INTO v_marriage_count
+            FROM family_links_forward
+            WHERE (person_id = v_deceased_id OR related_person_id = v_deceased_id)
+              AND relationship_type = 'spouse'
+              AND source = 'marriage_registration'
+              AND (end_date IS NULL OR end_date >= COALESCE(start_d, CURRENT_DATE));
+
+            IF v_marriage_count = 0 THEN
+              PERFORM upsert_family_link_forward_shadow(
+                ep.person_id,
+                v_deceased_id,
+                'spouse'::relationship_type_enum,
+                ep.event_id,
+                start_d,
+                NULL,
+                'death_registration'
+              );
+
+              UPDATE family_links_forward
+              SET end_date = COALESCE(ev.event_date, CURRENT_DATE),
+                  notes = COALESCE(notes, '') || ' [Informational - no marriage record found. Reported by informant on death form]'
+              WHERE source_event_id = ep.event_id
+                AND relationship_type = 'spouse'
+                AND (person_id = ep.person_id OR related_person_id = ep.person_id)
+                AND end_date IS NULL;
+
+              RAISE NOTICE 'Death: Created informational spouse link (no marriage) for deceased % and informant spouse %', v_deceased_id, ep.person_id;
+            ELSE
+              RAISE NOTICE 'Death: Skipped informational spouse link - marriage exists for deceased %', v_deceased_id;
+            END IF;
+          END IF;
+        END IF;
+      END;
+    END IF;
+
+    RETURN;
   END IF;
 END;
 $$ LANGUAGE plpgsql;
