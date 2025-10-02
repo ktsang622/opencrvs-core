@@ -148,9 +148,16 @@ const PersonPicker = (
     if (formik) {
       console.log('✅ Using Formik context to set field values')
 
-      // Auto-detect which section (mother/father) this picker is used in
+      // Auto-detect which section (mother/father/deceased/spouse) this picker is used in
       // by checking the picker's ID prop
-      const sectionPrefix = props.id.includes('father') ? 'father' : 'mother'
+      let sectionPrefix = 'mother' // default
+      if (props.id.includes('father')) {
+        sectionPrefix = 'father'
+      } else if (props.id.includes('deceased')) {
+        sectionPrefix = 'deceased'
+      } else if (props.id.includes('spouse')) {
+        sectionPrefix = 'spouse'
+      }
       console.log(
         '🔍 Detected section prefix:',
         sectionPrefix,
@@ -168,10 +175,29 @@ const PersonPicker = (
         formik.setFieldValue('familyNameEng', personData.family_name)
       }
 
-      // Populate birth date field (motherBirthDate or fatherBirthDate)
+      // Populate gender field
+      if (personData.gender) {
+        formik.setFieldValue('gender', personData.gender)
+      }
+
+      // Populate birth date field (motherBirthDate, fatherBirthDate, deceasedBirthDate, spouseBirthDate)
       if (personData.dateOfBirth) {
         const formattedDob = personData.dateOfBirth.split('T')[0] // Convert ISO to YYYY-MM-DD
         formik.setFieldValue(`${sectionPrefix}BirthDate`, formattedDob)
+
+        // Clear "Exact date of birth unknown" checkbox when DOB is populated
+        // Field names: mother.dobUnknown, father.dobUnknown, exactDateOfBirthUnknown (for deceased/spouse)
+        if (sectionPrefix === 'deceased' || sectionPrefix === 'spouse') {
+          formik.setFieldValue('exactDateOfBirthUnknown', false)
+        } else {
+          // For mother/father in v2 birth forms
+          formik.setFieldValue(`${sectionPrefix}.dobUnknown`, false)
+        }
+      }
+
+      // Populate nationality field if available
+      if (personData.nationality) {
+        formik.setFieldValue('nationality', personData.nationality)
       }
 
       // Populate ID type and number fields based on person's identifiers
@@ -180,7 +206,7 @@ const PersonPicker = (
         (id: any) => id.type !== 'crvs'
       )
       if (identifier) {
-        // Set ID type (motherIdType or fatherIdType)
+        // Set ID type (motherIdType, fatherIdType, deceasedIdType, spouseIdType)
         formik.setFieldValue(`${sectionPrefix}IdType`, identifier.type)
 
         // Set ID number in the corresponding field based on type
@@ -194,10 +220,16 @@ const PersonPicker = (
             identifier.value
           )
         }
+      } else {
+        // No identifier found (or only 'crvs'), set ID type to NONE
+        formik.setFieldValue(`${sectionPrefix}IdType`, 'NONE')
       }
 
-      // Mark that person details exist (enables form fields)
-      formik.setFieldValue('detailsExist', true)
+      // Mark that person details exist (enables form fields) - only for mother/father/spouse sections
+      // Deceased section doesn't use detailsExist
+      if (sectionPrefix !== 'deceased') {
+        formik.setFieldValue('detailsExist', true)
+      }
     }
 
     // Also call parent callback

@@ -144,6 +144,45 @@ export async function personExists(personId: string, tx?: PoolClient): Promise<b
   }
 }
 
+/**
+ * Find person by CRVS person ID (from identifiers JSON field)
+ * Used to link death registrations to existing birth records
+ */
+export async function findPersonByCrvsId(crvsPersonId: string, tx?: PoolClient): Promise<any> {
+  try {
+    const { rows } = await (tx ?? pool).query(
+      `SELECT id, given_name, family_name, gender, dob, status, death_date, identifiers, created_at, updated_at
+       FROM person
+       WHERE identifiers @> $1::jsonb
+       LIMIT 1`,
+      [JSON.stringify([{ type: 'crvs', value: crvsPersonId }])]
+    )
+    return rows[0] || null
+  } catch (error) {
+    console.error('Database query error (findPersonByCrvsId):', error)
+    return null
+  }
+}
+
+/**
+ * Update person status to deceased with death date
+ * Called when a death registration is created for an existing person
+ */
+export async function updatePersonToDeceased(data: {
+  personId: string
+  deathDate: string | null
+  updatedAt?: string
+}, tx?: PoolClient): Promise<void> {
+  const q = `
+    UPDATE person
+    SET status = 'deceased',
+        death_date = $2,
+        updated_at = COALESCE($3, CURRENT_TIMESTAMP)
+    WHERE id = $1
+  `
+  await (tx ?? pool).query(q, [data.personId, data.deathDate, data.updatedAt ?? null])
+}
+
 // ───────────────────────────────────────────────────────────────────────────────
 // Mutations
 // ───────────────────────────────────────────────────────────────────────────────
