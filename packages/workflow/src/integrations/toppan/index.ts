@@ -10,12 +10,17 @@
  */
 
 import { EVENT_TYPE } from '@opencrvs/commons/types'
-import { syncRecordCreation, syncRecordCorrection } from './client'
+import {
+  syncRecordCreation,
+  syncRecordCorrection,
+  syncDeathRecordCreation,
+  syncDeathRecordCorrection
+} from './client'
 import { isToppanEnabled } from './guards'
 
-export async function syncBirthRecordCreation(record: any, token: string) {
+export async function syncToppanBirthRecordCreation(record: any, token: string) {
   console.log(
-    '🔍 syncBirthRecordCreation called, isToppanEnabled:',
+    '🔍 syncToppanBirthRecordCreation called, isToppanEnabled:',
     isToppanEnabled(),
     'hasRecord:',
     !!record
@@ -29,13 +34,13 @@ export async function syncBirthRecordCreation(record: any, token: string) {
   }
 }
 
-export async function syncBirthRecordCorrection(
+export async function syncToppanBirthRecordCorrection(
   recordInput: any,
   eventType: EVENT_TYPE,
   token: string
 ) {
   console.log(
-    '🔍 syncBirthRecordCorrection called, isToppanEnabled:',
+    '🔍 syncToppanBirthRecordCorrection called, isToppanEnabled:',
     isToppanEnabled(),
     'eventType:',
     eventType
@@ -46,5 +51,45 @@ export async function syncBirthRecordCorrection(
     await syncRecordCorrection(recordInput, token)
   } catch (error) {
     console.error('Failed to sync birth record correction with Toppan:', error)
+  }
+}
+
+// Backward compatibility exports
+export const syncBirthRecordCreation = syncToppanBirthRecordCreation
+export const syncBirthRecordCorrection = syncToppanBirthRecordCorrection
+
+export async function syncToppanDeathRecordCreation(record: any, token: string) {
+  console.log(
+    '🔍 syncToppanDeathRecordCreation called, isToppanEnabled:',
+    isToppanEnabled(),
+    'hasRecord:',
+    !!record
+  )
+  if (!isToppanEnabled() || !record) return
+
+  try {
+    await syncDeathRecordCreation(record, token)
+  } catch (error) {
+    console.error('Failed to sync death record creation with Toppan:', error)
+  }
+}
+
+export async function syncToppanDeathRecordCorrection(
+  recordInput: any,
+  eventType: EVENT_TYPE,
+  token: string
+) {
+  console.log(
+    '🔍 syncToppanDeathRecordCorrection called, isToppanEnabled:',
+    isToppanEnabled(),
+    'eventType:',
+    eventType
+  )
+  if (!isToppanEnabled() || eventType !== 'DEATH') return
+
+  try {
+    await syncDeathRecordCorrection(recordInput, token)
+  } catch (error) {
+    console.error('Failed to sync death record correction with Toppan:', error)
   }
 }

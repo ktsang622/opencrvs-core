@@ -92,6 +92,35 @@ export async function findExistingFatherParticipant(
   }
 }
 
+export async function findExistingSpouseParticipant(
+  eventDatabaseId: string,
+  tx?: PoolClient,
+  personId?: string
+): Promise<any> {
+  try {
+    const params: any[] = [eventDatabaseId]
+    let q = `
+      SELECT id, person_id, event_id, role, relationship_details, created_at, crvs_person_id, status, ended_at, remarks
+        FROM event_participant
+       WHERE event_id = $1
+         AND role = 'spouse'
+         AND status = 'active'
+         AND ended_at IS NULL
+    `
+    if (personId) {
+      q += ` AND person_id = $2`
+      params.push(personId)
+    }
+    q += ` ORDER BY created_at DESC LIMIT 1`
+
+    const { rows } = await (tx ?? pool).query(q, params)
+    return rows[0] || null
+  } catch (error) {
+    console.error('Database query error (findExistingSpouseParticipant):', error)
+    return null
+  }
+}
+
 export async function findParticipantByCRVSId(
   eventDatabaseId: string,
   crvsPersonId: string,

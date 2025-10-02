@@ -94,3 +94,64 @@ export async function syncRecordCorrection(recordInput: any, token: string) {
 
   console.log('✅ Birth record correction synced with Toppan successfully')
 }
+
+export async function syncDeathRecordCreation(record: any, token: string) {
+  const payload = mapRecordToCreationPayload(record)
+
+  console.log('🔄 Syncing death record creation with Toppan...')
+
+  const response = await fetch(
+    `${env.TOPPAN_URL}/v1/person-db-sync/death/create`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+        // Note: Toppan service currently doesn't require authentication
+        // Add Authorization header if needed: 'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Toppan death sync failed: ${response.status}`)
+  }
+
+  console.log('✅ Death record synced with Toppan successfully')
+}
+
+export async function syncDeathRecordCorrection(recordInput: any, token: string) {
+  const payload = mapRecordToCorrectionPayload(recordInput)
+
+  if (!payload) return // No spouse correction detected
+
+  console.log('🔄 Syncing death record correction with Toppan...')
+  console.log('📤 Sending payload to Toppan:', JSON.stringify(payload, null, 2))
+
+  const response = await fetch(
+    `${env.TOPPAN_URL}/v1/person-db-sync/death/correction`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+        // Note: Toppan service currently doesn't require authentication
+        // Add Authorization header if needed: 'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error(
+      '❌ Toppan death correction sync failed:',
+      response.status,
+      errorText
+    )
+    throw new Error(
+      `Toppan death correction sync failed: ${response.status} - ${errorText}`
+    )
+  }
+
+  console.log('✅ Death record correction synced with Toppan successfully')
+}

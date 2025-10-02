@@ -3,8 +3,10 @@ import Joi from 'joi'
 import { createPersonHandler } from './birth/create'
 import { correctionHandler, correctionValidation } from './birth/correction'
 import { deletePersonHandler } from './birth/delete'
+import { createDeathHandler } from './death/create'
+import { deathCorrectionHandler, deathCorrectionValidation } from './death/correction'
+import { deleteDeathHandler } from './death/delete'
 import { retrySyncHandler, getFailedSyncsHandler } from './retry'
-// import { createDeathHandler } from './death/create' // enable when ready
 
 // Simple idempotency pre-handler (placeholder)
 const withIdempotencyKey: Hapi.Lifecycle.Method = async (req, h) => {
@@ -87,18 +89,50 @@ export function getPersonDbSyncRoutes(): Hapi.ServerRoute[] {
         description: 'Get all failed sync requests',
         auth: false
       }
-    }
+    },
 
-    // Death route disabled for now—uncomment when you need it
-    // {
-    //   method: 'POST',
-    //   path: '/v1/person-db-sync/death/create',
-    //   handler: createDeathHandler,
-    //   options: {
-    //     tags: ['api', 'person-db-sync', 'death', 'create'],
-    //     validate: { payload: Joi.any() },
-    //     auth: false
-    //   }
-    // }
+    // DEATH ROUTES
+
+    // Death CREATE
+    {
+      method: 'POST',
+      path: '/v1/person-db-sync/death/create',
+      handler: createDeathHandler,
+      options: {
+        tags: ['api', 'person-db-sync', 'death', 'create'],
+        description: 'Create death registration with spouse handling',
+        validate: { payload: Joi.object({ record: Joi.object().required() }) },
+        pre: [{ method: withIdempotencyKey }],
+        auth: false
+      }
+    },
+
+    // Death CORRECTION
+    {
+      method: 'POST',
+      path: '/v1/person-db-sync/death/correction',
+      handler: deathCorrectionHandler,
+      options: {
+        tags: ['api', 'person-db-sync', 'death', 'correction'],
+        description: 'Apply correction to death record (spouse add/remove/update/replace)',
+        validate: deathCorrectionValidation,
+        pre: [{ method: withIdempotencyKey }],
+        auth: false
+      }
+    },
+
+    // Death DELETE
+    {
+      method: 'POST',
+      path: '/v1/person-db-sync/death/delete',
+      handler: deleteDeathHandler,
+      options: {
+        tags: ['api', 'person-db-sync', 'death', 'delete'],
+        description: 'Delete death record (placeholder)',
+        validate: { payload: Joi.object({ recordId: Joi.string().uuid().required() }) },
+        pre: [{ method: withIdempotencyKey }],
+        auth: false
+      }
+    }
   ]
 }

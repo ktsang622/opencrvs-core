@@ -14,7 +14,8 @@ import {
   updateSyncRequestStatus,
   clearSyncRequestPayload,
   findPersonByCrvsId,
-  updatePersonToDeceased
+  updatePersonToDeceased,
+  pool
 } from '../../database'
 import { indexPersonDb } from '@opencrvs/toppan-db'
 
@@ -97,6 +98,18 @@ export async function createDeathHandler(
     }
 
     const now = new Date().toISOString()
+
+    // Validate informant spouse against marriage record (Case 2 & 3 detection)
+    let spouseValidation: { warning?: string; marriageSpouseId?: string } | null = null
+    if (mapped.spousePersonId && mapped.isSpouseInformant && existingPerson) {
+      spouseValidation = await validateInformantSpouse(existingPerson.id, mapped.spousePersonId)
+      if (spouseValidation?.warning) {
+        console.warn(`⚠️ INFORMANT MISMATCH: ${spouseValidation.warning}`)
+        console.warn(`   - Deceased ID: ${existingPerson.id}`)
+        console.warn(`   - Informant spouse ID: ${mapped.spousePersonId}`)
+        console.warn(`   - Marriage spouse ID: ${spouseValidation.marriageSpouseId}`)
+      }
+    }
 
     console.log('\n📊 DEATH DATABASE INSERT SUMMARY:')
     console.log('============================')
@@ -182,10 +195,14 @@ export async function createDeathHandler(
       }
 
       // Touch remarks/time on the event row
+      const remarks = spouseValidation?.warning
+        ? `CREATION: UI | ⚠️ INFORMANT WARNING: ${spouseValidation.warning}`
+        : 'CREATION: UI'
+
       await upsertEvent({
         crvs_event_uuid: mapped.eventPayload.crvs_event_uuid,
         last_update_at: now,
-        remarks: 'CREATION: UI'
+        remarks
       }, tx)
     })
 
@@ -240,24 +257,10 @@ function mapDeathBundleToSql(record: any, existingPerson: any = null) {
       ?.entry?.[0]?.reference?.includes(e.resource?.id)
   )?.resource
 
-  // Get sections for relationships
-  const motherSection = composition?.section?.find((s: any) =>
-    s.title === "Mother's details"
-  )
-  const fatherSection = composition?.section?.find((s: any) =>
-    s.title === "Father's details"
-  )
+  // Get spouse section (if informant is spouse)
   const spouseSection = composition?.section?.find((s: any) =>
     s.title === "Spouse details"
   )
-
-  const mother = motherSection?.entry?.[0]?.reference
-    ? entries.find((e: any) => e.fullUrl?.includes(motherSection.entry[0].reference))?.resource
-    : null
-
-  const father = fatherSection?.entry?.[0]?.reference
-    ? entries.find((e: any) => e.fullUrl?.includes(fatherSection.entry[0].reference))?.resource
-    : null
 
   const spouse = spouseSection?.entry?.[0]?.reference
     ? entries.find((e: any) => e.fullUrl?.includes(spouseSection.entry[0].reference))?.resource
@@ -353,12 +356,10 @@ function mapDeathBundleToSql(record: any, existingPerson: any = null) {
     }
   ]
 
-  // Handle informant (similar to birth logic)
+  // Handle informant
   const informantPatientId = informantRelation?.patient?.reference?.split('/')?.[1]
-  const isMotherInformant = mother && informantPatientId === mother?.id
-  const isFatherInformant = father && informantPatientId === father?.id
   const isSpouseInformant = spouse && informantPatientId === spouse?.id
-  const isOtherInformant = informantPatientId && !isMotherInformant && !isFatherInformant && !isSpouseInformant
+  const isOtherInformant = informantPatientId && !isSpouseInformant
 
   const informantPatient = isOtherInformant
     ? entries.find((e: any) => e.resource?.resourceType === 'Patient' && e.resource?.id === informantPatientId)?.resource
@@ -367,6 +368,9 @@ function mapDeathBundleToSql(record: any, existingPerson: any = null) {
   const newPersons: any[] = []
   const newEvents: any[] = []
   const newParticipants: any[] = []
+
+  // Track spouse person ID for validation (declared at function scope)
+  let localSpouseId: string | null = null
 
   // Handle other informant (not mother/father/spouse)
   if (isOtherInformant && informantPatient) {
@@ -431,7 +435,80 @@ function mapDeathBundleToSql(record: any, existingPerson: any = null) {
     })
   }
 
-  // TODO: Handle mother, father, spouse linking if provided
+  // Handle spouse linking if provided (similar to mother/father in birth)
+  if (spouse) {
+    console.log('🔍 Processing spouse:', spouse.id)
+
+    // Check if spouse has EXTERNAL_PERSON_ID (from PersonPicker)
+    const spouseExternalUuid = spouse.identifier?.find((id: any) =>
+      id.type?.coding?.some((c: any) => c.code === 'EXTERNAL_PERSON_ID')
+    )?.value
+
+    localSpouseId = spouseExternalUuid || randomUUID()
+    const shouldInsertSpouse = !spouseExternalUuid
+
+    console.log('🔍 Spouse linking:', {
+      localSpouseId,
+      shouldInsertSpouse,
+      externalUuid: spouseExternalUuid
+    })
+
+    // Add spouse as informant (if spouse is the informant)
+    // Note: Spouse is role='informant', NOT 'spouse'
+    // Family links come from marriage registration, not death form
+    if (isSpouseInformant) {
+      participantPayloads.push({
+        id: randomUUID(),
+        person_id: localSpouseId,
+        event_id: localEventId,
+        role: 'informant',
+        relationship_details: JSON.stringify({
+          type: 'informant',
+          relationship: 'SPOUSE',
+          informantType: 'SPOUSE'
+        }),
+        crvs_person_id: spouse.id,
+        status: 'active',
+        remarks: shouldInsertSpouse ? 'Creation: UI' : 'Linked from existing person',
+        created_at: now
+      })
+    }
+
+    // Create new spouse person if not found via PersonPicker
+    if (shouldInsertSpouse) {
+      const spouseIdentifiers = [
+        { type: 'crvs', value: spouse.id },
+        ...(spouse.identifier || [])
+          .filter((i: any) => i.value?.trim())
+          .map((i: any) => ({
+            type: i.type?.coding?.[0]?.code || 'UNKNOWN',
+            value: i.value
+          }))
+      ]
+
+      const spousePayload = {
+        id: localSpouseId,
+        given_name: (spouse.name?.[0]?.given || []).filter(Boolean).join(' ') || '',
+        family_name: spouse.name?.[0]?.family || '',
+        gender: spouse.gender || 'unknown',
+        dob: spouse.birthDate || null,
+        place_of_birth: 'Unknown',
+        identifiers: JSON.stringify(spouseIdentifiers),
+        status: 'active', // Spouse is still alive
+        created_at: now,
+        updated_at: now
+      }
+
+      console.log('📝 Creating new spouse person:', {
+        id: localSpouseId,
+        name: `${spousePayload.given_name} ${spousePayload.family_name}`
+      })
+
+      newPersons.push(spousePayload)
+    } else {
+      console.log('🔗 Linking to existing spouse person:', localSpouseId)
+    }
+  }
 
   return {
     deceasedPayload,
@@ -442,8 +519,54 @@ function mapDeathBundleToSql(record: any, existingPerson: any = null) {
     newParticipants,
     deceasedCrvsId,
     existingPerson,
-    shouldUpdateExisting
+    shouldUpdateExisting,
+    spousePersonId: spouse && isSpouseInformant ? localSpouseId : null,
+    isSpouseInformant
   }
+}
+
+/**
+ * Validate if informant claiming to be spouse matches marriage record
+ * Returns warning message for Case 2 (wrong person) or Case 3 (dummy person created when marriage exists)
+ */
+async function validateInformantSpouse(
+  deceasedPersonId: string,
+  informantSpouseId: string
+): Promise<{ warning?: string; marriageSpouseId?: string } | null> {
+  const { rows } = await pool.query(
+    `
+    SELECT flf.related_person_id AS spouse_id,
+           p.given_name || ' ' || p.family_name AS spouse_name,
+           flf.source
+    FROM family_links_forward flf
+    JOIN person p ON p.id = flf.related_person_id
+    WHERE flf.person_id = $1
+      AND flf.relationship_type = 'spouse'
+      AND flf.source = 'marriage_registration'
+      AND (flf.end_date IS NULL OR flf.end_date >= CURRENT_DATE)
+    LIMIT 1
+  `,
+    [deceasedPersonId]
+  )
+
+  if (rows.length === 0) {
+    // Case 1 or no marriage: No warning needed
+    return null
+  }
+
+  const marriageSpouseId = rows[0].spouse_id
+  const marriageSpouseName = rows[0].spouse_name
+
+  if (marriageSpouseId !== informantSpouseId) {
+    // Case 2 or 3: Informant spouse differs from marriage spouse
+    return {
+      warning: `Informant claims spouse but differs from marriage record. Marriage spouse: ${marriageSpouseName} (ID: ${marriageSpouseId})`,
+      marriageSpouseId
+    }
+  }
+
+  // Case 1: Match - no warning
+  return null
 }
 
 async function triggerReindex() {

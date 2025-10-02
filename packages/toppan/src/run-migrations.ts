@@ -4,26 +4,21 @@ import { pool } from './database'
 
 async function runMigrations() {
   console.log('🔄 Running Toppan database migrations...')
-  
+
   try {
     // First, initialize the database schema
     console.log('🔧 Initializing database schema...')
     try {
-      const initSchemaPath = join(__dirname, 'init-database.sql')
+      // Detect environment: development (src/) or production (build/dist/)
+      const isProduction = __dirname.includes('build/dist')
+      const initSchemaPath = isProduction
+        ? join(__dirname, 'init-schema.sql')              // Production: use Docker-bundled copy
+        : join(__dirname, '../../../init/database.sql')   // Dev: use source directly
+
+      console.log(`📁 Loading schema from: ${isProduction ? 'init-schema.sql (bundled)' : 'init/database.sql (source)'}`)
       const initSql = readFileSync(initSchemaPath, 'utf8')
       await pool.query(initSql)
       console.log('✅ Database schema initialized')
-      
-      // Load database functions and views
-      try {
-        console.log('🔧 Loading database functions...')
-        const functionsPath = join(__dirname, 'database-functions.sql')
-        const functionsSql = readFileSync(functionsPath, 'utf8')
-        await pool.query(functionsSql)
-        console.log('✅ Database functions loaded')
-      } catch (funcError) {
-        console.log('⚠️  Database functions loading failed:', funcError.message)
-      }
     } catch (schemaError) {
       console.log('⚠️  Schema initialization failed, continuing with migrations:', schemaError.message)
     }
@@ -54,6 +49,7 @@ async function runMigrations() {
     // List of migration files in order
     const migrations = [
       '001-unique-active-father-per-event.sql'
+      // Note: All triggers, functions, and views are now in opencrvs-core/init/database.sql
     ]
 
     for (const migration of migrations) {
