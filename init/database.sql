@@ -34,12 +34,21 @@ CREATE TABLE IF NOT EXISTS person (
     updated_at timestamp DEFAULT CURRENT_TIMESTAMP,
     death_date date,
     place_of_birth_uuid uuid,
+    -- Person merge support fields
+    merged_into_person_id uuid,
+    merge_status text DEFAULT 'active',
     CONSTRAINT person_pkey PRIMARY KEY (id),
-    CONSTRAINT person_gender_check CHECK (gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text, 'unknown'::text]))
+    CONSTRAINT person_gender_check CHECK (gender = ANY (ARRAY['male'::text, 'female'::text, 'other'::text, 'unknown'::text])),
+    CONSTRAINT person_merge_status_check CHECK (merge_status = ANY (ARRAY['active'::text, 'merged'::text, 'deleted'::text])),
+    CONSTRAINT person_merged_into_fkey FOREIGN KEY (merged_into_person_id) REFERENCES person(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_full_name ON person USING btree (full_name);
 CREATE INDEX IF NOT EXISTS idx_identifiers_gin ON person USING gin (identifiers);
+CREATE INDEX IF NOT EXISTS idx_person_merged_into ON person USING btree (merged_into_person_id) WHERE (merged_into_person_id IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_person_merge_status ON person USING btree (merge_status) WHERE (merge_status <> 'active'::text);
+CREATE INDEX IF NOT EXISTS idx_person_dob ON person USING btree (dob);
+CREATE INDEX IF NOT EXISTS idx_person_gender ON person USING btree (gender);
 
 -- Event table
 CREATE TABLE IF NOT EXISTS event (
@@ -196,6 +205,30 @@ CREATE TABLE IF NOT EXISTS toppan_migrations (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS toppan_migrations_filename_key ON toppan_migrations USING btree (filename);
+
+-- Person merge history table
+CREATE TABLE IF NOT EXISTS person_merge_history (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    source_person_id uuid NOT NULL,
+    target_person_id uuid NOT NULL,
+    merged_by_practitioner_id uuid NOT NULL,
+    merged_at timestamp DEFAULT CURRENT_TIMESTAMP,
+    merge_reason text,
+    merge_comment text,
+    merge_metadata jsonb,
+    conflict_resolutions jsonb,
+    source_person_snapshot jsonb NOT NULL,
+    target_person_snapshot jsonb NOT NULL,
+    CONSTRAINT person_merge_history_pkey PRIMARY KEY (id),
+    CONSTRAINT different_persons_check CHECK (source_person_id <> target_person_id),
+    CONSTRAINT person_merge_history_source_fkey FOREIGN KEY (source_person_id) REFERENCES person(id),
+    CONSTRAINT person_merge_history_target_fkey FOREIGN KEY (target_person_id) REFERENCES person(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_merge_history_source ON person_merge_history USING btree (source_person_id);
+CREATE INDEX IF NOT EXISTS idx_merge_history_target ON person_merge_history USING btree (target_person_id);
+CREATE INDEX IF NOT EXISTS idx_merge_history_merged_by ON person_merge_history USING btree (merged_by_practitioner_id);
+CREATE INDEX IF NOT EXISTS idx_merge_history_merged_at ON person_merge_history USING btree (merged_at);
 
 -- 5. Foreign Key Constraints
 DO $$
@@ -799,6 +832,173 @@ CREATE TRIGGER trg_create_reverse_family_link
     EXECUTE FUNCTION create_reverse_family_link();
 
 -- btree_gist extension provides all necessary functions
+
+-- ============================================================================
+-- PERSON MERGE HELPER FUNCTIONS AND VIEWS
+-- ============================================================================
+
+-- Enable pg_trgm extension for similarity functions
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- View to get active (non-merged) persons only
+CREATE OR REPLACE VIEW person_active AS
+SELECT
+  id, given_name, family_name, full_name, gender, dob,
+  place_of_birth, place_of_birth_uuid, identifiers, status,
+  created_at, updated_at, death_date
+FROM person
+WHERE merge_status = 'active';
+
+-- View to resolve merged persons to their target
+CREATE OR REPLACE VIEW person_resolved AS
+SELECT
+  p.id AS original_id,
+  COALESCE(p.merged_into_person_id, p.id) AS resolved_id,
+  p.given_name,
+  p.family_name,
+  p.full_name,
+  p.merge_status,
+  p.merged_into_person_id,
+  CASE
+    WHEN p.merge_status = 'merged' THEN true
+    ELSE false
+  END AS is_merged
+FROM person p;
+
+-- Function to get all identifiers for a person (including merged sources)
+CREATE OR REPLACE FUNCTION get_all_person_identifiers(target_person_id UUID)
+RETURNS JSONB AS $$
+DECLARE
+  all_identifiers JSONB := '[]'::JSONB;
+  source_identifiers JSONB;
+BEGIN
+  -- Get target person's identifiers
+  SELECT COALESCE(identifiers, '[]'::JSONB) INTO all_identifiers
+  FROM person
+  WHERE id = target_person_id;
+
+  -- Get all merged source persons' identifiers
+  FOR source_identifiers IN
+    SELECT COALESCE(p.identifiers, '[]'::JSONB)
+    FROM person p
+    WHERE p.merged_into_person_id = target_person_id
+      AND p.merge_status = 'merged'
+  LOOP
+    -- Merge identifiers (union)
+    all_identifiers := all_identifiers || source_identifiers;
+  END LOOP;
+
+  -- Return unique identifiers
+  RETURN (
+    SELECT jsonb_agg(DISTINCT elem)
+    FROM jsonb_array_elements(all_identifiers) elem
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to find potential duplicate persons
+CREATE OR REPLACE FUNCTION find_potential_duplicate_persons(
+  p_given_name TEXT,
+  p_family_name TEXT,
+  p_dob DATE,
+  p_gender TEXT,
+  p_national_id TEXT DEFAULT NULL,
+  p_limit INTEGER DEFAULT 10
+)
+RETURNS TABLE(
+  person_id UUID,
+  full_name TEXT,
+  dob DATE,
+  gender TEXT,
+  identifiers JSONB,
+  similarity_score NUMERIC
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    p.id AS person_id,
+    p.full_name,
+    p.dob,
+    p.gender,
+    p.identifiers,
+    -- Calculate similarity score (higher is better match)
+    (
+      -- Exact name match = 40 points
+      CASE WHEN LOWER(p.given_name) = LOWER(p_given_name) AND LOWER(p.family_name) = LOWER(p_family_name)
+        THEN 40.0
+      -- Fuzzy name match = 20-30 points
+      WHEN similarity(LOWER(p.full_name), LOWER(p_given_name || ' ' || p_family_name)) > 0.6
+        THEN similarity(LOWER(p.full_name), LOWER(p_given_name || ' ' || p_family_name)) * 30
+      ELSE 0.0
+      END +
+      -- DOB within 1 year = 30 points, within 5 years = 15 points
+      CASE
+        WHEN p.dob = p_dob THEN 30.0
+        WHEN ABS(EXTRACT(YEAR FROM AGE(p.dob, p_dob))) <= 1 THEN 20.0
+        WHEN ABS(EXTRACT(YEAR FROM AGE(p.dob, p_dob))) <= 5 THEN 10.0
+        ELSE 0.0
+      END +
+      -- Gender match = 20 points
+      CASE WHEN p.gender = p_gender THEN 20.0 ELSE 0.0 END +
+      -- National ID match = 50 points (if provided)
+      CASE
+        WHEN p_national_id IS NOT NULL
+          AND p.identifiers::TEXT LIKE '%' || p_national_id || '%'
+        THEN 50.0
+        ELSE 0.0
+      END
+    )::NUMERIC AS similarity_score
+  FROM person p
+  WHERE p.merge_status = 'active'
+    -- At least name or DOB must be somewhat similar
+    AND (
+      similarity(LOWER(p.full_name), LOWER(p_given_name || ' ' || p_family_name)) > 0.4
+      OR ABS(EXTRACT(YEAR FROM AGE(p.dob, p_dob))) <= 5
+      OR (p_national_id IS NOT NULL AND p.identifiers::TEXT LIKE '%' || p_national_id || '%')
+    )
+  ORDER BY similarity_score DESC
+  LIMIT p_limit;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION find_potential_duplicate_persons IS
+'Finds potential duplicate persons based on name, DOB, gender, and national ID similarity.
+Returns a similarity score (0-100+) where higher scores indicate stronger matches.';
+
+-- Function to get merge history for a person
+CREATE OR REPLACE FUNCTION get_person_merge_history(p_person_id UUID)
+RETURNS TABLE(
+  merge_id UUID,
+  source_person_id UUID,
+  target_person_id UUID,
+  merged_by_practitioner_id UUID,
+  merged_at TIMESTAMP,
+  merge_reason TEXT,
+  merge_comment TEXT,
+  is_source BOOLEAN,
+  is_target BOOLEAN
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    pmh.id AS merge_id,
+    pmh.source_person_id,
+    pmh.target_person_id,
+    pmh.merged_by_practitioner_id,
+    pmh.merged_at,
+    pmh.merge_reason,
+    pmh.merge_comment,
+    (pmh.source_person_id = p_person_id) AS is_source,
+    (pmh.target_person_id = p_person_id) AS is_target
+  FROM person_merge_history pmh
+  WHERE pmh.source_person_id = p_person_id
+     OR pmh.target_person_id = p_person_id
+  ORDER BY pmh.merged_at DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION get_person_merge_history IS
+'Returns the merge history for a given person, showing all merges where they were either source or target.';
 
 -- Success message
 SELECT 'Database schema created successfully!' AS status;
