@@ -54,6 +54,7 @@ async function runMigrations() {
     // List of migration files in order
     const migrations = [
       '001-unique-active-father-per-event.sql'
+      // Note: Trigger updates are in database-functions.sql (reloaded on each startup)
     ]
 
     for (const migration of migrations) {

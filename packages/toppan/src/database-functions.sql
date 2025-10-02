@@ -151,6 +151,37 @@ BEGIN
       AND fl.relationship_type IN ('spouse','partner')
       AND fl.end_date IS NULL;
   END IF;
+
+  -- Death: create informational spouse link when spouse is listed
+  -- This creates a dotted-line relationship for family tree display
+  IF lower(ep_rec.event_type) = 'death' AND ep_rec.role = 'spouse' THEN
+    SELECT person_id INTO subject_id
+    FROM event_participant
+    WHERE event_id = ep_rec.event_id AND role = 'subject'
+    ORDER BY created_at NULLS FIRST, id
+    LIMIT 1;
+
+    IF subject_id IS NOT NULL THEN
+      -- Create the informational spouse link
+      PERFORM upsert_family_link_forward_shadow(
+        ep_rec.person_id,
+        subject_id,
+        'spouse',
+        ep_rec.event_id,
+        'death_registration'
+      );
+
+      -- Immediately close it (relationship ends at death)
+      v_close := COALESCE(v_start, ep_rec.ev_updated);
+      UPDATE family_links_forward
+      SET end_date = GREATEST(v_close, COALESCE(start_date, v_close)),
+          notes = COALESCE(notes,'') || ' [Informational from death registration - not legal marriage]'
+      WHERE source_event_id = ep_rec.event_id
+        AND relationship_type = 'spouse'
+        AND (person_id = ep_rec.person_id OR related_person_id = ep_rec.person_id)
+        AND end_date IS NULL;
+    END IF;
+  END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -244,11 +275,18 @@ LEFT JOIN ep_roles rr
  AND rr.pid      = fl.related_person_id
  AND rr.etype    = 'marriage';
 
--- Create get_family view
--- Create get_family view (simplified)
-CREATE OR REPLACE VIEW get_family AS 
+-- Create get_family view (updated to use family_links_bidirectional)
+CREATE OR REPLACE VIEW get_family AS
 SELECT f.person_id,
     f.relationship_type,
-    json_agg(json_build_object('related_person_id', f.related_person_id, 'start_date', f.start_date, 'end_date', f.end_date, 'source_event_id', f.source_event_id)) AS relatives
-FROM family_link f
+    json_agg(json_build_object(
+        'related_person_id', f.related_person_id,
+        'relationship_subtype', f.relationship_subtype,
+        'start_date', f.start_date,
+        'end_date', f.end_date,
+        'source_event_id', f.source_event_id,
+        'source', f.source,
+        'notes', f.notes
+    )) AS relatives
+FROM family_links_bidirectional f
 GROUP BY f.person_id, f.relationship_type;
