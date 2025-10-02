@@ -431,7 +431,78 @@ function mapDeathBundleToSql(record: any, existingPerson: any = null) {
     })
   }
 
-  // TODO: Handle mother, father, spouse linking if provided
+  // Handle spouse linking if provided (similar to mother/father in birth)
+  if (spouse) {
+    console.log('🔍 Processing spouse:', spouse.id)
+
+    // Check if spouse has EXTERNAL_PERSON_ID (from PersonPicker)
+    const spouseExternalUuid = spouse.identifier?.find((id: any) =>
+      id.type?.coding?.some((c: any) => c.code === 'EXTERNAL_PERSON_ID')
+    )?.value
+
+    const localSpouseId = spouseExternalUuid || randomUUID()
+    const shouldInsertSpouse = !spouseExternalUuid
+
+    console.log('🔍 Spouse linking:', {
+      localSpouseId,
+      shouldInsertSpouse,
+      externalUuid: spouseExternalUuid
+    })
+
+    // Add spouse participant (trigger will create family_links_forward)
+    participantPayloads.push({
+      id: randomUUID(),
+      person_id: localSpouseId,
+      event_id: localEventId,
+      role: 'spouse',
+      relationship_details: JSON.stringify({
+        type: 'spouse',
+        relationship: 'SPOUSE',
+        source: 'death_registration',
+        is_informational: true,
+        ...(isSpouseInformant && { informantType: 'SPOUSE' })
+      }),
+      crvs_person_id: spouse.id,
+      status: 'active',
+      remarks: shouldInsertSpouse ? 'Creation: UI' : 'Linked from existing person',
+      created_at: now
+    })
+
+    // Create new spouse person if not found via PersonPicker
+    if (shouldInsertSpouse) {
+      const spouseIdentifiers = [
+        { type: 'crvs', value: spouse.id },
+        ...(spouse.identifier || [])
+          .filter((i: any) => i.value?.trim())
+          .map((i: any) => ({
+            type: i.type?.coding?.[0]?.code || 'UNKNOWN',
+            value: i.value
+          }))
+      ]
+
+      const spousePayload = {
+        id: localSpouseId,
+        given_name: (spouse.name?.[0]?.given || []).filter(Boolean).join(' ') || '',
+        family_name: spouse.name?.[0]?.family || '',
+        gender: spouse.gender || 'unknown',
+        dob: spouse.birthDate || null,
+        place_of_birth: 'Unknown',
+        identifiers: JSON.stringify(spouseIdentifiers),
+        status: 'active', // Spouse is still alive
+        created_at: now,
+        updated_at: now
+      }
+
+      console.log('📝 Creating new spouse person:', {
+        id: localSpouseId,
+        name: `${spousePayload.given_name} ${spousePayload.family_name}`
+      })
+
+      newPersons.push(spousePayload)
+    } else {
+      console.log('🔗 Linking to existing spouse person:', localSpouseId)
+    }
+  }
 
   return {
     deceasedPayload,
