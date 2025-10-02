@@ -17,7 +17,8 @@ import {
   RegisteredRecord,
   changeState,
   getComposition,
-  updateFHIRBundle
+  updateFHIRBundle,
+  EVENT_TYPE
 } from '@opencrvs/commons/types'
 import { uploadBase64AttachmentsToDocumentsStore } from '@workflow/documents'
 import { getEventType } from '@workflow/features/registration/utils'
@@ -37,7 +38,10 @@ import { findActiveCorrectionRequest, updateFullUrl } from './utils'
 import { SCOPES } from '@opencrvs/commons/authentication'
 import { getRecordSpecificToken } from '@workflow/records/token-exchange'
 import { notifyForAction } from '@workflow/utils/country-config-api'
-import { syncBirthRecordCorrection } from '@workflow/integrations/toppan'
+import {
+  syncToppanBirthRecordCorrection,
+  syncToppanDeathRecordCorrection
+} from '@workflow/integrations/toppan'
 
 export const makeCorrectionRoute = createRoute({
   method: 'POST',
@@ -153,8 +157,14 @@ export const makeCorrectionRoute = createRoute({
     })
 
     // Sync correction with external database
-    console.log('🔍 About to call syncBirthRecordCorrection')
-    await syncBirthRecordCorrection(recordInput, getEventType(record), token)
+    const eventType = getEventType(record)
+    if (eventType === EVENT_TYPE.BIRTH) {
+      console.log('🔍 About to call syncToppanBirthRecordCorrection')
+      await syncToppanBirthRecordCorrection(recordInput, eventType, token)
+    } else if (eventType === EVENT_TYPE.DEATH) {
+      console.log('🔍 About to call syncToppanDeathRecordCorrection')
+      await syncToppanDeathRecordCorrection(recordInput, eventType, token)
+    }
 
     return unassignedRecord
   }
