@@ -40,9 +40,9 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/person/{personId}/events',
-    handler: async (_, h) =>
+    handler: async (req, h) =>
       h.proxy({
-        uri: `${TOPPAN_SERVICE_URL}/person/{personId}/events`,
+        uri: `${TOPPAN_SERVICE_URL}/person/${req.params.personId}/events`,
         passThrough: true
       }),
     options: {
@@ -54,9 +54,9 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/event/{eventId}/participants',
-    handler: async (_, h) =>
+    handler: async (req, h) =>
       h.proxy({
-        uri: `${TOPPAN_SERVICE_URL}/event/{eventId}/participants`,
+        uri: `${TOPPAN_SERVICE_URL}/event/${req.params.eventId}/participants`,
         passThrough: true
       }),
     options: {
@@ -68,9 +68,9 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/tree/init/{person_id}',
-    handler: async (_, h) =>
+    handler: async (req, h) =>
       h.proxy({
-        uri: `${TOPPAN_SERVICE_URL}/tree/init/{person_id}`,
+        uri: `${TOPPAN_SERVICE_URL}/tree/init/${req.params.person_id}`,
         passThrough: true
       }),
     options: {
@@ -82,7 +82,7 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'POST',
     path: '/tree/expand',
-    handler: async (_, h) =>
+    handler: async (req, h) =>
       h.proxy({
         uri: `${TOPPAN_SERVICE_URL}/tree/expand`,
         passThrough: true
@@ -102,7 +102,7 @@ export const personSearchRoutes: ServerRoute[] = [
     path: '/event/{eventId}/person',
     handler: async (req, h) =>
       h.proxy({
-        uri: `${TOPPAN_SERVICE_URL}/event/{eventId}/person${req.url.search}`,
+        uri: `${TOPPAN_SERVICE_URL}/event/${req.params.eventId}/person${req.url.search}`,
         passThrough: true
       }),
     options: {
@@ -116,7 +116,7 @@ export const personSearchRoutes: ServerRoute[] = [
     path: '/familyTree/{personId*}',
     handler: async (req, h) =>
       h.proxy({
-        uri: `${TOPPAN_SERVICE_URL}/familyTree/{personId*}${req.url.search}`,
+        uri: `${TOPPAN_SERVICE_URL}/familyTree/${req.params.personId}${req.url.search}`,
         passThrough: true
       }),
     options: {
