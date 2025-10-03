@@ -373,3 +373,65 @@ function formatRole(role: string): string {
       return role || 'Unknown';
   }
 }
+
+/**
+ * Get person ID from event ID and role
+ * Useful for navigating from event view to person view
+ */
+export const getPersonByEventHandler = async (request: Request, h: ResponseToolkit) => {
+  const { eventId } = request.params;
+  const { role = 'subject' } = request.query;
+
+  if (!eventId) {
+    return h.response({ message: 'Event ID is required' }).code(400);
+  }
+
+  try {
+    const query = `
+      SELECT
+        ep.person_id,
+        p.given_name,
+        p.family_name,
+        p.full_name,
+        ep.role,
+        e.event_type,
+        e.event_date
+      FROM event_participant ep
+      JOIN person p ON ep.person_id = p.id
+      JOIN event e ON ep.event_id = e.id
+      WHERE e.crvs_event_uuid = $1
+        AND ep.role = $2
+        AND ep.status = 'active'
+        AND ep.ended_at IS NULL
+      LIMIT 1
+    `;
+
+    const result = await pool.query(query, [eventId, role]);
+
+    if (result.rows.length === 0) {
+      return h.response({
+        message: `No ${role} person found for this event`,
+        eventId,
+        role
+      }).code(404);
+    }
+
+    const person = result.rows[0];
+
+    return h.response({
+      personId: person.person_id,
+      name: person.full_name,
+      givenName: person.given_name,
+      familyName: person.family_name,
+      role: person.role,
+      eventType: person.event_type,
+      eventDate: person.event_date
+    }).code(200);
+  } catch (err: any) {
+    console.error('Error fetching person by event:', err);
+    return h.response({
+      error: 'Failed to fetch person',
+      detail: err.message
+    }).code(500);
+  }
+}

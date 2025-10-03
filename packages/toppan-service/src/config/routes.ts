@@ -1,7 +1,7 @@
 import { ServerRoute } from '@hapi/hapi';
 import { searchPersonHandler, detailedPersonSearchHandler, advancedPersonSearchHandler, debugHandler } from '../features/person-search/handler';
 import { familyTreeInitHandler, familyTreeExpandHandler } from '../features/family-tree/handler';
-import { personEventsHandler, eventParticipantsHandler, personRelationshipsHandler } from '../features/person-events/handler';
+import { personEventsHandler, eventParticipantsHandler, personRelationshipsHandler, getPersonByEventHandler } from '../features/person-events/handler';
 import { indexPersonDbHandler } from '../features/opensearch/handler';
 
 
@@ -91,6 +91,16 @@ export const routes: ServerRoute[] = [
       auth: false,
       tags: ['api'],
       description: 'Get event participants'
+    }
+  },
+  {
+    method: 'GET',
+    path: '/event/{eventId}/person',
+    handler: getPersonByEventHandler,
+    options: {
+      auth: false,
+      tags: ['api'],
+      description: 'Get person ID from event (by role: subject, informant, mother, father, etc.)'
     }
   },
 

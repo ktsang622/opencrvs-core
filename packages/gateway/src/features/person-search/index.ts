@@ -15,7 +15,8 @@ import {
   personEventsHandler,
   eventParticipantsHandler,
   familyTreeInitHandler,
-  familyTreeExpandHandler
+  familyTreeExpandHandler,
+  getPersonByEventHandler
 } from './handler'
 
 export const personSearchRoutes = [
@@ -77,6 +78,16 @@ export const personSearchRoutes = [
       auth: false as const,
       tags: ['api'],
       description: 'Expand family tree node'
+    }
+  },
+  {
+    method: 'GET',
+    path: '/event/{eventId}/person',
+    handler: getPersonByEventHandler,
+    options: {
+      auth: false as const,
+      tags: ['api'],
+      description: 'Get person ID from event ID and role'
     }
   }
 ]

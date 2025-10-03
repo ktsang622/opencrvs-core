@@ -41,6 +41,37 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
   const correction = recordInput.registration?.correction
   console.log('🔍 Found correction:', correction)
 
+  // Check for death informant relationship type change (SPOUSE → other type)
+  const informantTypeChange = correction?.values?.find(
+    (cv: any) =>
+      cv.section === 'informant' &&
+      cv.fieldName === 'informantType' &&
+      cv.oldValue === 'SPOUSE'
+  )
+  console.log('🔍 Found informantTypeChange:', informantTypeChange)
+
+  if (informantTypeChange) {
+    console.log('✅ Death informant type correction detected (SPOUSE → ' + informantTypeChange.newValue + ')')
+
+    const correctionReason = [
+      correction?.reason,
+      correction?.otherReason,
+      correction?.note
+    ]
+      .filter(Boolean)
+      .join(' - ')
+
+    return {
+      action: 'REMOVE_SPOUSE_INFORMATIONAL_LINK',
+      eventId: recordInput._fhirIDMap?.composition,
+      oldInformantType: informantTypeChange.oldValue,
+      newInformantType: informantTypeChange.newValue,
+      reason: correctionReason,
+      correctionType: correction?.reason,
+      bundle: recordInput
+    }
+  }
+
   const fatherChange = correction?.values?.find(
     (cv: any) =>
       cv.section === 'father' &&
@@ -49,7 +80,7 @@ export function mapRecordToCorrectionPayload(recordInput: any) {
   console.log('🔍 Found fatherChange:', fatherChange)
 
   if (!fatherChange) {
-    console.log('❌ No father correction detected, returning null')
+    console.log('❌ No father or informant correction detected, returning null')
     return null
   }
 

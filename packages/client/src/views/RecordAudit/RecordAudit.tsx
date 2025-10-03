@@ -76,7 +76,7 @@ import {
   getWQDeclarationData
 } from './utils'
 import { GetDeclarationInfo } from './DeclarationInfo'
-import { ShowDownloadButton } from './ActionButtons'
+import { ShowDownloadButton, ViewPersonButton } from './ActionButtons'
 import { GetHistory } from './History'
 import { ActionDetailsModal } from './ActionDetailsModal'
 import { DuplicateWarning } from '@client/views/Duplicates/DuplicateWarning'
@@ -289,6 +289,14 @@ function RecordAuditBody({
   const isDownloaded =
     draft?.downloadStatus === DOWNLOAD_STATUS.DOWNLOADED ||
     draft?.submissionStatus === SUBMISSION_STATUS.DRAFT
+
+  // Only show View Person button if event is registered
+  if (declaration.status === SUBMISSION_STATUS.REGISTERED) {
+    actions.push(
+      <ViewPersonButton key="view-person" declaration={declaration} />
+    )
+    desktopActionsView.push(actions[actions.length - 1])
+  }
 
   actions.push(
     <ActionMenu

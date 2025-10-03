@@ -25,6 +25,10 @@ import { FETCH_DECLARATION_SHORT_INFO } from '@client/views/RecordAudit/queries'
 import { UserDetails } from '@client/utils/userUtils'
 import { usePermissions } from '@client/hooks/useAuthorization'
 import { SCOPES } from '@opencrvs/commons/client'
+import { TertiaryButton } from '@opencrvs/components/lib/buttons'
+import { useNavigate } from 'react-router-dom'
+import { config } from '@client/config'
+import { Toast } from '@opencrvs/components/lib/Toast'
 
 export type CMethodParams = {
   declaration: IDeclarationData
@@ -79,4 +83,67 @@ export const ShowDownloadButton = ({
   }
 
   return <></>
+}
+
+export const ViewPersonButton = ({
+  declaration
+}: {
+  declaration: IDeclarationData
+}) => {
+  const navigate = useNavigate()
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  const handleViewPerson = async () => {
+    if (!declaration?.id) return
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      const response = await fetch(
+        `${config.TOPPAN_SERVICE_URL}/event/${declaration.id}/person?role=subject`
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        // Handle 404 - event not synced
+        if (response.status === 404) {
+          setError('Person record not found. Event may not be synced yet.')
+        } else {
+          setError(data.error || data.message || 'Failed to fetch person')
+        }
+        return
+      }
+
+      if (data.personId) {
+        navigate(`/person/${data.personId}/events`)
+      } else {
+        setError('No person found for this event')
+      }
+    } catch (err: any) {
+      console.error('Error fetching person:', err)
+      setError(err.message || 'Failed to load person')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <TertiaryButton
+        id="view-person-btn"
+        onClick={handleViewPerson}
+        disabled={loading || !declaration?.id}
+      >
+        {loading ? 'Loading...' : 'View Person'}
+      </TertiaryButton>
+      {error && (
+        <Toast type="warning" onClose={() => setError(null)}>
+          {error}
+        </Toast>
+      )}
+    </>
+  )
 }

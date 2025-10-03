@@ -240,3 +240,34 @@ export async function familyTreeExpandHandler(
     return h.response({ error: 'Family tree expand failed' }).code(500)
   }
 }
+
+export async function getPersonByEventHandler(
+  request: Hapi.Request,
+  h: Hapi.ResponseToolkit
+) {
+  const { eventId } = request.params
+  const { role = 'subject' } = request.query as any
+
+  try {
+    const targetUrl = `${TOPPAN_SERVICE_URL}/event/${eventId}/person?role=${role}`
+    console.log('Gateway: Getting person by event at:', targetUrl)
+
+    const response = await fetch(targetUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return h.response(errorData).code(response.status)
+    }
+
+    const data = await response.json()
+    return h.response(data).code(200)
+  } catch (error) {
+    console.error('Get person by event error:', error)
+    return h.response({ error: 'Failed to get person by event' }).code(500)
+  }
+}
