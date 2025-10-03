@@ -40,7 +40,7 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/person/{personId}/events',
-    handler: (_, h) =>
+    handler: async (_, h) =>
       h.proxy({
         uri: `${TOPPAN_SERVICE_URL}/person/{personId}/events`,
         passThrough: true
@@ -54,7 +54,7 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/event/{eventId}/participants',
-    handler: (_, h) =>
+    handler: async (_, h) =>
       h.proxy({
         uri: `${TOPPAN_SERVICE_URL}/event/{eventId}/participants`,
         passThrough: true
@@ -68,7 +68,7 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/tree/init/{person_id}',
-    handler: (_, h) =>
+    handler: async (_, h) =>
       h.proxy({
         uri: `${TOPPAN_SERVICE_URL}/tree/init/{person_id}`,
         passThrough: true
@@ -82,7 +82,7 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'POST',
     path: '/tree/expand',
-    handler: (_, h) =>
+    handler: async (_, h) =>
       h.proxy({
         uri: `${TOPPAN_SERVICE_URL}/tree/expand`,
         passThrough: true
@@ -100,7 +100,7 @@ export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/event/{eventId}/person',
-    handler: (req, h) =>
+    handler: async (req, h) =>
       h.proxy({
         uri: `${TOPPAN_SERVICE_URL}/event/{eventId}/person${req.url.search}`,
         passThrough: true
