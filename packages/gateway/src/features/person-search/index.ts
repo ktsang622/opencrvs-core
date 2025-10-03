@@ -110,5 +110,19 @@ export const personSearchRoutes: ServerRoute[] = [
       tags: ['api'],
       description: 'Get person ID from event ID and role'
     }
+  },
+  {
+    method: 'GET',
+    path: '/familyTree/{personId*}',
+    handler: async (req, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/familyTree/{personId*}${req.url.search}`,
+        passThrough: true
+      }),
+    options: {
+      auth: false as const,
+      tags: ['api'],
+      description: 'Family tree view proxy'
+    }
   }
 ]
