@@ -102,7 +102,7 @@ export const ViewPersonButton = ({
 
     try {
       const response = await fetch(
-        `${config.TOPPAN_SERVICE_URL}/event/${declaration.id}/person?role=subject`
+        `${window.config.API_GATEWAY_URL}/event/${declaration.id}/person?role=subject`
       )
 
       const data = await response.json()
