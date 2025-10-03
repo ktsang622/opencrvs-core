@@ -11,15 +11,12 @@
 
 import {
   searchPersonHandler,
-  detailedPersonSearchHandler,
-  personEventsHandler,
-  eventParticipantsHandler,
-  familyTreeInitHandler,
-  familyTreeExpandHandler,
-  getPersonByEventHandler
+  detailedPersonSearchHandler
 } from './handler'
+import { TOPPAN_SERVICE_URL } from '@gateway/constants'
+import { ServerRoute } from '@hapi/hapi'
 
-export const personSearchRoutes = [
+export const personSearchRoutes: ServerRoute[] = [
   {
     method: 'POST',
     path: '/person-search',
@@ -43,7 +40,11 @@ export const personSearchRoutes = [
   {
     method: 'GET',
     path: '/person/{personId}/events',
-    handler: personEventsHandler,
+    handler: (_, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/person/{personId}/events`,
+        passThrough: true
+      }),
     options: {
       auth: false as const,
       tags: ['api'],
@@ -53,7 +54,11 @@ export const personSearchRoutes = [
   {
     method: 'GET',
     path: '/event/{eventId}/participants',
-    handler: eventParticipantsHandler,
+    handler: (_, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/event/{eventId}/participants`,
+        passThrough: true
+      }),
     options: {
       auth: false as const,
       tags: ['api'],
@@ -63,7 +68,11 @@ export const personSearchRoutes = [
   {
     method: 'GET',
     path: '/tree/init/{person_id}',
-    handler: familyTreeInitHandler,
+    handler: (_, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/tree/init/{person_id}`,
+        passThrough: true
+      }),
     options: {
       auth: false as const,
       tags: ['api'],
@@ -73,17 +82,29 @@ export const personSearchRoutes = [
   {
     method: 'POST',
     path: '/tree/expand',
-    handler: familyTreeExpandHandler,
+    handler: (_, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/tree/expand`,
+        passThrough: true
+      }),
     options: {
       auth: false as const,
       tags: ['api'],
-      description: 'Expand family tree node'
+      description: 'Expand family tree node',
+      payload: {
+        output: 'data' as const,
+        parse: false
+      }
     }
   },
   {
     method: 'GET',
     path: '/event/{eventId}/person',
-    handler: getPersonByEventHandler,
+    handler: (req, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/event/{eventId}/person${req.url.search}`,
+        passThrough: true
+      }),
     options: {
       auth: false as const,
       tags: ['api'],
