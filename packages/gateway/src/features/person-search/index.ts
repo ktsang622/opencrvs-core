@@ -13,7 +13,7 @@ import {
   searchPersonHandler,
   detailedPersonSearchHandler
 } from './handler'
-import { TOPPAN_SERVICE_URL } from '@gateway/constants'
+import { TOPPAN_SERVICE_URL, TOPPAN_FAMILY_TREE_URL } from '@gateway/constants'
 import { ServerRoute } from '@hapi/hapi'
 
 export const personSearchRoutes: ServerRoute[] = [
@@ -116,7 +116,7 @@ export const personSearchRoutes: ServerRoute[] = [
     path: '/familyTree/{personId*}',
     handler: async (req, h) =>
       h.proxy({
-        uri: `${TOPPAN_SERVICE_URL}/familyTree/${req.params.personId}${req.url.search}`,
+        uri: `${TOPPAN_FAMILY_TREE_URL}/familyTree/${req.params.personId}${req.url.search}`,
         passThrough: true
       }),
     options: {
