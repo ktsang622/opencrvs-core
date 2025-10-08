@@ -53,7 +53,8 @@ namespace CertificateService.Core.Services
                 child = qrData.Child,
                 registrationDate = qrData.RegistrationDate,
                 recordUrl = qrData.RecordUrl,
-                timestamp = qrData.Timestamp
+                timestamp = qrData.Timestamp,
+                keyVersion = qrData.KeyVersion
             });
 
             // Sign the payload

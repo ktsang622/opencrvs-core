@@ -28,6 +28,9 @@ namespace CertificateService.Core.Models
 
         [JsonPropertyName("timestamp")]
         public long Timestamp { get; set; }
+
+        [JsonPropertyName("keyVersion")]
+        public string KeyVersion { get; set; } = "v1";
     }
 
     /// <summary>
