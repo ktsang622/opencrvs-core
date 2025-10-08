@@ -1,13 +1,11 @@
 // Configuration
 const CONFIG = {
     scanInterval: 100, // ms between scan attempts
-    pdfVerificationEndpoint: 'http://localhost:5000/api/certificates/verify-pdf',
+    pdfVerificationEndpoint: '/api/certificates/verify-pdf',
+    publicKeysEndpoint: '/api/certificates/public-keys',
     maxFileSize: 10 * 1024 * 1024, // 10MB
-    // ECDSA P-256 Public Key for signature verification
-    publicKeyPEM: `-----BEGIN PUBLIC KEY-----
-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEw5BlICzzIUVox2gl1TMAB7TZBn79
-YJAGNslFMnKRZAfaHlGU6TGc0//iM4I+CcolXzG7/GQU9LhV81wZK6Te3Q==
------END PUBLIC KEY-----`
+    publicKeys: {}, // Will be loaded dynamically: { "v1": CryptoKey, "v2": CryptoKey, ... }
+    publicKeysData: [] // Raw key data for reference
 };
 
 // State
@@ -37,9 +35,12 @@ const resultDiv = document.getElementById('result');
 const loadingDiv = document.getElementById('loading');
 
 // Initialize
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     canvas = document.createElement('canvas');
     canvasContext = canvas.getContext('2d');
+
+    // Load public keys for verification
+    await loadPublicKeys();
 
     // QR Code tab
     startScanBtn.addEventListener('click', startScanning);
@@ -51,6 +52,41 @@ document.addEventListener('DOMContentLoaded', () => {
     // Tabs
     setupTabs();
 });
+
+// Load public keys from API for multi-version support
+async function loadPublicKeys() {
+    try {
+        console.log('Loading public keys from API...');
+        const response = await fetch(CONFIG.publicKeysEndpoint);
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch public keys: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`Loaded ${data.keys.length} public key(s)`);
+
+        CONFIG.publicKeysData = data.keys;
+
+        // Import each public key for Web Crypto API
+        for (const keyInfo of data.keys) {
+            try {
+                const cryptoKey = await importPublicKey(keyInfo.publicKeyPEM);
+                CONFIG.publicKeys[keyInfo.version] = cryptoKey;
+                console.log(`Imported public key version ${keyInfo.version} (${keyInfo.status})`);
+            } catch (err) {
+                console.error(`Failed to import key version ${keyInfo.version}:`, err);
+            }
+        }
+
+        if (Object.keys(CONFIG.publicKeys).length === 0) {
+            console.warn('No public keys loaded - verification will fail');
+        }
+    } catch (error) {
+        console.error('Error loading public keys:', error);
+        // Don't fail initialization - allow app to load but verification will fail
+    }
+}
 
 // Start camera and QR scanning
 async function startScanning() {
@@ -158,15 +194,23 @@ async function handleQRCode(qrData) {
 // Verify signature using Web Crypto API (client-side verification)
 async function verifySignature(qrData) {
     try {
-        const { signature, ...dataToVerify } = qrData;
+        const { signature, keyVersion, ...dataToVerify } = qrData;
 
         if (!signature) {
             console.error('No signature in QR data');
             return false;
         }
 
-        // Import public key
-        const publicKey = await importPublicKey(CONFIG.publicKeyPEM);
+        // Get public key for the specified version (default to v1 for backwards compatibility)
+        const version = keyVersion || 'v1';
+        const publicKey = CONFIG.publicKeys[version];
+
+        if (!publicKey) {
+            console.error(`Public key version '${version}' not found. Available versions:`, Object.keys(CONFIG.publicKeys));
+            return false;
+        }
+
+        console.log(`Verifying signature with key version: ${version}`);
 
         // Recreate the signed data (must match what was signed)
         const dataString = JSON.stringify(dataToVerify);
@@ -186,7 +230,7 @@ async function verifySignature(qrData) {
             dataBuffer
         );
 
-        console.log('Signature verification result:', isValid);
+        console.log(`Signature verification result: ${isValid} (key version: ${version})`);
         return isValid;
     } catch (error) {
         console.error('Error verifying signature:', error);

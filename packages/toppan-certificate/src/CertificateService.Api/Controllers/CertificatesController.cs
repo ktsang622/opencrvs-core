@@ -668,6 +668,57 @@ namespace CertificateService.Api.Controllers
                 });
             }
         }
+
+        /// <summary>
+        /// Get all public keys for certificate verification (supports key rotation)
+        /// </summary>
+        /// <returns>List of public keys with version information</returns>
+        [HttpGet("public-keys")]
+        [ProducesResponseType(typeof(PublicKeysResponse), 200)]
+        public ActionResult<PublicKeysResponse> GetPublicKeys()
+        {
+            try
+            {
+                var keys = new List<PublicKeyInfo>();
+
+                // Read public key from configuration
+                var publicKeyPath = _options.PdfVerificationKeyPath;
+
+                if (!string.IsNullOrEmpty(publicKeyPath) && System.IO.File.Exists(publicKeyPath))
+                {
+                    var publicKeyPem = System.IO.File.ReadAllText(publicKeyPath);
+
+                    keys.Add(new PublicKeyInfo
+                    {
+                        Version = "v1",
+                        Algorithm = "ECDSA-P256",
+                        PublicKeyPEM = publicKeyPem,
+                        ValidFrom = new DateTime(2024, 1, 1),
+                        ValidUntil = null, // null means still active
+                        Status = "active"
+                    });
+
+                    _logger.LogInformation("Returning {Count} public key(s) for verification", keys.Count);
+                }
+                else
+                {
+                    _logger.LogWarning("No public key found at {Path}", publicKeyPath);
+                }
+
+                return Ok(new PublicKeysResponse
+                {
+                    Keys = keys
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching public keys");
+                return Ok(new PublicKeysResponse
+                {
+                    Keys = new List<PublicKeyInfo>()
+                });
+            }
+        }
     }
 
     /// <summary>
@@ -689,5 +740,26 @@ namespace CertificateService.Api.Controllers
         public string Error { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
         public object? Details { get; set; }
+    }
+
+    /// <summary>
+    /// Public keys response for key rotation support
+    /// </summary>
+    public class PublicKeysResponse
+    {
+        public List<PublicKeyInfo> Keys { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Public key information with version
+    /// </summary>
+    public class PublicKeyInfo
+    {
+        public string Version { get; set; } = string.Empty;
+        public string Algorithm { get; set; } = string.Empty;
+        public string PublicKeyPEM { get; set; } = string.Empty;
+        public DateTime ValidFrom { get; set; }
+        public DateTime? ValidUntil { get; set; }
+        public string Status { get; set; } = string.Empty; // "active", "retired", "revoked"
     }
 }
