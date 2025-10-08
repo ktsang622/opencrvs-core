@@ -39,6 +39,13 @@ const CertificateContainer = styled.div`
   }
 `
 
+const PDFPreviewFrame = styled.iframe`
+  width: 100%;
+  min-height: 800px;
+  border: 1px solid ${({ theme }) => theme.colors.grey300};
+  border-radius: 4px;
+`
+
 const ReviewCertificateFrame = ({
   children
 }: {
@@ -133,13 +140,38 @@ export const ReviewCertificate = () => {
     handleCertify,
     isPrintInAdvance,
     canUserCorrectRecord,
-    handleEdit
+    handleEdit,
+    pdfPreviewUrl,
+    useCertificateService,
+    isLoadingPdf
   } = usePrintableCertificate(registrationId)
 
   const intl = useIntl()
   const [modal, openModal] = useModal()
 
-  if (!svgCode) {
+  // Show loading while fetching certificate
+  if (useCertificateService && isLoadingPdf) {
+    return (
+      <ReviewCertificateFrame>
+        <Frame.LayoutCentered>
+          <Spinner id="review-certificate-loading" />
+        </Frame.LayoutCentered>
+      </ReviewCertificateFrame>
+    )
+  }
+
+  // Check if we have content to display
+  if (!useCertificateService && !svgCode) {
+    return (
+      <ReviewCertificateFrame>
+        <Frame.LayoutCentered>
+          <Spinner id="review-certificate-loading" />
+        </Frame.LayoutCentered>
+      </ReviewCertificateFrame>
+    )
+  }
+
+  if (useCertificateService && !pdfPreviewUrl) {
     return (
       <ReviewCertificateFrame>
         <Frame.LayoutCentered>
@@ -198,10 +230,18 @@ export const ReviewCertificate = () => {
       <Frame.LayoutCentered>
         <Stack direction="column">
           <Box>
-            <CertificateContainer
-              id="print"
-              dangerouslySetInnerHTML={{ __html: svgCode }}
-            />
+            {useCertificateService && pdfPreviewUrl ? (
+              <PDFPreviewFrame
+                id="print"
+                src={pdfPreviewUrl}
+                title="Certificate Preview"
+              />
+            ) : (
+              <CertificateContainer
+                id="print"
+                dangerouslySetInnerHTML={{ __html: svgCode }}
+              />
+            )}
           </Box>
           <Content
             title={intl.formatMessage(certificateMessages.reviewTitle)}

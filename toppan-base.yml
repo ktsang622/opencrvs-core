@@ -336,6 +336,7 @@ services:
       - COUNTRY_CONFIG_URL=${COUNTRY_CONFIG_URL}
       - CONFIRM_REGISTRATION_URL=${CONFIRM_REGISTRATION_URL}
       - DOMAIN=${DOMAIN}
+      - CERTIFICATE_SERVICE_URL=http://certificate-service:5000
     restart: unless-stopped
 
   # Database Migration Service
@@ -417,4 +418,28 @@ services:
       - NODE_ENV=development
       - TOPPAN_SERVICE_URL=http://toppan-service:3888
       - APPLICATION_CONFIG_URL=http://config:2021
+    restart: unless-stopped
+
+  certificate-service:
+    image: ${DOCKER_REGISTRY}/certificate-service:${VERSION:-latest}
+    pull_policy: never
+    container_name: opencrvs-certificate-service
+    # NO ports exposed - internal only (called by country-config)
+    depends_on:
+      - countryconfig
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - CertificateService__DebugMode=false
+      - CertificateService__TemplatesPath=/app/templates
+      - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
+      - CertificateService__HealthCheck__RequiredTemplates=Birth
+      - CertificateService__SignatureFilePath=/app/keys/signature.png
+      - CertificateService__PageSettings__MaxAmendmentsPerPage=5
+      - CertificateService__PageSettings__EnableDynamicPageCount=true
+      - Signing__Enabled=true
+      - Signing__KeysPath=/app/keys
+      - Signing__CurrentKeyVersion=1
+      - QrCode__Enabled=true
+    volumes:
+      - ./certificate-service/keys:/app/keys:ro
     restart: unless-stopped

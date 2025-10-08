@@ -48,6 +48,10 @@ import { usePermissions } from '@client/hooks/useAuthorization'
 import { useNavigate } from 'react-router-dom'
 import { ICertificateData } from '@client/utils/referenceApi'
 import { fetchImageAsBase64 } from '@client/utils/imageUtils'
+import { config } from '@client/config'
+import { getCertificatePreviewUrl, printViaCertificateService } from './certificateServicePrint'
+import { useState, useEffect } from 'react'
+import { getToken } from '@client/utils/authUtils'
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 async function replaceMinioUrlWithBase64(template: Record<string, any>) {
@@ -155,28 +159,116 @@ export const usePrintableCertificate = (declarationId?: string) => {
       SCOPES.RECORD_REGISTRATION_REQUEST_CORRECTION
     ])
 
+  // Check if certificate-service is enabled
+  const useCertificateService = config.FEATURES?.USE_CERTIFICATE_SERVICE === true
+
+  // State for PDF preview URL
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [isLoadingPdf, setIsLoadingPdf] = useState(false)
+
+  // Fetch PDF preview if using certificate-service
+  useEffect(() => {
+    if (useCertificateService && declaration) {
+      setIsLoadingPdf(true)
+      const authToken = getToken()
+      getCertificatePreviewUrl(declaration, authToken)
+        .then((url) => {
+          setPdfPreviewUrl(url)
+          setIsLoadingPdf(false)
+        })
+        .catch((error) => {
+          console.error('Failed to load PDF preview:', error)
+          setIsLoadingPdf(false)
+        })
+    }
+  }, [useCertificateService, declaration])
+
   const certificateTemplateConfig: ICertificateData | undefined =
     offlineData.templates.certificates.find(
       (x) =>
         x.id ===
         declaration?.data.registration.certificates[0].certificateTemplateId
     )
-  if (!certificateTemplateConfig) return { svgCode: null }
+  if (!certificateTemplateConfig && !useCertificateService) return { svgCode: null, pdfPreviewUrl: null, useCertificateService: false }
 
   const certificateFonts = certificateTemplateConfig?.fonts ?? {}
   const svgTemplate = certificateTemplateConfig?.svg
 
-  if (!svgTemplate) return { svgCode: null }
+  if (!svgTemplate && !useCertificateService) return { svgCode: null, pdfPreviewUrl: null, useCertificateService: false }
 
-  const svgWithoutFonts = compileSvg(
+  // Skip SVG generation if using certificate-service
+  const svgWithoutFonts = useCertificateService ? '' : compileSvg(
     svgTemplate,
     { ...declaration?.data.template, preview: true },
     state
   )
-  const svgCode = addFontsToSvg(svgWithoutFonts, certificateFonts)
+  const svgCode = useCertificateService ? null : addFontsToSvg(svgWithoutFonts, certificateFonts)
 
   const handleCertify = async () => {
-    if (!declaration || !certificateTemplateConfig) {
+    if (!declaration) {
+      return
+    }
+
+    // If using certificate-service, use new flow
+    if (useCertificateService) {
+      const draft = cloneDeep(declaration)
+
+      draft.submissionStatus = SUBMISSION_STATUS.READY_TO_CERTIFY
+      draft.action = isPrintInAdvance
+        ? SubmissionAction.CERTIFY_DECLARATION
+        : SubmissionAction.CERTIFY_AND_ISSUE_DECLARATION
+
+      const registeredDate = getRegisteredDate(draft.data)
+      const certificate = draft.data.registration.certificates[0]
+      const eventDate = getEventDate(draft.data, draft.event)
+      if (!isPrintInAdvance) {
+        const paymentAmount = calculatePrice(
+          draft.event,
+          eventDate,
+          registeredDate,
+          offlineData,
+          declaration.data.registration.certificates[0]
+        )
+        certificate.payments = {
+          type: 'MANUAL' as const,
+          amount: Number(paymentAmount),
+          outcome: 'COMPLETED' as const,
+          date: new Date().toISOString()
+        }
+      }
+
+      draft.data.registration = {
+        ...draft.data.registration,
+        certificates: [
+          {
+            ...certificate
+          }
+        ]
+      }
+
+      // Print using certificate-service
+      try {
+        const authToken = getToken()
+        await printViaCertificateService(draft, authToken)
+      } catch (error) {
+        console.error('Failed to print certificate:', error)
+        // TODO: Show error notification to user
+        return
+      }
+
+      dispatch(modifyDeclaration(draft))
+      dispatch(writeDeclaration(draft))
+
+      navigate(
+        generateGoToHomeTabUrl({
+          tabId: WORKQUEUE_TABS.readyToPrint
+        })
+      )
+      return
+    }
+
+    // Original SVG-based flow
+    if (!certificateTemplateConfig) {
       return
     }
     const draft = cloneDeep(declaration)
@@ -257,6 +349,9 @@ export const usePrintableCertificate = (declarationId?: string) => {
     handleCertify,
     isPrintInAdvance,
     canUserCorrectRecord,
-    handleEdit
+    handleEdit,
+    pdfPreviewUrl,
+    useCertificateService,
+    isLoadingPdf
   }
 }
