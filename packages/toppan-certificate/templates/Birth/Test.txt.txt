@@ -1,0 +1,104 @@
+
+
+[Child]
+
+
+FirstName=Joseph
+MiddleName=Parks
+Surname=Bloggers
+DateOfBirth=14 Feb 1999
+PlaceOfBirth=Astoria
+Sex=Male
+Suffix=
+
+[Mother]
+
+
+Unknown=False
+FirstName=Jane
+MiddleName=Q
+Surname=Public
+MaidenName=
+DateOfBirth=11 Mar 1970
+Occupation=Software Developer
+AddressOne=123 Main Street
+AddressTwo=Victorville, CA
+CountryOfBirth=USA
+
+[Father]
+
+
+Unknown=True
+FirstName=Harvey
+MiddleName=Immigen
+Surname=Jones
+DateOfBirth=05 Jan 1978
+Occupation=Farmer
+AddressOne=
+AddressTwo=
+CountryOfBirth=
+
+[Amendment]
+
+Type=1
+AmendmentDate=09 Feb 1999
+FirstName=Joey
+MiddleName=|
+Surname=Bloggers
+DateOfBirth=15 Feb 1999
+Sex=
+
+
+[Amendment]
+
+Type=0
+AmendmentDate=21 Feb 1999
+Surname=Jones
+
+
+[Amendment]
+
+Type=2
+AmendmentDate=26 Feb 1999
+FirstName=Joe
+MiddleName=Middling
+Surname=Father
+DateOfBirth=04 May 1989
+Occupation=Brick layer
+AddressOne=123 Brick Street
+AddressTwo=Number Seven
+CountryOfBirth=Antigua
+
+
+[Amendment]
+
+Type=7
+AmendmentDate=03 Mar 1999
+MiddleName=Quality
+DateOfBirth_Month=
+DateOfBirth_Day=
+
+
+[Amendment]
+
+Type=0
+AmendmentDate=01 Apr 2001
+MiddleName=Middle
+Suffix=Jr
+
+
+[Amendment]
+
+Type=0
+AmendmentDate=05 May 2003
+FirstName=Joseph
+Surname=Jonz
+
+
+[Amendment]
+
+Type=0
+AmendmentDate=03 Oct 2005
+FirstName=Rumplestilskin
+MiddleName=Horacio
+Surname=Flannigan

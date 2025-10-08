@@ -1,0 +1,23 @@
+{
+  "name": "Certificate Verifier",
+  "short_name": "Cert Verifier",
+  "description": "Verify authenticity of civil registration certificates",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "theme_color": "#4c68c1",
+  "background_color": "#ffffff",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' fill='%234c68c1'/><rect x='36' y='48' width='120' height='96' fill='white' stroke='%234c68c1' stroke-width='4'/><line x1='54' y1='72' x2='138' y2='72' stroke='%234c68c1' stroke-width='4'/><line x1='54' y1='96' x2='138' y2='96' stroke='%234c68c1' stroke-width='4'/><line x1='54' y1='120' x2='108' y2='120' stroke='%234c68c1' stroke-width='4'/></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' fill='%234c68c1'/><rect x='96' y='128' width='320' height='256' fill='white' stroke='%234c68c1' stroke-width='8'/><line x1='144' y1='192' x2='368' y2='192' stroke='%234c68c1' stroke-width='8'/><line x1='144' y1='256' x2='368' y2='256' stroke='%234c68c1' stroke-width='8'/><line x1='144' y1='320' x2='288' y2='320' stroke='%234c68c1' stroke-width='8'/></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+﻿#
+# This is the layout file for the Antigua CRVS Amendment simulator
+#
+#
+# By default, the 'source' of a leaf element is the name of the element.
+# Elements that start with 'c' and are set equal to constants: can be edited.
+# Identifiers that start with '_' are reserved words.  They are interpreted and effect
+#  rendering if supported by the parser. If the parser does not support them, they are
+#  ignored.
+#
+#
+# We start with our default values:
+#
+_CardWidth=1068	 		# Basis for X/Width values.  This is width of background file in pixels
+_CardHeight=742			# Basis for Y/Height values. This is height of background file in pixels
+
+BirthCertificate
+	cFontBody=arialnarrow-bold.ttf		# Font to use for all text. We have to use the internal name of the font and change Android ttf file to match (in lower case)
+	cFontBold=False
+
+	# X Dimension
+
+	cXLeft=220
+	cXChildSecondColumn=550
+	cXRightEdge=940
+	cXSex=924
+	cXMainSecondColumn=620
+	cXMSecondColumn=532
+
+	# Y Dimension
+	
+	cYChildTop=0
+	cYChildOffset=45
+	cYParentOffset=52
+	cYFemale=88
+	cYMale=105
+	cYParentTop=165
+	cYAmendmentTop=535
+	cYAmendmentOffset=38
+	cYAmendmentLineOffset=18
+
+	cHMainText = 18				# Height of personal text
+	Front
+		_Image = False			# We will specify the images individually. Default to text.
+		_Layer = 2				# All the text is on top
+		_Font = cFontBody		# Font for all
+		_FontBold=cFontBold
+		BackgroundFront
+			_X = 0 ; _Y = 0 ; _Width = 1068; _Height = 742
+			_Image = True; _Layer = 0
+			^BackgroundFront: _Source = "BirthCertificateBackground.jpg"	# This is somewhat based on iOS implementation
+		~BackgroundFront
+		MainText
+			_Bold = False
+			_Height = cHMainText
+			ChildSection
+				^ChildFirstName:	_X = cXLeft; 		_Y = cYChildTop + (0 * cYChildOffset); 	_Source=ChildFirstName
+				^ChildMiddleName:	_X = cXLeft; 		_Y = cYChildTop + (1 * cYChildOffset); 	_Source=ChildMiddleName
+				^ChildDateOfBirth:	_X = cXLeft; 		_Y = cYChildTop + (2 * cYChildOffset); 	_Source=ChildDateOfBirth
+				^ChildSurname:	_X = cXChildSecondColumn; 	_Y = cYChildTop + (0 * cYChildOffset); 	_Source=ChildSurname
+				^ChildPlaceOfBirth:	_X = cXChildSecondColumn; 	_Y = cYChildTop + (2 * cYChildOffset); 	_Source=ChildPlaceOfBirth
+				^ChildSuffix:	_X = cXRightEdge; 		_Y = cYChildTop + (0 * cYChildOffset); 	_Source=ChildSuffix; _XAlign=Right
+				^ChildFemale:	_X = cXSex; 		_Y=cYFemale; _Source=f
+				^ChildMale:	_X = cXSex; 		_Y=cYMale; _Source=m
+			~ChildSection
+			MotherSection
+				^MotherFirstName:		_X = cXLeft; 		_Y = cYParentTop + (0 * cYParentOffset); 	_Source=MotherFirstName
+				^MotherMiddleName:	_X = cXLeft; 		_Y = cYParentTop + (1 * cYParentOffset); 	_Source=MotherMiddleName
+				^MotherDateOfBirth:	_X = cXMSecondColumn;	_Y = cYParentTop + (2 * cYParentOffset) - 1; 	_Source=MotherDateOfBirth;	_XAlign=Right
+				^MotherSurname:		_X = cXMSecondColumn; 	_Y = cYParentTop + (0 * cYParentOffset); 	_Source=MotherSurname; 	_XAlign=Right
+				^MotherMaidenName:	_X = cXLeft; 		_Y = cYParentTop + (2 * cYParentOffset) - 1; 	_Source=MotherMaidenName
+				^MotherOccupation:	_X = cXLeft; 		_Y = cYParentTop + (3 * cYParentOffset); 	_Source=MotherOccupation
+				^MotherAddressOne:	_X = cXLeft; 		_Y = cYParentTop + (4 * cYParentOffset); 	_Source=MotherAddressOne
+				^MotherAddressTwo:	_X = cXLeft; 		_Y = cYParentTop + (5 * cYParentOffset); 	_Source=MotherAddressTwo
+				^MotherCountryOfBirth:	_X = cXLeft; 		_Y = cYParentTop + (6 * cYParentOffset); 	_Source=MotherCountryOfBirth
+			~MotherSection
+			FatherSection
+				^FatherFirstName:		_X = cXMainSecondColumn;	_Y = cYParentTop + (0 * cYParentOffset); 	_Source=FatherFirstName
+				^FatherMiddleName:	_X = cXMainSecondColumn;	_Y = cYParentTop + (1 * cYParentOffset); 	_Source=FatherMiddleName
+				^FatherDateOfBirth:		_X = cXRightEdge;		_Y = cYParentTop + (1 * cYParentOffset) - 1; 	_Source=FatherDateOfBirth;	_XAlign=Right
+				^FatherSurname:		_X = cXRightEdge;	 	_Y = cYParentTop + (0 * cYParentOffset); 	_Source=FatherSurname; 	_XAlign=Right
+				^FatherOccupation:		_X = cXMainSecondColumn;	_Y = cYParentTop + (3 * cYParentOffset); 	_Source=FatherOccupation
+				^FatherAddressOne:	_X = cXMainSecondColumn;	_Y = cYParentTop + (4 * cYParentOffset); 	_Source=FatherAddressOne
+				^FatherAddressTwo:	_X = cXMainSecondColumn;	_Y = cYParentTop + (5 * cYParentOffset); 	_Source=FatherAddressTwo
+				^FatherCountryOfBirth:	_X = cXMainSecondColumn;	_Y = cYParentTop + (6 * cYParentOffset); 	_Source=FatherCountryOfBirth
+			~FatherSection
+			AmendmentSection
+				^AmendmentOneTop:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + (0 * cYAmendmentLineOffset); 	_Source=AmendmentOneTop
+				^AmendmentOneBot:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + (1 * cYAmendmentLineOffset); 	_Source=AmendmentOneBot
+				^AmendmentTwoTop:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + (0 * cYAmendmentLineOffset); 	_Source=AmendmentTwoTop
+				^AmendmentTwoBot:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + (1 * cYAmendmentLineOffset); 	_Source=AmendmentTwoBot
+				^AmendmentThrTop:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + (0 * cYAmendmentLineOffset); 	_Source=AmendmentThrTop
+				^AmendmentThrBot:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + (1 * cYAmendmentLineOffset); 	_Source=AmendmentThrBot
+				^AmendmentFouTop:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + (0 * cYAmendmentLineOffset); 	_Source=AmendmentFouTop
+				^AmendmentFouBot:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + (1 * cYAmendmentLineOffset); 	_Source=AmendmentFouBot
+				^AmendmentFivTop:	_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + (0 * cYAmendmentLineOffset); 	_Source=AmendmentFivTop
+				^AmendmentFivBot:		_X = cXMainSecondColumn;	_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + (1 * cYAmendmentLineOffset); 	_Source=AmendmentFivBot
+			~AmendmentSection
+		~MainText
+	~Front
+~BirthCertificate
+
+		

@@ -1,0 +1,254 @@
+﻿#
+# This is the layout file for the Antigua CRVS Amendment simulator
+#
+#
+# By default, the 'source' of a leaf element is the name of the element.
+# Elements that start with 'c' and are set equal to constants: can be edited.
+# Identifiers that start with '_' are reserved words.  They are interpreted and effect
+#  rendering if supported by the parser. If the parser does not support them, they are
+#  ignored.
+#
+#
+# We start with our default values:
+#
+_CardWidth=1325	 		# Basis for X/Width values.  This is width of background file in pixels
+_CardHeight=1732		# Basis for Y/Height values. This is height of background file in pixels
+_DefaultToBlank=True	# Should be set when using app. Clear to show position of all fields even if the field is blank.
+
+BirthCertificate
+	cFontBody=arialnarrow-bold.ttf			# Font to use for all text. We have to use the internal name of the font and change Android ttf file to match (in lower case)
+	cFontReplacement=arial.ttf
+	cFontBold=False
+	cBlankReplacementColor = 138 152 139	# Green color for 'x' replacment characters (must be space delimited)
+
+	# X Dimension
+
+	cXLeft=238
+	cXChildSecColumn=674
+	cXRightEdge=1200
+	cXSex=1183
+	cXMainSecColumn=780
+	cXMSecColumn=664
+	cXSuperOff=9
+	cXAmendmentOffsetX=500
+	
+	cXDescOffset=12
+	cWDesc=314
+	cWAmendment = 526
+	
+	# Y Dimension
+	
+	cYChildTop=367
+	cYChildOffset=62
+	cYParentOffset=70
+	cYFemale=480
+	cYMale=506
+	cYParentTop=588
+	cYAmendmentTop=1090
+	cYAmendmentOffset=49
+	cYAmendmentLineOffset=24
+	
+	cYSuperVerticalOffset=6
+	cYSuperVerticalOffsetParent=8
+	cYDescVerticalOffset=6
+	cYDateVerticalOffset=14
+	cYWrapLineOffset=16
+	
+	cYBackAmendmentTop = 360
+
+	cHMainText = 20				# Height of personal text
+	cHSuperText = 16			# Height of superscript
+	cHAmendText = 18			# Height of amendment date and description
+	cHReplText = 18				# Height of text (x x x x ...) used in blank replacement
+	
+	Front
+		_Image = False			# We will specify the images individually. Default to text.
+		_Layer = 2				# All the text is on top
+		_Font = cFontBody		# Font for all
+		_FontBold=cFontBold
+		_PSHeight = cHSuperText	# Height of post scripts (superscript) in fields
+		_PSFont = cFontBody		# For now use same font as everything else
+		_PSBold = cFontBold		# Same bold state as everything else
+		_PSX = 0				# X Offset of superscript
+		_PSY = -4				# Y Offset of superscript (above if negative). Here we lower it a little to stay on our doc.
+		_WrapLineOffset = cYWrapLineOffset	# Distance between lines when wrapping
+		
+		_ReplacementColor=cBlankReplacementColor	# For 'x x x...'
+		_ReplacementHeight=cHReplText
+		_ReplacementFont=cFontReplacement
+		
+		BackgroundFront
+			_X = 0 ; _Y = 0 ; _Width = 1325; _Height = 1732
+			_Image = True; _Layer = 0
+			^BackgroundFront: _Source = "SampleBirthCertificate.png"
+		~BackgroundFront
+		MainText
+			_Bold = False
+			_Height = cHMainText
+			ChildSection
+				^ChildFirstName:	_X = cXLeft; 			_Y = cYChildTop + (0 * cYChildOffset); 	_Source=ChildFirstName;		_PSSource=ChildFirstNameSuper
+				^ChildMiddleName:	_X = cXLeft; 			_Y = cYChildTop + (1 * cYChildOffset); 	_Source=ChildMiddleName;	_PSSource=ChildMiddleNameSuper
+				^ChildDateOfBirth:	_X = cXLeft; 			_Y = cYChildTop + (2 * cYChildOffset); 	_Source=ChildDateOfBirth;	_PSSource=ChildDateOfBirthSuper
+				^ChildSurname:		_X = cXChildSecColumn; 	_Y = cYChildTop + (0 * cYChildOffset); 	_Source=ChildSurname;		_PSSource=ChildSurnameSuper
+				^ChildPlaceOfBirth:	_X = cXChildSecColumn; 	_Y = cYChildTop + (2 * cYChildOffset); 	_Source=ChildPlaceOfBirth;	_PSSource=ChildPlaceOfBirthSuper
+				^ChildSuffix:		_X = cXRightEdge; 		_Y = cYChildTop + (0 * cYChildOffset); 	_Source=ChildSuffix; 		_PSSource=ChildSuffixSuper; 		_XAlign=Right
+				^ChildFemale:		_X = cXSex; 			_Y=cYFemale; 	_Source=f
+				^ChildMale:			_X = cXSex; 			_Y=cYMale; 		_Source=m
+			~ChildSection
+			MotherSection
+				_ReplaceOnBlank=MotherUnknown	# If 'MotherUnknown' value is non-blank (e.g. 'xxxxxxxx') and _Source is missing or blank, then we replace
+				^MotherFirstName:	_X = cXLeft; 		_Y = cYParentTop + (0 * cYParentOffset); 		_Source=MotherFirstName;	_PSSource=MotherFirstNameSuper
+				^MotherMiddleName:	_X = cXLeft; 		_Y = cYParentTop + (1 * cYParentOffset); 		_Source=MotherMiddleName;	_PSSource=MotherMiddleNameSuper
+				^MotherDateOfBirth:	_X = cXMSecColumn;	_Y = cYParentTop + (2 * cYParentOffset) - 1; 	_Source=MotherDateOfBirth;	_PSSource=MotherDateOfBirthSuper;	_XAlign=Right
+				^MotherSurname:		_X = cXMSecColumn; 	_Y = cYParentTop + (0 * cYParentOffset); 		_Source=MotherSurname; 		_PSSource=MotherSurnameSuper;		_XAlign=Right
+				^MotherMaidenName:	_X = cXLeft; 		_Y = cYParentTop + (2 * cYParentOffset) - 1; 	_Source=MotherMaidenName;	_PSSource=MotherMaidenNameSuper
+				^MotherOccupation:	_X = cXLeft; 		_Y = cYParentTop + (3 * cYParentOffset); 		_Source=MotherOccupation;	_PSSource=MotherOccupationSuper
+				^MotherAddressOne:	_X = cXLeft; 		_Y = cYParentTop + (4 * cYParentOffset); 		_Source=MotherAddressOne;	_PSSource=MotherAddressOneSuper
+				^MotherAddressTwo:	_X = cXLeft; 		_Y = cYParentTop + (5 * cYParentOffset); 		_Source=MotherAddressTwo;	_PSSource=MotherAddressTwoSuper
+				^MotherCountryOfBirth:	_X = cXLeft; 		_Y = cYParentTop + (6 * cYParentOffset); 	_Source=MotherCountryOfBirth;_PSSource=MotherCountryOfBirthSuper
+				^MotherSuper:		_X = cXLeft - cXSuperOff;	_Y = cYParentTop - cYSuperVerticalOffsetParent;	_Source=MotherSuper; _Height = cHSuperText; _ReplaceOnBlank = ""
+			~MotherSection
+			FatherSection
+				_ReplaceOnBlank=FatherUnknown	# If 'FatherUnknown' value is non-blank (e.g. 'xxxxxxxx') and _Source is missing or blank, then we replace
+				^FatherFirstName:	_X = cXMainSecColumn;	_Y = cYParentTop + (0 * cYParentOffset); 	_Source=FatherFirstName;	_PSSource=FatherFirstNameSuper
+				^FatherMiddleName:	_X = cXMainSecColumn;	_Y = cYParentTop + (1 * cYParentOffset); 	_Source=FatherMiddleName;	_PSSource=FatherMiddleNameSuper
+				^FatherDateOfBirth:	_X = cXRightEdge;		_Y = cYParentTop + (1 * cYParentOffset) - 1;_Source=FatherDateOfBirth;	_PSSource=FatherDateOfBirthSuper;	_XAlign=Right
+				^FatherSurname:		_X = cXRightEdge;	 	_Y = cYParentTop + (0 * cYParentOffset); 	_Source=FatherSurname;		_PSSource=FatherSurnameSuper; 		_XAlign=Right
+				^FatherOccupation:	_X = cXMainSecColumn;	_Y = cYParentTop + (3 * cYParentOffset); 	_Source=FatherOccupation;	_PSSource=FatherOccupationSuper
+				^FatherAddressOne:	_X = cXMainSecColumn;	_Y = cYParentTop + (4 * cYParentOffset); 	_Source=FatherAddressOne;	_PSSource=FatherAddressOneSuper
+				^FatherAddressTwo:	_X = cXMainSecColumn;	_Y = cYParentTop + (5 * cYParentOffset); 	_Source=FatherAddressTwo;	_PSSource=FatherAddressTwoSuper
+				^FatherCountryOfBirth:	_X = cXMainSecColumn;	_Y = cYParentTop + (6 * cYParentOffset);_Source=FatherCountryOfBirth;	_PSSource=FatherCountryOfBirthSuper
+				^FatherSuper:		_X = cXMainSecColumn - cXSuperOff;	_Y = cYParentTop - cYSuperVerticalOffsetParent;	_Source=FatherSuper; _Height = cHSuperText; _ReplaceOnBlank = ""
+			~FatherSection
+			AmendmentSection
+				SuperSection
+					_X = cXMainSecColumn
+					_Height = cHSuperText
+					^Super1:			_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super1
+					^Super2:			_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super2
+					^Super3:			_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super3
+					^Super4:			_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super4
+					^Super5:			_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super5
+				~SuperSection
+				DescSection
+					_X = cXMainSecColumn + cXDescOffset
+					_XAlign=Wrap
+					_Width=cWDesc
+					_Height=cHAmendText
+					^Desc1:				_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc1
+					^Desc2:				_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc2
+					^Desc3:				_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc3
+					^Desc4:				_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc4
+					^Desc5:				_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc5
+				~DescSection
+				DateSection
+					_X = cXRightEdge
+					_XAlign=Right
+					_Height=cHAmendText
+					^Date1:				_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date1	
+					^Date2:				_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date2
+					^Date3:				_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date3
+					^Date4:				_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date4
+					^Date5:				_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date5
+				~DateSection
+			~AmendmentSection
+		~MainText
+	~Front
+	
+	Back
+		_Back = True			# To identify these as being printed on the back.
+		_Image = False			# We will specify the images individually. Default to text.
+		_Layer = 2				# All the text is on top
+		_Font = cFontBody		# Font for all
+		_FontBold=cFontBold
+		_PSHeight = cHSuperText	# Height of post scripts (superscript) in fields
+		_PSFont = cFontBody		# For now use same font as everything else
+		_PSBold = cFontBold		# Same bold state as everything else
+		_PSX = 0				# X Offset of superscript
+		_PSY = -4				# Y Offset of superscript (above if negative). Here we lower it a little to stay on our doc.
+		_WrapLineOffset = cYWrapLineOffset	# Distance between lines when wrapping
+		
+		BackgroundBack
+			_X = 0 ; _Y = 0 ; _Width = 1325; _Height = 1732
+			_Image = True; _Layer = 0
+			^BackgroundBack: _Source = "SampleBirthCertificateBack.png"
+		~BackgroundBack
+		AmendmentSectionBack
+			SuperSection
+				_X = cXMainSecColumn
+				_Height = cHSuperText
+				^Super1:			_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super1
+				^Super2:			_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super2
+				^Super3:			_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super3
+				^Super4:			_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super4
+				^Super5:			_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + cYSuperVerticalOffset; 	_Source=Super5
+			~SuperSection
+			DescSection
+				_X = cXMainSecColumn + cXDescOffset
+				_XAlign=Wrap
+				_Width=cWDesc
+				_Height=cHAmendText
+				^Desc1:				_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc1
+				^Desc2:				_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc2
+				^Desc3:				_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc3
+				^Desc4:				_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc4
+				^Desc5:				_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + cYDescVerticalOffset; 	_Source=Desc5
+			~DescSection
+			DateSection
+				_X = cXRightEdge
+				_XAlign=Right
+				_Height=cHAmendText
+				^Date1:				_Y = cYAmendmentTop + (0 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date1	
+				^Date2:				_Y = cYAmendmentTop + (1 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date2
+				^Date3:				_Y = cYAmendmentTop + (2 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date3
+				^Date4:				_Y = cYAmendmentTop + (3 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date4
+				^Date5:				_Y = cYAmendmentTop + (4 * cYAmendmentOffset) + cYDateVerticalOffset; 	_Source=Date5
+			~DateSection
+		~AmendmentSectionBack
+	~Back
+	
+	# This is our new group, which we render to both sides
+	
+	AmendmentAll
+		_Image = False			# We will specify the images individually. Default to text.
+		_Layer = 2				# All the text is on top
+		_Font = cFontBody		# Font for all
+		_FontBold=cFontBold
+
+		AmendmentGroupDefinition
+			_GroupToDefine = AmendmentGroupName		# Because of this, we don't render these in normal list, instead once per group item
+			^Super:			_X = 0; 			_Y = cYSuperVerticalOffset; _Height = cHSuperText; 	_Source=Super
+			^Desc:			_X = cXDescOffset;	_Y = cYDescVerticalOffset; 	_Height=cHAmendText;	_Source=Desc; 	_XAlign=Wrap;	_Width=cWDesc
+			^Date:			_X = cWAmendment;	_Y = cYDateVerticalOffset; 	_Height=cHAmendText;	_Source=Date;	_XAlign=Right
+		~AmendmentGroupDefinition
+
+		AmendmentsSectionGroup
+			FrontAmendmentCount = 5					# Number of Amendments which will fit on the front
+			_GroupRowOffset = cYAmendmentOffset		# Offset between Amendments (both sides)
+			_GroupColOffset = cXAmendmentOffsetX	# Offset between Amendment columns (back)
+			_Group = AmendmentGroupName				# This must be defined elsewhere in this script
+			_Source = AmendmentsList				# This must match our code
+			^FrontAmendments						# This is a renderable item in our main list
+				_Back = False
+				_X = cXMainSecColumn
+				_Y = cYAmendmentTop
+				_StartIndex = 0				# For groups only. Starting index within AmendmentsList array
+				_MaxRows = FrontAmendmentCount
+				_MaxCols = 1
+			~FrontAmendments
+			BackAmendmentSection
+				_Back = True
+				_Y = cYBackAmendmentTop
+				^BackAmendmentsTable
+					_X = cXBackAmendmentX
+					_StartIndex = FrontAmendmentCount
+					_MaxRows = 40
+					_MaxCols = 2
+				~BackAmendmentsTable
+			~BackAmendmentSection
+		~AmendmentsSectionGroup
+	~AmendmentAll
+
+~BirthCertificate
+
+		

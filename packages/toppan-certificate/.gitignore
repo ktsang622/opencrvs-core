@@ -1,0 +1,16 @@
+# Build outputs
+bin/
+obj/
+publish/
+
+# Keys - NEVER commit keys to git
+keys/*.pem
+
+# Development files
+*.user
+*.suo
+.vs/
+
+# Test outputs
+TestResults/
+*.trx

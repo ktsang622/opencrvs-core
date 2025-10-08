@@ -46,4 +46,4 @@ archive
 # Development logs
 *.csv
 *.pid
-logs/
+logs/test-output/
