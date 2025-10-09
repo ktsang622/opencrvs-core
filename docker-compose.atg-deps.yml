@@ -100,6 +100,26 @@ services:
     ports:
       - '5601:5601'
 
+  certificate-service:
+    build:
+      context: ./packages/toppan-certificate
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-opencrvs}/certificate-service:${VERSION:-latest}
+    container_name: certificate-service
+    restart: unless-stopped
+    ports:
+      - '5001:5000'
+    environment:
+      - ASPNETCORE_URLS=http://+:5000
+      - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
+      - CertificateService__TemplatesPath=/app/templates
+      - CertificateService__PdfSigningKeyPath=/app/keys/certificate-private-key.pem
+      - CertificateService__PdfVerificationKeyPath=/app/keys/certificate-public-key.pem
+    volumes:
+      # Mount templates for hot-reload during development
+      - ./packages/toppan-certificate/templates:/app/templates:ro
+      - ./packages/toppan-certificate/keys:/app/keys:ro
+
 volumes:
   family_tree_pgdata_atg:
   family_tree_node_modules_atg:

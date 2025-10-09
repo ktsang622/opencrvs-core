@@ -1,0 +1,35 @@
+version: '3.7'
+
+services:
+  certificate-service:
+    build:
+      context: ./packages/toppan-certificate
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-opencrvs}/certificate-service:${VERSION:-latest}
+    container_name: certificate-service
+    restart: unless-stopped
+    ports:
+      - '5001:5000'
+    environment:
+      - ASPNETCORE_URLS=http://+:5000
+      - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
+      - CertificateService__PdfSigningKeyPath=/app/keys/certificate-private-key.pem
+      - CertificateService__PdfVerificationKeyPath=/app/keys/certificate-public-key.pem
+    networks:
+      - opencrvs
+    volumes:
+      # Mount templates for development (optional)
+      - ./packages/toppan-certificate/templates:/app/templates:ro
+      # Mount keys for development (optional)
+      - ./packages/toppan-certificate/keys:/app/keys:ro
+    depends_on:
+      - countryconfig
+
+  # Update gateway to connect to certificate-service
+  gateway:
+    environment:
+      - CERTIFICATE_SERVICE_URL=http://certificate-service:5000
+
+networks:
+  opencrvs:
+    external: true
