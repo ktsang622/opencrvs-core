@@ -9,6 +9,14 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 echo "=== Starting Certificate Service ==="
 echo ""
 
+# Stop and remove existing container if it exists
+if docker ps -a --format '{{.Names}}' | grep -q '^certificate-service$'; then
+  echo "Stopping and removing existing certificate-service container..."
+  docker stop certificate-service > /dev/null 2>&1 || true
+  docker rm certificate-service > /dev/null 2>&1 || true
+  echo ""
+fi
+
 # Check if countryconfig is running
 if ! curl -s http://localhost:3040/ping > /dev/null 2>&1; then
   echo "⚠️  Warning: Countryconfig not detected on port 3040"

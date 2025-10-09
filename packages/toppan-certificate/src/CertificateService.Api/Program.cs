@@ -106,7 +106,7 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
-        Title = "OpenCRVS Certificate Generation Service",
+        Title = "Toppan CRVS Certificate Generation Service",
         Version = "v1.0.0",
         Description = @"REST API for generating multi-page PDF certificates with amendment history support.
 

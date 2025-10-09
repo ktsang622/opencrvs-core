@@ -5,31 +5,21 @@ services:
     build:
       context: ./packages/toppan-certificate
       dockerfile: Dockerfile
-    image: ${DOCKER_REGISTRY:-opencrvs}/certificate-service:${VERSION:-latest}
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/certificate-service:${VERSION:-latest}
     container_name: certificate-service
     restart: unless-stopped
     ports:
       - '3890:3890'  # Consistent port internally and externally
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:3890
-      - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
+      - CertificateService__TemplatesUrl=http://host.docker.internal:3040/certificates/toppan
       - CertificateService__PdfSigningKeyPath=/app/keys/certificate-private-key.pem
       - CertificateService__PdfVerificationKeyPath=/app/keys/certificate-public-key.pem
-    networks:
-      - opencrvs
     volumes:
       # Mount templates for development (optional)
       - ./packages/toppan-certificate/templates:/app/templates:ro
       # Mount keys for development (optional)
       - ./packages/toppan-certificate/keys:/app/keys:ro
-    depends_on:
-      - countryconfig
-
-  # Update gateway to connect to certificate-service
-  gateway:
-    environment:
-      - CERTIFICATE_SERVICE_URL=http://certificate-service:3890
-
-networks:
-  opencrvs:
-    external: true
+      # Mount test-output folder for debugging (maps to ./test-output in Development config)
+      - ./packages/toppan-certificate/output-debug:/app/test-output

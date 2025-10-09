@@ -140,10 +140,39 @@ namespace CertificateService.Api.Controllers
                     });
                 }
 
-                // Get template path for image loading (use file system path if HTTP failed)
-                var templatePath = string.IsNullOrEmpty(_options.TemplatesUrl)
-                    ? templateConfig.GetTemplatePath(_options.TemplatesPath)
-                    : Path.Combine(_options.TemplatesPath, templateType);
+                // Get template path for image loading (use file system path if HTTP template fetch failed earlier)
+                var templatePath = templateConfig.GetTemplatePath(_options.TemplatesPath);
+
+                // Pre-load background images from HTTP (if TemplatesUrl configured)
+                // This ensures images can be updated from countryconfig without rebuilding Docker image
+                if (!string.IsNullOrEmpty(_options.TemplatesUrl))
+                {
+                    _logger.LogInformation("Pre-loading background images from countryconfig...");
+
+                    // Load front page background
+                    if (!string.IsNullOrEmpty(templateConfig.FrontPageBackgroundImage))
+                    {
+                        var frontBgBytes = await _templateLoader.LoadBinaryFileAsync(templateType, templateConfig.FrontPageBackgroundImage);
+                        if (frontBgBytes != null)
+                        {
+                            personalInfo.AddImage(templateConfig.FrontPageBackgroundImage, frontBgBytes);
+                            _logger.LogInformation("Loaded front background: {Filename} ({Size} bytes)",
+                                templateConfig.FrontPageBackgroundImage, frontBgBytes.Length);
+                        }
+                    }
+
+                    // Load back page background
+                    if (!string.IsNullOrEmpty(templateConfig.BackPageBackgroundImage))
+                    {
+                        var backBgBytes = await _templateLoader.LoadBinaryFileAsync(templateType, templateConfig.BackPageBackgroundImage);
+                        if (backBgBytes != null)
+                        {
+                            personalInfo.AddImage(templateConfig.BackPageBackgroundImage, backBgBytes);
+                            _logger.LogInformation("Loaded back background: {Filename} ({Size} bytes)",
+                                templateConfig.BackPageBackgroundImage, backBgBytes.Length);
+                        }
+                    }
+                }
 
                 // 6. Render to bitmaps
                 var renderer = new ElmRender();
