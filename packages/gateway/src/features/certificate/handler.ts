@@ -397,6 +397,15 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
 
   if (correctedTasks.length === 0) return { amendments: [], fieldAmendments: {} }
 
+  // Build map of Location UUIDs to names for resolving location references
+  const locations = resources.filter((r: any) => r.resourceType === 'Location')
+  const locationMap = new Map<string, string>()
+  locations.forEach((loc: any) => {
+    if (loc.id && loc.name) {
+      locationMap.set(loc.id, loc.name)
+    }
+  })
+
   // Track which fields have amendments (field path -> amendment number)
   const fieldAmendments: Record<string, number> = {}
 
@@ -496,11 +505,24 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
         // Build description of what changed (old value -> new value)
         const key = `${section}.${fieldName}`
         const oldValue = inputMap.get(key)
-        const newValue = value
+        let newValue = value
+
+        // Resolve location UUIDs to names for address/location fields
+        if (isLocationField(fieldName) && typeof newValue === 'string') {
+          const locationName = locationMap.get(newValue)
+          if (locationName) {
+            newValue = locationName
+          }
+        }
 
         let fieldChangeDescription = ''
         if (oldValue !== undefined && oldValue !== '') {
-          fieldChangeDescription = `${certFieldName} changed from '${oldValue}' to '${newValue}'`
+          // Resolve old value if it's a location UUID
+          let displayOldValue = oldValue
+          if (isLocationField(fieldName) && typeof oldValue === 'string') {
+            displayOldValue = locationMap.get(oldValue) || oldValue
+          }
+          fieldChangeDescription = `${certFieldName} changed from '${displayOldValue}' to '${newValue}'`
         } else {
           fieldChangeDescription = `${certFieldName} added: '${newValue}'`
         }
@@ -518,7 +540,7 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
           date: formattedDate,
           section: sectionProper,
           fields: {
-            [certFieldName]: String(value)
+            [certFieldName]: String(newValue)
           },
           description,
           amendmentNumber
@@ -562,6 +584,22 @@ function formatAmendmentDate(isoDate: string): string {
   const month = months[date.getMonth()]
   const year = date.getFullYear()
   return `${day} ${month} ${year}`
+}
+
+function isLocationField(fieldName: string): boolean {
+  // Check if a field contains location UUIDs that need to be resolved
+  const locationFields = [
+    'statePrimary',
+    'districtPrimary',
+    'statePrimaryFather',
+    'districtPrimaryFather',
+    'statePrimaryMother',
+    'districtPrimaryMother',
+    'countryPrimary',
+    'countryPrimaryFather',
+    'countryPrimaryMother'
+  ]
+  return locationFields.includes(fieldName)
 }
 
 function translateReasonCode(reasonCode: string): string {
