@@ -464,6 +464,11 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
     const amendmentNumber = index + 1
 
     sectionFields.forEach((value, fieldName) => {
+      // Skip internal/non-displayable fields
+      if (shouldSkipField(fieldName)) {
+        return
+      }
+
       // Map FHIR field names to certificate field names if needed
       const certFieldName = mapFieldName(fieldName)
       fields[certFieldName] = String(value)
@@ -529,15 +534,62 @@ function formatAmendmentDate(isoDate: string): string {
   return `${day} ${month} ${year}`
 }
 
+function shouldSkipField(fhirFieldName: string): boolean {
+  // Skip internal fields that shouldn't appear in certificate amendments
+  const skipFields = [
+    'detailsExist',
+    'exactDateOfBirthUnknown',
+    'ageOfIndividualInYears',
+    'fatherIdType',
+    'motherIdType',
+    'reasonNotApplying'
+  ]
+  return skipFields.includes(fhirFieldName)
+}
+
 function mapFieldName(fhirFieldName: string): string {
-  // Map FHIR field names to certificate field names
+  // Map FHIR field names to certificate field names (camelCase)
   const mapping: Record<string, string> = {
+    // Child fields
     'firstNamesEng': 'firstName',
+    'middleNameEng': 'middleName',
     'familyNameEng': 'surname',
     'childBirthDate': 'dateOfBirth',
+    'placeOfBirth': 'placeOfBirth',
+    'gender': 'sex',
+
+    // Mother/Father fields
+    'dateOfBirth': 'dateOfBirth',
     'nationality': 'nationality',
-    'occupation': 'occupation'
-    // Add more mappings as needed
+    'occupation': 'occupation',
+    'maritalStatus': 'maritalStatus',
+    'educationalAttainment': 'educationalAttainment',
+
+    // Address fields
+    'countryPrimary': 'countryOfBirth',
+    'statePrimary': 'addressTwo',  // State/district part of address
+    'districtPrimary': 'addressTwo',
+    'cityPrimary': 'addressOne',
+    'addressLine1': 'addressOne',
+    'addressLine2': 'addressTwo',
+    'postalCode': 'postalCode',
+
+    // Father-specific address fields
+    'countryPrimaryFather': 'countryOfBirth',
+    'statePrimaryFather': 'addressTwo',
+    'districtPrimaryFather': 'addressTwo',
+
+    // Mother-specific address fields
+    'countryPrimaryMother': 'countryOfBirth',
+    'statePrimaryMother': 'addressTwo',
+    'districtPrimaryMother': 'addressTwo',
+
+    // Other fields (may not need to be shown in amendments)
+    'detailsExist': 'detailsExist',
+    'exactDateOfBirthUnknown': 'exactDateOfBirthUnknown',
+    'ageOfIndividualInYears': 'ageOfIndividualInYears',
+    'fatherIdType': 'idType',
+    'motherIdType': 'idType'
   }
   return mapping[fhirFieldName] || fhirFieldName
 }
