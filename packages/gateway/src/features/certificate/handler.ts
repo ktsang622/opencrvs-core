@@ -229,7 +229,6 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
 
   // Extract amendments from history
   const amendments = extractAmendments(bundle)
-  console.log('[Certificate] Amendments:', JSON.stringify(amendments, null, 2))
 
   return {
     certificateType: eventType,
@@ -384,23 +383,15 @@ function getTaskValue(task: any, type: string): string | undefined {
 function extractAmendments(bundle: any): any[] {
   const resources = bundle.entry?.map((e: any) => e.resource) || []
 
-  // Debug: log all task statuses
-  const tasks = resources.filter((r: any) => r.resourceType === 'Task' || r.resourceType === 'TaskHistory')
-  console.log('[Certificate] Task statuses:', tasks.map((t: any) => ({
-    resourceType: t.resourceType,
-    status: t.businessStatus?.coding?.[0]?.code,
-    hasInput: !!t.input,
-    hasOutput: !!t.output
-  })))
-
-  // Find all Task/TaskHistory resources with CORRECTED status
-  // (same approach as GraphQL history resolver)
+  // Find all Task/TaskHistory resources with makeCorrection extension
+  // Corrections are identified by extension, not businessStatus
   const correctedTasks = resources.filter((r: any) =>
     (r.resourceType === 'Task' || r.resourceType === 'TaskHistory') &&
-    r.businessStatus?.coding?.[0]?.code === 'CORRECTED'
+    r.extension?.some((ext: any) =>
+      ext.url === 'http://opencrvs.org/specs/extension/makeCorrection'
+    )
   )
 
-  console.log('[Certificate] Found corrected tasks:', correctedTasks.length)
   if (correctedTasks.length === 0) return []
 
   // Transform each CORRECTED task into amendment format
@@ -414,29 +405,35 @@ function extractAmendments(bundle: any): any[] {
 
     const changes: any[] = []
 
-    // Build map of input values by type
+    // Build map of input values by section.fieldName
     const inputMap = new Map()
     inputs.forEach((inp: any) => {
-      const type = inp.type?.text
-      const value = inp.valueString || inp.valueBoolean || inp.valueInteger || ''
-      if (type) {
-        inputMap.set(type, value)
+      const section = inp.valueCode  // e.g., "child", "father"
+      const fieldName = inp.valueId  // e.g., "familyNameEng", "childBirthDate"
+      const value = inp.valueString ?? inp.valueBoolean ?? inp.valueInteger ?? ''
+
+      if (section && fieldName) {
+        const key = `${section}.${fieldName}`
+        inputMap.set(key, value)
       }
     })
 
     // Compare outputs to inputs to find changes
     outputs.forEach((out: any) => {
-      const type = out.type?.text
-      const newValue = out.valueString || out.valueBoolean || out.valueInteger || ''
+      const section = out.valueCode
+      const fieldName = out.valueId
+      const newValue = out.valueString ?? out.valueBoolean ?? out.valueInteger ?? ''
 
-      if (type) {
-        const oldValue = inputMap.get(type)
+      if (section && fieldName) {
+        const key = `${section}.${fieldName}`
+        const oldValue = inputMap.get(key)
         // Only include if value actually changed
         if (oldValue !== newValue) {
           changes.push({
-            field: type,
-            oldValue: String(oldValue || ''),
-            newValue: String(newValue || '')
+            section,
+            fieldName,
+            oldValue: String(oldValue ?? ''),
+            newValue: String(newValue ?? '')
           })
         }
       }
