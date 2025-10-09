@@ -84,6 +84,56 @@ namespace CertificateService.Core.Template
             }
         }
 
+        /// <summary>
+        /// Load template from string content
+        /// Returns: 0=success, 3=parse error
+        /// </summary>
+        public int LoadFromString(string content)
+        {
+            try
+            {
+                _items.Clear();
+                _constants.Clear();
+                _nodeStack.Clear();
+                _nodeStack.Push(_root);
+
+                var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+                LoadErrorLineNumber = 0;
+
+                foreach (var line in lines)
+                {
+                    LoadErrorLineNumber++;
+                    var trimmed = line.Trim();
+
+                    // Skip empty lines and comments
+                    if (string.IsNullOrWhiteSpace(trimmed) || trimmed.StartsWith("#"))
+                        continue;
+
+                    var result = ParseLine(trimmed);
+                    if (result != 0)
+                    {
+                        return result;
+                    }
+                }
+
+                // Check if there are items marked for back page
+                RenderBack = _items.Any(item => item.GetBoolSetting("_Back", false));
+                var backItems = _items.Where(item => item.GetBoolSetting("_Back", false)).Select(item => $"{item.Name} (index {item.Index})").ToList();
+                Console.WriteLine($"[ElmLayout] RenderBack={RenderBack}, back items count={backItems.Count}");
+                if (backItems.Any())
+                {
+                    Console.WriteLine($"[ElmLayout] Back items: {string.Join(", ", backItems)}");
+                }
+
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                LoadErrorMessage = $"Error parsing template: {ex.Message}";
+                return 3;
+            }
+        }
+
         private int ParseLine(string line)
         {
             try

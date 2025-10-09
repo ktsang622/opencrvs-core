@@ -20,10 +20,10 @@ toppan-certificate/
 │   ├── CertificateService.Api/       # REST API endpoints
 │   ├── CertificateService.Core/      # Business logic & services
 │   └── CertificateService.Tests/     # Unit tests
-├── templates/                        # Handlebars certificate templates
-│   ├── Birth/
-│   ├── Death/
-│   └── Marriage/
+├── templates/                        # ElmLayout certificate templates
+│   ├── antigua-birth-v1/
+│   ├── antigua-death-v1/
+│   └── antigua-marriage-v1/
 ├── keys/                             # ECDSA signing keys
 │   ├── certificate-private-key.pem   # For signing
 │   └── certificate-public-key.pem    # For verification
@@ -31,6 +31,10 @@ toppan-certificate/
 │   ├── index.html
 │   ├── app.js
 │   └── images/
+├── integration-handlers/             # OpenCRVS countryconfig handlers (reference)
+│   ├── toppan-print-handler-v2.ts   # GraphQL-based handler (recommended)
+│   ├── toppan-print-handler.ts      # FHIR-based handler (legacy)
+│   └── README.md
 └── Dockerfile
 ```
 
@@ -120,9 +124,32 @@ openssl ec -in certificate-private-key.pem -pubout -out certificate-public-key.p
 
 This service integrates with OpenCRVS Core as a microservice:
 
-1. **Gateway Integration**: Proxied through the OpenCRVS Gateway
-2. **Webhook Support**: Receives certificate generation requests from workflow service
-3. **FHIR Data**: Processes FHIR resources from OpenCRVS
+1. **Countryconfig Handler**: See [integration-handlers/README.md](integration-handlers/README.md)
+   - Use `toppan-print-handler-v2.ts` (GraphQL-based, recommended)
+   - Copy to your countryconfig's `src/api/certificates/` directory
+   - Register in API routes
+
+2. **Client Feature Flag**: Enable in client config
+   ```typescript
+   export const config = {
+     FEATURES: {
+       USE_CERTIFICATE_SERVICE: true
+     },
+     CERTIFICATE_SERVICE_URL: 'http://certificate-service:5000'
+   }
+   ```
+
+3. **Environment Variables**:
+   - `CERTIFICATE_SERVICE_URL`: Certificate service endpoint
+   - `GATEWAY_URL`: OpenCRVS Gateway URL
+   - `CLIENT_APP_URL`: Client URL for QR code links
+
+4. **Data Flow**:
+   - Client → Countryconfig Handler → Certificate Service
+   - Handler fetches data via GraphQL
+   - Resolves location UUIDs to names
+   - Transforms to CertificateRequest DTO
+   - Certificate Service generates signed PDF
 
 ## Dependencies
 

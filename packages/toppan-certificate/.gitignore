@@ -14,3 +14,4 @@ keys/*.pem
 # Test outputs
 TestResults/
 *.trx
+logs/

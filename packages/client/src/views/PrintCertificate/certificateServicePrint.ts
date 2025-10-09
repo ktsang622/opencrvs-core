@@ -17,7 +17,7 @@ import { isMobileDevice } from '@client/utils/commonUtils'
  * Print certificate using Toppan certificate-service
  *
  * This function:
- * 1. Calls country-config endpoint to generate PDF via certificate-service
+ * 1. Calls gateway certificate endpoint to generate PDF via certificate-service
  * 2. Downloads the PDF blob
  * 3. Opens print dialog or downloads file (depending on device)
  */
@@ -29,9 +29,9 @@ export async function printViaCertificateService(
   const eventType = mapEventType(declaration.event)
 
   try {
-    // Call country-config print endpoint
+    // Call gateway certificate endpoint
     const response = await fetch(
-      `${window.config.COUNTRY_CONFIG_URL}/certificates/toppan/print`,
+      `${window.config.API_GATEWAY_URL}/certificate/generate`,
       {
         method: 'POST',
         headers: {
@@ -100,7 +100,7 @@ export async function getCertificatePreviewUrl(
 
   try {
     const response = await fetch(
-      `${window.config.COUNTRY_CONFIG_URL}/certificates/toppan/print`,
+      `${window.config.API_GATEWAY_URL}/certificate/generate`,
       {
         method: 'POST',
         headers: {

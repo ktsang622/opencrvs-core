@@ -24,6 +24,7 @@ import sendVerifyCodeHandler, {
 import { trpcProxy } from '@gateway/v2-events/event-config/routes'
 import { DOCUMENTS_URL, MINIO_BUCKET } from '@gateway/constants'
 import { personSearchRoutes } from '@gateway/features/person-search'
+import { generateCertificateHandler } from '@gateway/features/certificate/handler'
 
 export const getRoutes = () => {
   const routes: ServerRoute[] = [
@@ -82,6 +83,23 @@ export const getRoutes = () => {
         },
         response: {
           schema: responseSchema
+        }
+      }
+    },
+    // Generate certificate via certificate-service
+    {
+      method: 'POST',
+      path: '/certificate/generate',
+      handler: generateCertificateHandler,
+      options: {
+        tags: ['api', 'certificate'],
+        description: 'Generate certificate PDF via certificate-service',
+        auth: {
+          scope: [
+            SCOPES.RECORD_CERTIFY_BIRTH,
+            SCOPES.RECORD_CERTIFY_DEATH,
+            SCOPES.RECORD_CERTIFY_MARRIAGE
+          ]
         }
       }
     },
