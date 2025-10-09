@@ -394,7 +394,7 @@ function extractAmendments(bundle: any): any[] {
 
   if (correctedTasks.length === 0) return []
 
-  // Transform each CORRECTED task into amendment format
+  // Transform each CORRECTED task into certificate-service amendment format
   return correctedTasks.map((task: any) => {
     const date = task.lastModified
     const reason = task.reason?.text || ''
@@ -402,8 +402,6 @@ function extractAmendments(bundle: any): any[] {
     // Extract input (before) and output (after) changes
     const inputs = task.input || []
     const outputs = task.output || []
-
-    const changes: any[] = []
 
     // Build map of input values by section.fieldName
     const inputMap = new Map()
@@ -418,9 +416,11 @@ function extractAmendments(bundle: any): any[] {
       }
     })
 
-    // Compare outputs to inputs to find changes
+    // Group changes by section and collect new values
+    const changesBySection = new Map<string, Map<string, any>>()
+
     outputs.forEach((out: any) => {
-      const section = out.valueCode
+      const section = out.valueCode  // "child", "mother", "father"
       const fieldName = out.valueId
       const newValue = out.valueString ?? out.valueBoolean ?? out.valueInteger ?? ''
 
@@ -429,20 +429,89 @@ function extractAmendments(bundle: any): any[] {
         const oldValue = inputMap.get(key)
         // Only include if value actually changed
         if (oldValue !== newValue) {
-          changes.push({
-            section,
-            fieldName,
-            oldValue: String(oldValue ?? ''),
-            newValue: String(newValue ?? '')
-          })
+          if (!changesBySection.has(section)) {
+            changesBySection.set(section, new Map())
+          }
+          changesBySection.get(section)!.set(fieldName, newValue)
         }
       }
     })
 
+    // Determine amendment type based on section and fields changed
+    const amendmentType = determineAmendmentType(
+      Array.from(changesBySection.keys())[0] || '',
+      Array.from(changesBySection.values())[0] || new Map()
+    )
+
+    // Format date as "DD MMM YYYY" (e.g., "15 Jan 2024")
+    const formattedDate = date ? formatAmendmentDate(date) : ''
+
+    // Convert section to proper case (child -> Child, mother -> Mother, father -> Father)
+    const section = Array.from(changesBySection.keys())[0] || ''
+    const sectionProper = section.charAt(0).toUpperCase() + section.slice(1).toLowerCase()
+
+    // Build fields object with new values only
+    const fields: Record<string, string> = {}
+    const sectionFields = changesBySection.get(section) || new Map()
+    sectionFields.forEach((value, fieldName) => {
+      // Map FHIR field names to certificate field names if needed
+      const certFieldName = mapFieldName(fieldName)
+      fields[certFieldName] = String(value)
+    })
+
     return {
-      date: date?.split('T')[0],
-      reason,
-      changes
+      type: amendmentType,
+      date: formattedDate,
+      section: sectionProper,
+      fields,
+      description: reason
     }
   })
+}
+
+function determineAmendmentType(section: string, fields: Map<string, any>): string {
+  const sectionLower = section.toLowerCase()
+  const fieldNames = Array.from(fields.keys())
+
+  // Check if name fields are being changed
+  const hasNameChange = fieldNames.some(f =>
+    f.includes('Name') || f.includes('name') || f.includes('firstName') || f.includes('familyName')
+  )
+
+  if (sectionLower === 'child') {
+    return hasNameChange ? 'ChangeOfName' : 'BirthNameAndParticularsChanged'
+  } else if (sectionLower === 'father') {
+    // Check if details are being added (old values were empty)
+    const isAdding = fieldNames.some(f => {
+      const value = fields.get(f)
+      return value && String(value).trim() !== ''
+    })
+    return isAdding ? 'FathersNameAndParticularsAdded' : 'FathersNameAndParticularsChanged'
+  } else if (sectionLower === 'mother') {
+    return 'MothersNameAndParticularsChanged'
+  }
+
+  return 'ChangeOfName' // Default fallback
+}
+
+function formatAmendmentDate(isoDate: string): string {
+  const date = new Date(isoDate)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const day = date.getDate()
+  const month = months[date.getMonth()]
+  const year = date.getFullYear()
+  return `${day} ${month} ${year}`
+}
+
+function mapFieldName(fhirFieldName: string): string {
+  // Map FHIR field names to certificate field names
+  const mapping: Record<string, string> = {
+    'firstNamesEng': 'firstName',
+    'familyNameEng': 'surname',
+    'childBirthDate': 'dateOfBirth',
+    'nationality': 'nationality',
+    'occupation': 'occupation'
+    // Add more mappings as needed
+  }
+  return mapping[fhirFieldName] || fhirFieldName
 }
