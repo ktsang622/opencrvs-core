@@ -37,7 +37,7 @@ COPY templates /app/templates
 COPY keys /app/keys
 COPY verifier-app /app/wwwroot
 
-EXPOSE 5000
-ENV ASPNETCORE_URLS=http://+:5000
+EXPOSE 3890
+ENV ASPNETCORE_URLS=http://+:3890
 
 ENTRYPOINT ["dotnet", "CertificateService.Api.dll"]
