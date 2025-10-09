@@ -148,7 +148,7 @@ if $services; then
   yarn dev:secrets:gen
 
   echo
-  openCRVSPorts=( 3447 9200 27017 6379 8086 4444 3040 5050 2020 7070 9090 1050 3030 3000 3020 2525 2021 3535 3536 9050 9998 3888 3889)
+  openCRVSPorts=( 3447 9200 27017 6379 8086 4444 3040 5050 2020 7070 9090 1050 3030 3000 3020 2525 2021 3535 3536 9050 9998 3888 3889 3890)
   for x in "${openCRVSPorts[@]}"
   do
      :
@@ -193,6 +193,15 @@ if $services; then
     done
   } &
   START2_PID=$!
+
+  # Start certificate-service after countryconfig is ready (background)
+  {
+    echo "Waiting for countryconfig to be ready before starting certificate-service..."
+    wait_for_ready tcp:localhost:3040
+    echo "Starting certificate-service (Toppan .NET service)..."
+    docker compose -p opencrvs-atg -f "$ROOT_DIR/docker-compose.certificate-service.yml" up -d certificate-service
+    echo "Certificate-service started on http://localhost:3890"
+  } >> "$LOG_DIR/certificate-service-startup.log" 2>&1 &
   PGID=$(ps -o pgid= $START2_PID | tr -d ' ' || echo "")
 
   echo "$START2_PID" > "$LOG_DIR/dev-atg.pid"
@@ -323,6 +332,15 @@ echo "AI agents can read logs from: $LOG_DIR"
   done
 } &
 START2_PID=$!
+
+# Start certificate-service after countryconfig is ready (background)
+{
+  echo "Waiting for countryconfig to be ready before starting certificate-service..."
+  wait_for_ready tcp:localhost:3040
+  echo "Starting certificate-service (Toppan .NET service)..."
+  docker compose -p opencrvs-atg -f "$ROOT_DIR/docker-compose.certificate-service.yml" up -d certificate-service
+  echo "Certificate-service started on http://localhost:3890"
+} >> "$LOG_DIR/certificate-service-startup.log" 2>&1 &
 PGID=$(ps -o pgid= $START2_PID | tr -d ' ' || echo "")
  
 # Store process info for monitoring and cleanup
