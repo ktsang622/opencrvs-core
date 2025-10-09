@@ -238,8 +238,8 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
 
   // Extract amendments from history
   const { amendments, fieldAmendments } = extractAmendments(bundle)
-  console.log('[Certificate] Extracted amendments:', JSON.stringify(amendments, null, 2))
-  console.log('[Certificate] Field amendments map:', JSON.stringify(fieldAmendments, null, 2))
+  // console.log('[Certificate] Extracted amendments:', JSON.stringify(amendments, null, 2))
+  // console.log('[Certificate] Field amendments map:', JSON.stringify(fieldAmendments, null, 2))
 
   return {
     certificateType: eventType,
