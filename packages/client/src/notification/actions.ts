@@ -48,6 +48,11 @@ export const HIDE_PIN_UPDATE_SUCCESS = 'HIDE_PIN_UPDATE_SUCCESS'
 
 export const SHOW_UNASSIGNED = 'SHOW_UNASSIGNED'
 export const HIDE_UNASSIGNED = 'HIDE_UNASSIGNED'
+
+export const SHOW_CERTIFICATE_PRINT_ERROR_TOAST =
+  'SHOW_CERTIFICATE_PRINT_ERROR_TOAST'
+export const HIDE_CERTIFICATE_PRINT_ERROR_TOAST =
+  'HIDE_CERTIFICATE_PRINT_ERROR_TOAST'
 export const SHOW_UNASSIGNED_DECLARATIONS = 'SHOW_UNASSIGNED_DECLARATIONS'
 export const HIDE_UNASSIGNED_DECLARATIONS_TOAST =
   'HIDE_UNASSIGNED_DECLARATIONS_TOAST'
@@ -353,6 +358,29 @@ export const toggleEmailAllUsersFeedbackToast = (
   payload: data
 })
 
+export type ShowCertificatePrintErrorToast = {
+  type: typeof SHOW_CERTIFICATE_PRINT_ERROR_TOAST
+  payload: {
+    message: string
+  }
+}
+
+export type HideCertificatePrintErrorToast = {
+  type: typeof HIDE_CERTIFICATE_PRINT_ERROR_TOAST
+}
+
+export const showCertificatePrintErrorToast = (
+  message: string
+): ShowCertificatePrintErrorToast => ({
+  type: SHOW_CERTIFICATE_PRINT_ERROR_TOAST,
+  payload: { message }
+})
+
+export const hideCertificatePrintErrorToast =
+  (): HideCertificatePrintErrorToast => ({
+    type: HIDE_CERTIFICATE_PRINT_ERROR_TOAST
+  })
+
 export type Action =
   | SessionExpiredAction
   | ConfigurationErrorAction
@@ -382,3 +410,5 @@ export type Action =
   | ShowUnassignedDeclarations
   | HideUnassignedDeclarationsToast
   | ToggleEmailAllUsersFeedbackAction
+  | ShowCertificatePrintErrorToast
+  | HideCertificatePrintErrorToast

@@ -9,7 +9,7 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { defineMessages, useIntl } from 'react-intl'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { v4 as uuid } from 'uuid'
@@ -27,16 +27,7 @@ import {
   getAcceptedActions,
   SCOPES
 } from '@opencrvs/commons/client'
-import {
-  Box,
-  Button,
-  Content,
-  Frame,
-  Icon,
-  ResponsiveModal,
-  Spinner,
-  Stack
-} from '@opencrvs/components'
+import { Button, Content, Frame, Icon, ResponsiveModal, Spinner } from '@opencrvs/components'
 import { Print } from '@opencrvs/components/lib/icons'
 import { ROUTES } from '@client/v2-events/routes'
 import { useEvents } from '@client/v2-events/features/events/useEvents/useEvents'
@@ -53,11 +44,86 @@ import { validationErrorsInActionFormExist } from '@client/v2-events/components/
 import { useEventConfiguration } from '@client/v2-events/features/events/useEventConfiguration'
 import { useOnlineStatus } from '@client/utils'
 
+const FullWidthLayout = styled.div<{ $isPDF?: boolean }>`
+  width: 100%;
+  max-width: 100%;
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0 auto;
+`
+
+const PreviewWrapper = styled.div`
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+`
+
+const PreviewBox = styled.div<{ $isPDF?: boolean }>`
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: ${({ theme }) => theme.colors.white};
+  border: 1px solid ${({ theme }) => theme.colors.grey300};
+  border-radius: 4px;
+  overflow: hidden;
+  ${({ theme }) => theme.shadows.light};
+`
+
 const CertificateContainer = styled.div`
   svg {
     /* limits the certificate overflowing on small screens */
     max-width: 100%;
   }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+`
+
+const PreviewContent = styled.div<{ $isImage?: boolean }>`
+  width: 100%;
+  min-height: ${({ $isImage }) => ($isImage ? 'auto' : '80vh')};
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  box-sizing: border-box;
+
+  & img {
+    max-width: 85%;
+    height: auto;
+    display: block;
+  }
+
+  & iframe {
+    width: 100%;
+    min-height: 80vh;
+    border: none;
+  }
+`
+
+const PageControls = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+`
+
+const PageIndicator = styled.span`
+  ${({ theme }) => theme.fonts.reg16};
+`
+
+const ActionsContainer = styled.div`
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
 `
 
 const TooltipContainer = styled.div`
@@ -174,13 +240,36 @@ export function Review() {
     (template) => template.id === templateId
   )
 
-  const { svgCode, handleCertify } = usePrintableCertificate({
+  const {
+    svgCode,
+    handleCertify,
+    certificatePreview,
+    useCertificateService,
+    isLoadingPdf
+  } = usePrintableCertificate({
     event: fullEvent,
     locations,
     users,
     certificateConfig,
     language
   })
+
+  const pages = certificatePreview?.pages ?? []
+  const [activePage, setActivePage] = useState(0)
+
+  useEffect(() => {
+    setActivePage(0)
+  }, [certificatePreview?.pages?.length, eventId])
+
+  const currentPage = pages[activePage]
+  const isImagePreview =
+    useCertificateService && currentPage?.contentType?.startsWith('image/') === true
+
+  const previewSrc = currentPage
+    ? isImagePreview
+      ? currentPage.url
+      : `${currentPage.url}#toolbar=0&navpanes=0&zoom=page-width`
+    : undefined
 
   /**
    * If there are validation errors in the form, redirect to the
@@ -190,8 +279,30 @@ export function Review() {
   const { eventConfiguration } = useEventConfiguration(fullEvent.type)
   const formConfig = getPrintForm(eventConfiguration)
 
-  if (!svgCode) {
-    return <Spinner id="review-certificate-loading" />
+  if (useCertificateService) {
+    if (isLoadingPdf || !pages.length) {
+      return (
+        <FormLayout
+          appbarIcon={<Print />}
+          route={ROUTES.V2.EVENTS.PRINT_CERTIFICATE}
+        >
+          <Frame.LayoutCentered>
+            <Spinner id="review-certificate-loading" />
+          </Frame.LayoutCentered>
+        </FormLayout>
+      )
+    }
+  } else if (!svgCode) {
+    return (
+      <FormLayout
+        appbarIcon={<Print />}
+        route={ROUTES.V2.EVENTS.PRINT_CERTIFICATE}
+      >
+        <Frame.LayoutCentered>
+          <Spinner id="review-certificate-loading" />
+        </Frame.LayoutCentered>
+      </FormLayout>
+    )
   }
 
   const validationErrorExist = validationErrorsInActionFormExist({
@@ -281,23 +392,66 @@ export function Review() {
       appbarIcon={<Print />}
       route={ROUTES.V2.EVENTS.PRINT_CERTIFICATE}
     >
-      <Frame.LayoutCentered>
-        <Stack direction="column">
-          <Box>
-            <CertificateContainer
-              dangerouslySetInnerHTML={{ __html: svgCode }}
-              id="print"
-            />
-          </Box>
+      <FullWidthLayout $isPDF={useCertificateService && !isImagePreview}>
+        <PreviewWrapper>
+          <PreviewBox $isPDF={useCertificateService && !isImagePreview}>
+            {useCertificateService && previewSrc ? (
+              <>
+                <PreviewContent $isImage={isImagePreview}>
+                  {isImagePreview ? (
+                    <img id="print" src={previewSrc} alt="Certificate Preview" />
+                  ) : (
+                    <iframe
+                      id="print"
+                      src={previewSrc}
+                      title="Certificate Preview"
+                    />
+                  )}
+                </PreviewContent>
+                {pages.length > 1 && (
+                  <PageControls>
+                    <Button
+                      type="secondary"
+                      size="small"
+                      onClick={() => setActivePage((index) => Math.max(0, index - 1))}
+                      disabled={activePage === 0}
+                    >
+                      <Icon name="ArrowLeft" size="small" />
+                    </Button>
+                    <PageIndicator>{`Page ${activePage + 1} of ${pages.length}`}</PageIndicator>
+                    <Button
+                      type="secondary"
+                      size="small"
+                      onClick={() =>
+                        setActivePage((index) =>
+                          Math.min(pages.length - 1, index + 1)
+                        )
+                      }
+                      disabled={activePage >= pages.length - 1}
+                    >
+                      <Icon name="ArrowRight" size="small" />
+                    </Button>
+                  </PageControls>
+                )}
+              </>
+            ) : (
+              <CertificateContainer
+                dangerouslySetInnerHTML={{ __html: svgCode }}
+                id="print"
+              />
+            )}
+          </PreviewBox>
+        </PreviewWrapper>
 
-          {!isOnline && (
-            <ReactTooltip effect="solid" id="no-connection" place="top">
-              <TooltipMessage>
-                {intl.formatMessage(messages.onlineOnly)}
-              </TooltipMessage>
-            </ReactTooltip>
-          )}
+        {!isOnline && (
+          <ReactTooltip effect="solid" id="no-connection" place="top">
+            <TooltipMessage>
+              {intl.formatMessage(messages.onlineOnly)}
+            </TooltipMessage>
+          </ReactTooltip>
+        )}
 
+        <ActionsContainer>
           <Content
             bottomActionButtons={[
               <ProtectedComponent
@@ -341,8 +495,8 @@ export function Review() {
             {modal}
             {intl.formatMessage(messages.printDescription)}
           </Content>
-        </Stack>
-      </Frame.LayoutCentered>
+        </ActionsContainer>
+      </FullWidthLayout>
     </FormLayout>
   )
 }

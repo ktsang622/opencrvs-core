@@ -135,6 +135,7 @@ export interface IApplicationConfig {
     EXTERNAL_VALIDATION_WORKQUEUE: boolean
     PRINT_DECLARATION: boolean
     DATE_OF_BIRTH_UNKNOWN: boolean
+    USE_CERTIFICATE_SERVICE?: boolean
   }
   FIELD_AGENT_AUDIT_LOCATIONS: string
   DECLARATION_AUDIT_LOCATIONS: string

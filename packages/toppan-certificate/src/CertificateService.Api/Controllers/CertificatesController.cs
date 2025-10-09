@@ -7,6 +7,7 @@ using CertificateService.Core.Models;
 using CertificateService.Core.Template;
 using CertificateService.Core.Rendering;
 using CertificateService.Core.Services;
+using System.Collections.Generic;
 using System.Diagnostics;
 using SkiaSharp;
 using Swashbuckle.AspNetCore.Filters;
@@ -285,10 +286,44 @@ namespace CertificateService.Api.Controllers
 
                 // 9. Generate JPG bytes for base64 response
                 byte[] jpgBytes;
+                byte[]? backJpgBytes = null;
                 using (var image = SKImage.FromBitmap(frontBitmap))
                 using (var data = image.Encode(SKEncodedImageFormat.Jpeg, _options.OutputFormats.Viewing.Quality))
                 {
                     jpgBytes = data.ToArray();
+                }
+
+                if (backBitmap != null)
+                {
+                    using (var backImage = SKImage.FromBitmap(backBitmap))
+                    using (var backData = backImage.Encode(SKEncodedImageFormat.Jpeg, _options.OutputFormats.Viewing.Quality))
+                    {
+                        backJpgBytes = backData.ToArray();
+                    }
+                }
+
+                var jpgPages = new List<object>
+                {
+                    new
+                    {
+                        pageNumber = 1,
+                        filename = pdfFilename.Replace(".pdf", "-page-1.jpg"),
+                        contentType = "image/jpeg",
+                        sizeBytes = jpgBytes.Length,
+                        base64 = Convert.ToBase64String(jpgBytes)
+                    }
+                };
+
+                if (backJpgBytes != null)
+                {
+                    jpgPages.Add(new
+                    {
+                        pageNumber = 2,
+                        filename = pdfFilename.Replace(".pdf", "-page-2.jpg"),
+                        contentType = "image/jpeg",
+                        sizeBytes = backJpgBytes.Length,
+                        base64 = Convert.ToBase64String(backJpgBytes)
+                    });
                 }
 
                 // 10. Cleanup
@@ -318,7 +353,8 @@ namespace CertificateService.Api.Controllers
                         contentType = "image/jpeg",
                         sizeBytes = jpgBytes.Length,
                         base64 = Convert.ToBase64String(jpgBytes)
-                    }
+                    },
+                    jpgPages = jpgPages
                 });
             }
             catch (Exception ex)

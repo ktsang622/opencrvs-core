@@ -33,6 +33,46 @@ import {
 } from '@opencrvs/commons/types'
 import { getTokenPayload, scopesInclude } from './utils'
 import { Scope, SCOPES } from '@opencrvs/commons/authentication'
+
+type RolesCacheState = {
+  data: Roles | null
+  fetchedAt: number
+  promise: Promise<Roles> | null
+}
+
+const rolesCache: RolesCacheState = {
+  data: null,
+  fetchedAt: 0,
+  promise: null
+}
+
+const ROLES_CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+async function getCachedRoles(): Promise<Roles> {
+  const now = Date.now()
+
+  if (rolesCache.data && now - rolesCache.fetchedAt < ROLES_CACHE_TTL_MS) {
+    return rolesCache.data
+  }
+
+  if (rolesCache.promise) {
+    return rolesCache.promise
+  }
+
+  rolesCache.promise = fetchJSON<Roles>(joinURL(COUNTRY_CONFIG_URL, '/roles'))
+    .then((roles) => {
+      rolesCache.data = roles
+      rolesCache.fetchedAt = Date.now()
+      rolesCache.promise = null
+      return roles
+    })
+    .catch((error) => {
+      rolesCache.promise = null
+      throw error
+    })
+
+  return rolesCache.promise
+}
 interface IAuditHistory {
   auditedBy: string
   auditedOn: number
@@ -159,11 +199,8 @@ export const userTypeResolvers: GQLResolver = {
       return userModel._id
     },
     role: async (userModel: IUserModelData) => {
-      const roles = await fetchJSON<Roles>(
-        joinURL(COUNTRY_CONFIG_URL, '/roles')
-      )
-
-      logger.info('Fetching roles from country config')
+      const roles = await getCachedRoles()
+      logger.debug('Resolved user role from cached country config data')
       return roles.find((role) => role.id === userModel.role)
     },
     userMgntUserID(userModel: IUserModelData) {

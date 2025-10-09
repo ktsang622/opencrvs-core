@@ -11,6 +11,8 @@
 
 import { Request, ResponseToolkit } from '@hapi/hapi'
 import fetch from 'node-fetch'
+import { viewDeclaration } from '@gateway/workflow'
+import { getAuthHeader } from '@opencrvs/commons/http'
 
 /**
  * Generate certificate via certificate-service DIRECTLY
@@ -29,38 +31,32 @@ export async function generateCertificateHandler(
   h: ResponseToolkit
 ) {
   try {
+    const { format } = request.query as { format?: string }
+    const requestedFormat = format?.toLowerCase()
+
     const { compositionId, eventType } = request.payload as {
       compositionId: string
       eventType: 'birth' | 'death' | 'marriage'
     }
 
-    const authToken = request.headers.authorization || ''
-    const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:7070'
+    const authHeader = getAuthHeader(request)
     const CERTIFICATE_SERVICE_URL = process.env.CERTIFICATE_SERVICE_URL || 'http://localhost:3890'
 
     console.log(`[Certificate] Generating ${eventType} certificate for ${compositionId}`)
 
-    // Step 1: Fetch FHIR bundle
-    const bundleResponse = await fetch(`${GATEWAY_URL}/records/${compositionId}/view`, {
-      method: 'POST',
-      headers: {
-        Authorization: authToken,
-        'Content-Type': 'application/json'
-      }
-    })
-
-    if (!bundleResponse.ok) {
-      const errorText = await bundleResponse.text()
-      console.error('[Certificate] Failed to fetch FHIR bundle:', errorText)
+    // Step 1: Fetch FHIR bundle from workflow service
+    let bundle
+    try {
+      bundle = await viewDeclaration(compositionId, authHeader)
+    } catch (error: any) {
+      console.error('[Certificate] Failed to fetch FHIR bundle:', error.message)
       return h
         .response({
           error: 'Failed to fetch registration data',
-          message: `Could not fetch record: ${bundleResponse.status}`
+          message: error.message || 'Could not fetch record'
         })
-        .code(bundleResponse.status)
+        .code(404)
     }
-
-    const bundle = await bundleResponse.json()
 
     // Step 2: Transform FHIR → Certificate DTO
     const certificateRequest = transformBundleToCertificateDTO(bundle, eventType)
@@ -89,7 +85,52 @@ export async function generateCertificateHandler(
 
     const certData = await certResponse.json()
 
-    // Step 4: Extract PDF and return
+    // Step 4: Extract desired format and return
+    if (requestedFormat === 'jpg') {
+      const normalizePage = (page: any, index: number) => ({
+        pageNumber: page?.pageNumber ?? page?.page ?? index + 1,
+        filename:
+          page?.filename ||
+          `certificate-${compositionId}-page-${(page?.pageNumber ?? index + 1)
+            .toString()
+            .padStart(2, '0')}.jpg`,
+        contentType: page?.contentType || 'image/jpeg',
+        sizeBytes: page?.sizeBytes,
+        base64: page?.base64
+      })
+
+      const jpgPages =
+        Array.isArray(certData.jpgPages) && certData.jpgPages.length > 0
+          ? certData.jpgPages
+              .filter((page: any) => page?.base64)
+              .map((page: any, index: number) => normalizePage(page, index))
+          : []
+
+      if (jpgPages.length > 0) {
+        console.log(
+          `[Certificate] Successfully generated ${jpgPages.length} JPG preview page(s)`
+        )
+        return h
+          .response({ pages: jpgPages })
+          .type('application/json')
+      }
+
+      if (certData.jpg?.base64) {
+        console.log(
+          '[Certificate] JPG preview requested but multi-page data missing, returning single-page preview'
+        )
+        return h
+          .response({
+            pages: [normalizePage(certData.jpg, 0)]
+          })
+          .type('application/json')
+      }
+
+      console.warn(
+        '[Certificate] JPG preview requested but not available, falling back to PDF response'
+      )
+    }
+
     if (!certData.pdf || !certData.pdf.base64) {
       console.error('[Certificate] No PDF in response')
       return h

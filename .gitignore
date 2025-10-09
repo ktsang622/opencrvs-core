@@ -47,3 +47,4 @@ archive
 *.csv
 *.pid
 logs/test-output/
+logs/

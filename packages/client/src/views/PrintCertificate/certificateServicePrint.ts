@@ -13,6 +13,16 @@ import { IPrintableDeclaration } from '@client/declarations'
 import { EventType } from '@client/utils/gateway'
 import { isMobileDevice } from '@client/utils/commonUtils'
 
+export interface ICertificatePreviewPage {
+  url: string
+  contentType: string
+  pageNumber: number
+}
+
+export interface ICertificatePreview {
+  pages: ICertificatePreviewPage[]
+}
+
 /**
  * Print certificate using Toppan certificate-service
  *
@@ -30,8 +40,9 @@ export async function printViaCertificateService(
 
   try {
     // Call gateway certificate endpoint
+    const gatewayUrl = window.config.API_GATEWAY_URL.replace(/\/$/, '')
     const response = await fetch(
-      `${window.config.API_GATEWAY_URL}/certificate/generate`,
+      `${gatewayUrl}/certificate/generate`,
       {
         method: 'POST',
         headers: {
@@ -91,16 +102,27 @@ export async function printViaCertificateService(
  *
  * Returns a URL that can be used in <img> or <iframe> to show the certificate preview
  */
+function base64ToObjectUrl(base64: string, contentType: string): string {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  const blob = new Blob([bytes], { type: contentType })
+  return URL.createObjectURL(blob)
+}
+
 export async function getCertificatePreviewUrl(
-  declaration: IPrintableDeclaration,
+  compositionId: string,
+  event: EventType,
   authToken: string
-): Promise<string | null> {
-  const compositionId = declaration.id
-  const eventType = mapEventType(declaration.event)
+): Promise<ICertificatePreview | null> {
+  const eventType = mapEventType(event)
 
   try {
+    const gatewayUrl = window.config.API_GATEWAY_URL.replace(/\/$/, '')
     const response = await fetch(
-      `${window.config.API_GATEWAY_URL}/certificate/generate`,
+      `${gatewayUrl}/certificate/generate?format=jpg`,
       {
         method: 'POST',
         headers: {
@@ -119,8 +141,28 @@ export async function getCertificatePreviewUrl(
       return null
     }
 
-    const pdfBlob = await response.blob()
-    return URL.createObjectURL(pdfBlob)
+    const payload = await response.json()
+    const pages = Array.isArray(payload?.pages) ? payload.pages : []
+    if (!pages.length) {
+      return null
+    }
+
+    const previewPages: ICertificatePreviewPage[] = pages
+      .filter((page: any) => typeof page?.base64 === 'string')
+      .map((page: any, index: number) => {
+        const contentType = page?.contentType || 'image/jpeg'
+        return {
+          pageNumber: page?.pageNumber ?? index + 1,
+          contentType,
+          url: base64ToObjectUrl(page.base64, contentType)
+        }
+      })
+
+    if (!previewPages.length) {
+      return null
+    }
+
+    return { pages: previewPages }
   } catch (error) {
     console.error('Error getting certificate preview:', error)
     return null

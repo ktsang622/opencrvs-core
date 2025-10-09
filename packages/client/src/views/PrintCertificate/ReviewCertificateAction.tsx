@@ -19,7 +19,7 @@ import {
   AppBar,
   Spinner
 } from '@opencrvs/components'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { messages as certificateMessages } from '@client/i18n/messages/views/certificate'
 import { useIntl } from 'react-intl'
@@ -44,8 +44,33 @@ const PDFPreviewFrame = styled.iframe`
   min-height: 800px;
   border: 1px solid ${({ theme }) => theme.colors.grey300};
   border-radius: 4px;
+  background: ${({ theme }) => theme.colors.background};
 `
 
+const PreviewImage = styled.img`
+  width: 100%;
+  display: block;
+  border-radius: 4px;
+  border: 1px solid ${({ theme }) => theme.colors.grey300};
+`
+
+const PreviewWrapper = styled.div`
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+`
+
+const PageControls = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+`
+
+const PageIndicator = styled.span`
+  ${({ theme }) => theme.fonts.reg16};
+`
 const ReviewCertificateFrame = ({
   children
 }: {
@@ -141,13 +166,32 @@ export const ReviewCertificate = () => {
     isPrintInAdvance,
     canUserCorrectRecord,
     handleEdit,
-    pdfPreviewUrl,
+    certificatePreview,
     useCertificateService,
     isLoadingPdf
   } = usePrintableCertificate(registrationId)
 
   const intl = useIntl()
   const [modal, openModal] = useModal()
+  const pages = certificatePreview?.pages ?? []
+  const [activePage, setActivePage] = useState(0)
+
+  useEffect(() => {
+    setActivePage(0)
+  }, [certificatePreview?.pages?.length, registrationId])
+
+  const currentPage = pages[activePage]
+  const isImagePreview =
+    useCertificateService &&
+    currentPage?.contentType?.startsWith('image/') === true
+
+  const previewSrc = currentPage
+    ? isImagePreview
+      ? currentPage.url
+      : `${currentPage.url}#toolbar=0&navpanes=0&zoom=page-width`
+    : null
+
+  const hasPreviewPages = pages.length > 0
 
   // Show loading while fetching certificate
   if (useCertificateService && isLoadingPdf) {
@@ -171,7 +215,7 @@ export const ReviewCertificate = () => {
     )
   }
 
-  if (useCertificateService && !pdfPreviewUrl) {
+  if (useCertificateService && !hasPreviewPages) {
     return (
       <ReviewCertificateFrame>
         <Frame.LayoutCentered>
@@ -230,12 +274,49 @@ export const ReviewCertificate = () => {
       <Frame.LayoutCentered>
         <Stack direction="column">
           <Box>
-            {useCertificateService && pdfPreviewUrl ? (
-              <PDFPreviewFrame
-                id="print"
-                src={pdfPreviewUrl}
-                title="Certificate Preview"
-              />
+            {useCertificateService && hasPreviewPages && previewSrc ? (
+              <PreviewWrapper>
+                {isImagePreview ? (
+                  <PreviewImage
+                    id="print"
+                    src={previewSrc ?? undefined}
+                    alt="Certificate Preview"
+                  />
+                ) : (
+                  <PDFPreviewFrame
+                    id="print"
+                    src={previewSrc ?? undefined}
+                    title="Certificate Preview"
+                  />
+                )}
+                {pages.length > 1 && (
+                  <PageControls>
+                    <Button
+                      type="secondary"
+                      size="small"
+                      onClick={() => setActivePage((index) => Math.max(0, index - 1))}
+                      disabled={activePage === 0}
+                    >
+                      <Icon name="ArrowLeft" size="small" />
+                    </Button>
+                    <PageIndicator>
+                      {`Page ${activePage + 1} of ${pages.length}`}
+                    </PageIndicator>
+                    <Button
+                      type="secondary"
+                      size="small"
+                      onClick={() =>
+                        setActivePage((index) =>
+                          Math.min(pages.length - 1, index + 1)
+                        )
+                      }
+                      disabled={activePage >= pages.length - 1}
+                    >
+                      <Icon name="ArrowRight" size="small" />
+                    </Button>
+                  </PageControls>
+                )}
+              </PreviewWrapper>
             ) : (
               <CertificateContainer
                 id="print"

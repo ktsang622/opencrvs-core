@@ -48,10 +48,14 @@ import { usePermissions } from '@client/hooks/useAuthorization'
 import { useNavigate } from 'react-router-dom'
 import { ICertificateData } from '@client/utils/referenceApi'
 import { fetchImageAsBase64 } from '@client/utils/imageUtils'
-import { config } from '@client/config'
-import { getCertificatePreviewUrl, printViaCertificateService } from './certificateServicePrint'
-import { useState, useEffect } from 'react'
+import {
+  getCertificatePreviewUrl,
+  printViaCertificateService,
+  ICertificatePreview
+} from './certificateServicePrint'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { getToken } from '@client/utils/authUtils'
+import { showCertificatePrintErrorToast } from '@client/notification/actions'
 
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 async function replaceMinioUrlWithBase64(template: Record<string, any>) {
@@ -159,50 +163,108 @@ export const usePrintableCertificate = (declarationId?: string) => {
       SCOPES.RECORD_REGISTRATION_REQUEST_CORRECTION
     ])
 
-  // Check if certificate-service is enabled
-  const useCertificateService = config.FEATURES?.USE_CERTIFICATE_SERVICE === true
+  // Check if certificate-service is enabled (from offline data application config)
+  const useCertificateService = offlineData.config?.FEATURES?.USE_CERTIFICATE_SERVICE === true
 
   // State for PDF preview URL
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null)
+  const [certificatePreview, setCertificatePreview] = useState<ICertificatePreview | null>(null)
   const [isLoadingPdf, setIsLoadingPdf] = useState(false)
+  const previewFetchedRef = useRef<string | null>(null)
+  const previewCacheRef = useRef<ICertificatePreview | null>(null)
+
+  const revokePreview = useCallback((preview: ICertificatePreview | null) => {
+    if (!preview) return
+    preview.pages.forEach((page) => {
+      try {
+        URL.revokeObjectURL(page.url)
+      } catch (error) {
+        console.warn('Failed to revoke preview URL', error)
+      }
+    })
+  }, [])
+
+  const updatePreview = useCallback(
+    (next: ICertificatePreview | null) => {
+      if (previewCacheRef.current) {
+        revokePreview(previewCacheRef.current)
+      }
+      previewCacheRef.current = next
+      setCertificatePreview(next)
+    },
+    [revokePreview]
+  )
 
   // Fetch PDF preview if using certificate-service
   useEffect(() => {
-    if (useCertificateService && declaration) {
-      setIsLoadingPdf(true)
-      const authToken = getToken()
-      getCertificatePreviewUrl(declaration, authToken)
-        .then((url) => {
-          setPdfPreviewUrl(url)
-          setIsLoadingPdf(false)
-        })
-        .catch((error) => {
-          console.error('Failed to load PDF preview:', error)
-          setIsLoadingPdf(false)
-        })
+    if (!useCertificateService) {
+      previewFetchedRef.current = null
+      updatePreview(null)
+      return
     }
-  }, [useCertificateService, declaration])
 
-  const certificateTemplateConfig: ICertificateData | undefined =
-    offlineData.templates.certificates.find(
-      (x) =>
-        x.id ===
-        declaration?.data.registration.certificates[0].certificateTemplateId
-    )
-  if (!certificateTemplateConfig && !useCertificateService) return { svgCode: null, pdfPreviewUrl: null, useCertificateService: false }
+    if (!declaration?.id || !declaration.event) {
+      previewFetchedRef.current = null
+      updatePreview(null)
+      return
+    }
 
+    if (previewFetchedRef.current === declaration.id) {
+      return
+    }
+
+    previewFetchedRef.current = declaration.id
+    setIsLoadingPdf(true)
+
+    const authToken = getToken()
+    let cancelled = false
+
+    getCertificatePreviewUrl(declaration.id, declaration.event, authToken)
+      .then((preview) => {
+        if (!cancelled) {
+          updatePreview(preview)
+          setIsLoadingPdf(false)
+        } else if (preview) {
+          revokePreview(preview)
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to load PDF preview:', error)
+        if (!cancelled) {
+          previewFetchedRef.current = null
+          updatePreview(null)
+          setIsLoadingPdf(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [useCertificateService, declaration?.id, declaration?.event, updatePreview, revokePreview])
+
+  useEffect(() => {
+    return () => {
+      revokePreview(previewCacheRef.current)
+      previewCacheRef.current = null
+    }
+  }, [revokePreview])
+
+  const certificateTemplateConfig: ICertificateData | undefined = offlineData.templates.certificates.find(
+    (x) =>
+      x.id ===
+      declaration?.data.registration.certificates[0].certificateTemplateId
+  )
   const certificateFonts = certificateTemplateConfig?.fonts ?? {}
   const svgTemplate = certificateTemplateConfig?.svg
 
-  if (!svgTemplate && !useCertificateService) return { svgCode: null, pdfPreviewUrl: null, useCertificateService: false }
-
-  // Skip SVG generation if using certificate-service
-  const svgWithoutFonts = useCertificateService ? '' : compileSvg(
-    svgTemplate,
-    { ...declaration?.data.template, preview: true },
-    state
-  )
-  const svgCode = useCertificateService ? null : addFontsToSvg(svgWithoutFonts, certificateFonts)
+  let svgCode: string | null = null
+  if (!useCertificateService && svgTemplate) {
+    const svgWithoutFonts = compileSvg(
+      svgTemplate,
+      { ...declaration?.data.template, preview: true },
+      state
+    )
+    svgCode = addFontsToSvg(svgWithoutFonts, certificateFonts)
+  }
 
   const handleCertify = async () => {
     if (!declaration) {
@@ -252,7 +314,11 @@ export const usePrintableCertificate = (declarationId?: string) => {
         await printViaCertificateService(draft, authToken)
       } catch (error) {
         console.error('Failed to print certificate:', error)
-        // TODO: Show error notification to user
+        dispatch(
+          showCertificatePrintErrorToast(
+            'Failed to generate certificate. Please try again.'
+          )
+        )
         return
       }
 
@@ -350,7 +416,7 @@ export const usePrintableCertificate = (declarationId?: string) => {
     isPrintInAdvance,
     canUserCorrectRecord,
     handleEdit,
-    pdfPreviewUrl,
+    certificatePreview,
     useCertificateService,
     isLoadingPdf
   }
