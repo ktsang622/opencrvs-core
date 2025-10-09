@@ -45,12 +45,12 @@ case "${1:-help}" in
             print_success "Keys generated"
         fi
 
-        export ASPNETCORE_URLS="http://localhost:5001"
+        export ASPNETCORE_URLS="http://localhost:3890"
         export CertificateService__TemplatesPath="$(pwd)/templates"
         export CertificateService__PdfSigningKeyPath="$(pwd)/keys/certificate-private-key.pem"
         export CertificateService__PdfVerificationKeyPath="$(pwd)/keys/certificate-public-key.pem"
 
-        print_success "Starting on http://localhost:5001"
+        print_success "Starting on http://localhost:3890"
         dotnet run --project src/CertificateService.Api
         ;;
 
@@ -65,7 +65,7 @@ case "${1:-help}" in
         # Start with docker-compose
         echo "Starting services..."
         docker-compose -f docker-compose.certificate-service.yml up -d certificate-service
-        print_success "Certificate service started on http://localhost:5001"
+        print_success "Certificate service started on http://localhost:3890"
 
         echo ""
         echo "View logs with: docker logs -f certificate-service"
@@ -92,7 +92,7 @@ case "${1:-help}" in
         echo "Services:"
         echo "  - Gateway: http://localhost:7070"
         echo "  - Client: http://localhost:3000"
-        echo "  - Certificate Service: http://localhost:5001"
+        echo "  - Certificate Service: http://localhost:3890"
         echo "  - Countryconfig: http://localhost:3040"
         ;;
 
@@ -100,8 +100,8 @@ case "${1:-help}" in
         print_section "Testing Certificate Generation"
 
         # Check if service is running
-        if ! curl -s http://localhost:5001/ping > /dev/null; then
-            print_error "Certificate service not running on http://localhost:5001"
+        if ! curl -s http://localhost:3890/ping > /dev/null; then
+            print_error "Certificate service not running on http://localhost:3890"
             echo "Start it with: $0 standalone"
             exit 1
         fi
@@ -139,7 +139,7 @@ case "${1:-help}" in
         print_section "Checking Service Health"
 
         echo "Checking certificate-service..."
-        curl -s http://localhost:5001/ping || print_error "Certificate service not responding"
+        curl -s http://localhost:3890/ping || print_error "Certificate service not responding"
 
         echo ""
         echo "Checking gateway..."

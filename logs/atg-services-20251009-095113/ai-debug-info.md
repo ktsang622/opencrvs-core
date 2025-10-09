@@ -1,7 +1,7 @@
 # OpenCRVS ATG Debug Information
 
-**Session Started:** 2025-10-08T14:40:04+01:00
-**PID:** 76726
+**Session Started:** 2025-10-09T09:51:13+01:00
+**PID:** 77166
 **Mode:** Services Only (Dependencies Running Separately)
 **Command:** yarn run start2
 
@@ -9,24 +9,24 @@
 
 ```bash
 # View all service logs combined
-tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/all-services.log
+tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/all-services.log
 
 # View specific service logs (AI-friendly)
-tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/gateway.log
-tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/user-mgnt.log
-tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/workflow.log
+tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/gateway.log
+tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/user-mgnt.log
+tail -f /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/workflow.log
 
 # Find errors in specific service
-grep -i error /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/gateway.log
+grep -i error /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/gateway.log
 
 # List all service-specific logs
-ls /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/*.log
+ls /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/*.log
 
 # View session info
-cat /home/ktsang/opencrvs-core/logs/atg-services-20251008-144004/session-info.log
+cat /home/ktsang/opencrvs-core/logs/atg-services-20251009-095113/session-info.log
 
 # Check if services are still running
-ps -p 76726
+ps -p 77166
 ```
 
 ## Troubleshooting

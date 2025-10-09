@@ -21,7 +21,7 @@ services:
     container_name: certificate-service
     restart: unless-stopped
     ports:
-      - '5001:5000'
+      - '3890:5000'
     environment:
       - ASPNETCORE_URLS=http://+:5000
       - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
@@ -62,7 +62,7 @@ For quicker development of just the certificate service:
 ```bash
 # Terminal 1: Run certificate-service
 cd packages/toppan-certificate
-export ASPNETCORE_URLS="http://localhost:5001"
+export ASPNETCORE_URLS="http://localhost:3890"
 export CertificateService__TemplatesPath="$(pwd)/templates"
 export CertificateService__PdfSigningKeyPath="$(pwd)/keys/certificate-private-key.pem"
 dotnet run --project src/CertificateService.Api
@@ -73,7 +73,7 @@ yarn dev
 
 Update gateway environment to point to localhost:
 ```bash
-export CERTIFICATE_SERVICE_URL=http://localhost:5001
+export CERTIFICATE_SERVICE_URL=http://localhost:3890
 ```
 
 ## Option 3: Using the Test Script
@@ -102,13 +102,13 @@ Use the provided test script for various scenarios:
 ### 1. Check Certificate Service is Running
 
 ```bash
-curl http://localhost:5001/ping
+curl http://localhost:3890/ping
 # Should return: "Healthy"
 ```
 
 ### 2. Check Swagger Documentation
 
-Open http://localhost:5001/swagger in your browser
+Open http://localhost:3890/swagger in your browser
 
 ### 3. Test Certificate Generation
 
@@ -146,7 +146,7 @@ Countryconfig (Node.js) - http://localhost:3040
   ↓ GET /certificate-config
 Gateway
   ↓ POST /api/certificates/generate
-Certificate Service (.NET) - http://localhost:5001
+Certificate Service (.NET) - http://localhost:3890
   ├─ Load templates via HTTP from countryconfig
   └─ Generate PDF with digital signature
 ```
@@ -156,9 +156,9 @@ Certificate Service (.NET) - http://localhost:5001
 ### Certificate Service Not Starting
 
 **Problem**: Service fails to start
-**Solution**: Check if port 5001 is available
+**Solution**: Check if port 3890 is available
 ```bash
-sudo lsof -i :5001
+sudo lsof -i :3890
 # Kill any process using the port
 ```
 
@@ -198,7 +198,7 @@ docker build --no-cache -t opencrvs/certificate-service:latest packages/toppan-c
 **Problem**: Gateway says "Certificate service unavailable"
 **Solution**:
 1. If using Docker: Use service name `http://certificate-service:5000`
-2. If standalone: Use `http://localhost:5001` or `http://host.docker.internal:5001`
+2. If standalone: Use `http://localhost:3890` or `http://host.docker.internal:3890`
 
 ## Development Workflow
 
@@ -216,7 +216,7 @@ dotnet watch run --project src/CertificateService.Api
 yarn start
 
 # 4. Test changes
-curl http://localhost:5001/swagger
+curl http://localhost:3890/swagger
 ```
 
 ### Making Template Changes

@@ -9,7 +9,7 @@ services:
     container_name: certificate-service
     restart: unless-stopped
     ports:
-      - '5001:5000'
+      - '3890:5000'  # Map to 3890 to match toppan-family-tree (3889)
     environment:
       - ASPNETCORE_URLS=http://+:5000
       - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
