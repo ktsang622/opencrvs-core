@@ -228,7 +228,7 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
     (regDate.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24) > 30 : false
 
   // Extract amendments from history
-  const amendments = extractAmendments(bundle)
+  const { amendments, fieldAmendments } = extractAmendments(bundle)
 
   return {
     certificateType: eventType,
@@ -240,6 +240,7 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
     dateRegistered: registrationDate?.split('T')[0],
     lateRegistration,
     amendments,
+    fieldAmendments,
     parish: 'St. Johns',
     contactEmail,
     child: child ? {
@@ -380,7 +381,7 @@ function getTaskValue(task: any, type: string): string | undefined {
   return task?.input?.find((i: any) => i.type?.text === type)?.valueString
 }
 
-function extractAmendments(bundle: any): any[] {
+function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: Record<string, number> } {
   const resources = bundle.entry?.map((e: any) => e.resource) || []
 
   // Find all Task/TaskHistory resources with makeCorrection extension
@@ -392,12 +393,19 @@ function extractAmendments(bundle: any): any[] {
     )
   )
 
-  if (correctedTasks.length === 0) return []
+  if (correctedTasks.length === 0) return { amendments: [], fieldAmendments: {} }
+
+  // Track which fields have amendments (field path -> amendment number)
+  const fieldAmendments: Record<string, number> = {}
 
   // Transform each CORRECTED task into certificate-service amendment format
-  return correctedTasks.map((task: any) => {
+  const amendments = correctedTasks.map((task: any, index: number) => {
     const date = task.lastModified
     const reason = task.reason?.text || ''
+    const otherReason = task.reason?.extension?.find((e: any) =>
+      e.url === 'http://opencrvs.org/specs/extension/otherReason'
+    )?.valueString || ''
+    const note = task.note?.[0]?.text || ''
 
     // Extract input (before) and output (after) changes
     const inputs = task.input || []
@@ -453,20 +461,38 @@ function extractAmendments(bundle: any): any[] {
     // Build fields object with new values only
     const fields: Record<string, string> = {}
     const sectionFields = changesBySection.get(section) || new Map()
+    const amendmentNumber = index + 1
+
     sectionFields.forEach((value, fieldName) => {
       // Map FHIR field names to certificate field names if needed
       const certFieldName = mapFieldName(fieldName)
       fields[certFieldName] = String(value)
+
+      // Track this field amendment for superscript markers
+      // Format: section.fieldName (e.g., "child.surname", "father.firstName")
+      const fieldPath = `${section}.${certFieldName}`
+      fieldAmendments[fieldPath] = amendmentNumber
     })
+
+    // Build description from reason, otherReason, and note
+    const descriptionParts = []
+    if (reason) descriptionParts.push(reason)
+    if (otherReason) descriptionParts.push(otherReason)
+    if (note) descriptionParts.push(note)
+    const description = descriptionParts.join(': ')
 
     return {
       type: amendmentType,
       date: formattedDate,
       section: sectionProper,
       fields,
-      description: reason
+      description,
+      // Amendment number for superscript (1-indexed)
+      amendmentNumber
     }
   })
+
+  return { amendments, fieldAmendments }
 }
 
 function determineAmendmentType(section: string, fields: Map<string, any>): string {
