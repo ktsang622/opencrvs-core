@@ -129,18 +129,34 @@ function isPDFFile(filename: string): boolean {
   return filename.toLowerCase().endsWith('.pdf')
 }
 
-// Security: Validate PDF URLs for v2-events
+// Helper function to detect if URL is a PDF
+function isPdfUrl(url: string): boolean {
+  return (
+    url.toLowerCase().includes('.pdf') ||
+    url.includes('application/pdf') ||
+    url.startsWith('data:application/pdf')
+  )
+}
+
+// Security: Validate and sanitize PDF URLs (copied from DocumentViewer.tsx)
 function isValidPdfUrl(url: string): boolean {
   if (!url || typeof url !== 'string') {
     return false
   }
-  
+
+  // Allow data URLs with PDF content
+  if (url.startsWith('data:application/pdf;base64,')) {
+    return true
+  }
+
+  // Allow HTTP/HTTPS URLs with .pdf in path (may have query params)
   try {
     const urlObj = new URL(url)
-    return (
-      (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') &&
-      url.toLowerCase().endsWith('.pdf')
-    )
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+      return false
+    }
+    // Check if pathname ends with .pdf (ignoring query params)
+    return urlObj.pathname.toLowerCase().endsWith('.pdf')
   } catch {
     return false
   }
@@ -161,8 +177,58 @@ export function DocumentPreview({
 
   const isPDF = isPDFFile(previewImage.filename)
   const showPDF = isEnhancedDocumentViewerEnabled() && isPDF
-  const pdfUrl = getFullUrl(previewImage.filename)
-  const isValidPdf = isValidPdfUrl(pdfUrl)
+
+  // Use previewImage.data if available (URL or base64), otherwise construct URL from filename
+  const pdfUrl = previewImage.data || getFullUrl(previewImage.filename)
+
+  // Validate the URL
+  const isValidPdf = React.useMemo(() => {
+    // Debug: test the URL parsing manually
+    let manualCheck = false
+    try {
+      const urlObj = new URL(pdfUrl)
+      manualCheck = urlObj.pathname.toLowerCase().endsWith('.pdf')
+      console.log('[DocumentPreview] Manual URL check:', {
+        pdfUrl,
+        protocol: urlObj.protocol,
+        pathname: urlObj.pathname,
+        pathnameEndsWithPdf: manualCheck
+      })
+    } catch (e) {
+      console.log('[DocumentPreview] URL parse error:', e)
+    }
+
+    const result = isValidPdfUrl(pdfUrl)
+    console.log('[DocumentPreview] Validation check:', { pdfUrl, result, manualCheck })
+    return result
+  }, [pdfUrl])
+
+  // Debug logging
+  React.useEffect(() => {
+    let urlDebug = {}
+    try {
+      const urlObj = new URL(pdfUrl)
+      urlDebug = {
+        protocol: urlObj.protocol,
+        pathname: urlObj.pathname,
+        pathnameEndsWithPdf: urlObj.pathname.toLowerCase().endsWith('.pdf'),
+        search: urlObj.search.substring(0, 50)
+      }
+    } catch (e) {
+      urlDebug = { parseError: String(e) }
+    }
+
+    console.log('[DocumentPreview] PDF Debug:', {
+      previewImage,
+      isPDF,
+      isValidPdf,
+      hasData: !!previewImage.data,
+      dataLength: previewImage.data?.length,
+      dataPreview: previewImage.data?.substring(0, 100),
+      pdfUrl,
+      urlDebug
+    })
+  }, [previewImage, isPDF, isValidPdf, pdfUrl])
 
   function zoomIn() {
     setZoom((prevState) => prevState + 0.2)
