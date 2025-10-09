@@ -455,19 +455,30 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
     // Format date as "DD MMM YYYY" (e.g., "15 Jan 2024")
     const formattedDate = date ? formatAmendmentDate(date) : ''
 
-    // Create separate amendment for each section that has changes
-    changesBySection.forEach((sectionFields, section) => {
-      amendmentNumber++
+    // All changes in this correction task share the same amendment number
+    amendmentNumber++
 
+    // Build reason text (shared across all field amendments)
+    const reasonParts: string[] = []
+    if (reason) {
+      const reasonText = translateReasonCode(reason)
+      reasonParts.push(reasonText)
+    }
+    if (otherReason) {
+      reasonParts.push(otherReason)
+    }
+    if (note) {
+      reasonParts.push(note)
+    }
+    const reasonDescription = reasonParts.join('. ')
+
+    // Create separate amendment entry for each field that changed
+    changesBySection.forEach((sectionFields, section) => {
       // Determine amendment type based on section and fields changed
       const amendmentType = determineAmendmentType(section, sectionFields)
 
       // Convert section to proper case (child -> Child, mother -> Mother, father -> Father)
       const sectionProper = section.charAt(0).toUpperCase() + section.slice(1).toLowerCase()
-
-      // Build fields object with new values only (PascalCase field names)
-      const fields: Record<string, string> = {}
-      const changedFieldDescriptions: string[] = []
 
       sectionFields.forEach((value, fieldName) => {
         // Skip internal/non-displayable fields
@@ -477,7 +488,6 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
 
         // Map FHIR field names to certificate field names (PascalCase)
         const certFieldName = mapFieldNameToPascalCase(fieldName)
-        fields[certFieldName] = String(value)
 
         // Track this field amendment for superscript markers (lowercase section, camelCase field)
         const fieldPathCamelCase = `${section}.${mapFieldName(fieldName)}`
@@ -488,50 +498,31 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
         const oldValue = inputMap.get(key)
         const newValue = value
 
+        let fieldChangeDescription = ''
         if (oldValue !== undefined && oldValue !== '') {
-          changedFieldDescriptions.push(
-            `${certFieldName} changed from '${oldValue}' to '${newValue}'`
-          )
+          fieldChangeDescription = `${certFieldName} changed from '${oldValue}' to '${newValue}'`
         } else {
-          changedFieldDescriptions.push(
-            `${certFieldName} set to '${newValue}'`
-          )
+          fieldChangeDescription = `${certFieldName} added: '${newValue}'`
         }
-      })
 
-      // Build complete description
-      const descriptionParts: string[] = []
+        // Build complete description for this field
+        const descriptionParts: string[] = [fieldChangeDescription]
+        if (reasonDescription) {
+          descriptionParts.push(reasonDescription)
+        }
+        const description = descriptionParts.join('. ')
 
-      // Add field changes description
-      if (changedFieldDescriptions.length > 0) {
-        descriptionParts.push(changedFieldDescriptions.join(', '))
-      }
-
-      // Add reason (translate code to human-readable text)
-      if (reason) {
-        const reasonText = translateReasonCode(reason)
-        descriptionParts.push(`Reason: ${reasonText}`)
-      }
-
-      // Add other reason if specified
-      if (otherReason) {
-        descriptionParts.push(otherReason)
-      }
-
-      // Add note/comments
-      if (note) {
-        descriptionParts.push(note)
-      }
-
-      const description = descriptionParts.join('. ')
-
-      amendments.push({
-        type: amendmentType,
-        date: formattedDate,
-        section: sectionProper,
-        fields,
-        description,
-        amendmentNumber
+        // Create amendment entry for this single field
+        amendments.push({
+          type: amendmentType,
+          date: formattedDate,
+          section: sectionProper,
+          fields: {
+            [certFieldName]: String(value)
+          },
+          description,
+          amendmentNumber
+        })
       })
     })
   })
