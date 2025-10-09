@@ -171,8 +171,8 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
   const resources = bundle.entry?.map((e: any) => e.resource) || []
 
   // Debug: log all resource types in the bundle
-  const resourceTypes = resources.map((r: any) => r.resourceType)
-  console.log('[Certificate] Resource types in bundle:', resourceTypes)
+  // const resourceTypes = resources.map((r: any) => r.resourceType)
+  // console.log('[Certificate] Resource types in bundle:', resourceTypes)
 
   const composition = resources.find((r: any) => r.resourceType === 'Composition')
   const patients = resources.filter((r: any) => r.resourceType === 'Patient')
@@ -195,7 +195,7 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
 
   // Get registration date from composition.date (which is the registration timestamp)
   const registrationDate = composition?.date
-  console.log('[Certificate] Registration date from composition:', registrationDate)
+  // console.log('[Certificate] Registration date from composition:', registrationDate)
 
   // Get registrar info using the same function as GraphQL resolvers
   const assignment = findAssignment(bundle)
@@ -212,8 +212,8 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
     officeName = assignment.office.name || ''
   }
 
-  console.log('[Certificate] Registrar name:', registrarName)
-  console.log('[Certificate] Office name:', officeName)
+  // console.log('[Certificate] Registrar name:', registrarName)
+  // console.log('[Certificate] Office name:', officeName)
 
   // Get informant type from task input
   const informantType = getTaskValue(registeredTask, 'informantType') || ''
