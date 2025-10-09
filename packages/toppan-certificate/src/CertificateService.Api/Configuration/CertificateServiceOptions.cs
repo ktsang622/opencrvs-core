@@ -11,6 +11,7 @@ namespace CertificateService.Api.Configuration
 
         // === Template Configuration ===
         public string TemplatesPath { get; set; } = "/app/templates";
+        public string? TemplatesUrl { get; set; } // HTTP endpoint for templates (e.g., http://countryconfig:3040/api/countryconfig/certificates/toppan)
         public string DefaultLayoutFileName { get; set; } = "ElmLayout.txt";
         public Dictionary<string, TemplateConfiguration> Templates { get; set; } = new();
 

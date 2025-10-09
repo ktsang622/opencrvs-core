@@ -2,14 +2,25 @@ using CertificateService.Core.Template;
 using CertificateService.Core.Rendering;
 using CertificateService.Core.Services;
 using CertificateService.Api.Configuration;
+using CertificateService.Api.Services;
 using CertificateService.Api.Swagger;
 using Swashbuckle.AspNetCore.Filters;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure strongly-typed settings
 builder.Services.Configure<CertificateServiceOptions>(
     builder.Configuration.GetSection(CertificateServiceOptions.SectionName));
+
+// Register HTTP client for template loading
+builder.Services.AddHttpClient<TemplateLoader>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// Register template loader service
+builder.Services.AddSingleton<TemplateLoader>();
 
 // Register core services
 builder.Services.AddSingleton<AmendmentProcessor>();
@@ -165,6 +176,44 @@ if (app.Environment.IsDevelopment())
     // Test certificate rendering
     RenderTest.TestRender();
 }
+
+// Preload templates at startup (mirrors OpenCRVS client pattern)
+var templateLoader = app.Services.GetRequiredService<TemplateLoader>();
+var certificateOptions = app.Services.GetRequiredService<IOptions<CertificateServiceOptions>>().Value;
+
+Console.WriteLine("\n=== Preloading Certificate Templates ===");
+var templatesToLoad = certificateOptions.Templates.Keys.Select(k => k.ToLower()).ToArray();
+var preloadResult = await templateLoader.PreloadTemplatesAsync(templatesToLoad);
+
+// Check if required templates loaded successfully
+var requiredTemplates = certificateOptions.HealthCheck.RequiredTemplates;
+var missingRequired = preloadResult.FailedTemplates
+    .Where(t => requiredTemplates.Contains(char.ToUpper(t[0]) + t.Substring(1)))
+    .ToList();
+
+if (missingRequired.Any())
+{
+    // Required templates missing - FAIL FAST
+    var errorMsg = $"FATAL: Required templates failed to load: {string.Join(", ", missingRequired)}. " +
+                   $"Check TemplatesUrl ({certificateOptions.TemplatesUrl ?? "not set"}) or " +
+                   $"TemplatesPath ({certificateOptions.TemplatesPath})";
+    Console.WriteLine($"❌ {errorMsg}");
+    throw new InvalidOperationException(errorMsg);
+}
+else if (!preloadResult.IsSuccess)
+{
+    // Optional templates missing - WARN but continue
+    Console.WriteLine($"⚠️  Optional templates failed to load: {string.Join(", ", preloadResult.FailedTemplates)}");
+}
+else
+{
+    // All templates loaded successfully
+    Console.WriteLine($"✅ All templates loaded successfully ({preloadResult.LoadedTemplates.Count}/{templatesToLoad.Length})");
+}
+
+Console.WriteLine($"   Cache: {preloadResult.CacheStats.Count} items, {preloadResult.CacheStats.TotalSizeBytes:N0} bytes");
+Console.WriteLine($"   Duration: {preloadResult.Duration.TotalMilliseconds:F0}ms");
+Console.WriteLine("========================================\n");
 
 app.UseCors("AllowVerifierApp");
 app.UseAuthorization();

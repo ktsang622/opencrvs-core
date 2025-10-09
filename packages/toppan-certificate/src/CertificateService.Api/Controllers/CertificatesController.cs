@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using CertificateService.Api.Configuration;
+using CertificateService.Api.Services;
 using CertificateService.Api.Swagger;
 using CertificateService.Core.Models;
 using CertificateService.Core.Template;
@@ -18,6 +19,7 @@ namespace CertificateService.Api.Controllers
     {
         private readonly CertificateServiceOptions _options;
         private readonly ILogger<CertificatesController> _logger;
+        private readonly TemplateLoader _templateLoader;
         private readonly AmendmentProcessor _amendmentProcessor;
         private readonly PdfGeneratorSkiaSharp _pdfGenerator;
         private readonly QrCodeService? _qrCodeService;
@@ -26,11 +28,13 @@ namespace CertificateService.Api.Controllers
         public CertificatesController(
             IOptions<CertificateServiceOptions> options,
             ILogger<CertificatesController> logger,
+            TemplateLoader templateLoader,
             QrCodeService? qrCodeService = null,
             PdfSigningService? pdfSigningService = null)
         {
             _options = options.Value;
             _logger = logger;
+            _templateLoader = templateLoader;
             _amendmentProcessor = new AmendmentProcessor();
             _pdfGenerator = new PdfGeneratorSkiaSharp();
             _qrCodeService = qrCodeService;
@@ -46,7 +50,7 @@ namespace CertificateService.Api.Controllers
         [ProducesResponseType(typeof(FileContentResult), 200)]
         [ProducesResponseType(typeof(ErrorResponse), 400)]
         [ProducesResponseType(typeof(ErrorResponse), 500)]
-        public IActionResult Generate([FromBody] CertificateRequest request)
+        public async Task<IActionResult> Generate([FromBody] CertificateRequest request)
         {
             var stopwatch = Stopwatch.StartNew();
 
@@ -101,23 +105,45 @@ namespace CertificateService.Api.Controllers
                 }
 
                 var templateConfig = _options.Templates[templateKey];
-                var templatePath = templateConfig.GetTemplatePath(_options.TemplatesPath);
-                var layoutPath = templateConfig.GetLayoutFilePath(_options.TemplatesPath);
 
-                // 5. Load and parse template
-                var layout = new ElmLayout();
-                var loadResult = layout.LoadFromFile(layoutPath);
-                if (loadResult != 0)
+                // 5. Load template from cache/HTTP/filesystem using TemplateLoader
+                var templateType = request.CertificateType.ToLower();
+                var layoutContent = await _templateLoader.LoadTemplateFileAsync(templateType, templateConfig.LayoutFile);
+
+                if (layoutContent == null)
                 {
                     return StatusCode(500, new ErrorResponse
                     {
                         Error = "TemplateLoadError",
-                        Message = $"Failed to load template: {layout.LoadErrorMessage}",
+                        Message = $"Failed to load template layout file: {templateConfig.LayoutFile}",
+                        Details = new {
+                            templateType,
+                            layoutFile = templateConfig.LayoutFile,
+                            templatesUrl = _options.TemplatesUrl,
+                            templatesPath = _options.TemplatesPath
+                        }
+                    });
+                }
+
+                // Parse template from loaded content
+                var layout = new ElmLayout();
+                var loadResult = layout.LoadFromString(layoutContent);
+                if (loadResult != 0)
+                {
+                    return StatusCode(500, new ErrorResponse
+                    {
+                        Error = "TemplateParseError",
+                        Message = $"Failed to parse template: {layout.LoadErrorMessage}",
                         Details = new {
                             lineNumber = layout.LoadErrorLineNumber
                         }
                     });
                 }
+
+                // Get template path for image loading (use file system path if HTTP failed)
+                var templatePath = string.IsNullOrEmpty(_options.TemplatesUrl)
+                    ? templateConfig.GetTemplatePath(_options.TemplatesPath)
+                    : Path.Combine(_options.TemplatesPath, templateType);
 
                 // 6. Render to bitmaps
                 var renderer = new ElmRender();
@@ -133,11 +159,11 @@ namespace CertificateService.Api.Controllers
                     });
                 }
 
-                // Render back page (if amendments > 5)
+                // Render back page (if amendments exceed threshold)
                 SKBitmap? backBitmap = null;
-                bool shouldRenderBack = request.Amendments.Count > 5;
-                _logger.LogInformation("Checking if back page should be rendered: amendments={Count}, shouldRenderBack={ShouldRenderBack}",
-                    request.Amendments.Count, shouldRenderBack);
+                bool shouldRenderBack = request.Amendments.Count > _options.PageSettings.MaxAmendmentsPerPage;
+                _logger.LogInformation("Checking if back page should be rendered: amendments={Count}, threshold={Threshold}, shouldRenderBack={ShouldRenderBack}",
+                    request.Amendments.Count, _options.PageSettings.MaxAmendmentsPerPage, shouldRenderBack);
                 if (shouldRenderBack && layout.RenderBack)
                 {
                     _logger.LogInformation("Rendering back page...");
@@ -668,57 +694,6 @@ namespace CertificateService.Api.Controllers
                 });
             }
         }
-
-        /// <summary>
-        /// Get all public keys for certificate verification (supports key rotation)
-        /// </summary>
-        /// <returns>List of public keys with version information</returns>
-        [HttpGet("public-keys")]
-        [ProducesResponseType(typeof(PublicKeysResponse), 200)]
-        public ActionResult<PublicKeysResponse> GetPublicKeys()
-        {
-            try
-            {
-                var keys = new List<PublicKeyInfo>();
-
-                // Read public key from configuration
-                var publicKeyPath = _options.PdfVerificationKeyPath;
-
-                if (!string.IsNullOrEmpty(publicKeyPath) && System.IO.File.Exists(publicKeyPath))
-                {
-                    var publicKeyPem = System.IO.File.ReadAllText(publicKeyPath);
-
-                    keys.Add(new PublicKeyInfo
-                    {
-                        Version = "v1",
-                        Algorithm = "ECDSA-P256",
-                        PublicKeyPEM = publicKeyPem,
-                        ValidFrom = new DateTime(2024, 1, 1),
-                        ValidUntil = null, // null means still active
-                        Status = "active"
-                    });
-
-                    _logger.LogInformation("Returning {Count} public key(s) for verification", keys.Count);
-                }
-                else
-                {
-                    _logger.LogWarning("No public key found at {Path}", publicKeyPath);
-                }
-
-                return Ok(new PublicKeysResponse
-                {
-                    Keys = keys
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error fetching public keys");
-                return Ok(new PublicKeysResponse
-                {
-                    Keys = new List<PublicKeyInfo>()
-                });
-            }
-        }
     }
 
     /// <summary>
@@ -740,26 +715,5 @@ namespace CertificateService.Api.Controllers
         public string Error { get; set; } = string.Empty;
         public string Message { get; set; } = string.Empty;
         public object? Details { get; set; }
-    }
-
-    /// <summary>
-    /// Public keys response for key rotation support
-    /// </summary>
-    public class PublicKeysResponse
-    {
-        public List<PublicKeyInfo> Keys { get; set; } = new();
-    }
-
-    /// <summary>
-    /// Public key information with version
-    /// </summary>
-    public class PublicKeyInfo
-    {
-        public string Version { get; set; } = string.Empty;
-        public string Algorithm { get; set; } = string.Empty;
-        public string PublicKeyPEM { get; set; } = string.Empty;
-        public DateTime ValidFrom { get; set; }
-        public DateTime? ValidUntil { get; set; }
-        public string Status { get; set; } = string.Empty; // "active", "retired", "revoked"
     }
 }
