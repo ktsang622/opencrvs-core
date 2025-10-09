@@ -229,6 +229,8 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
 
   // Extract amendments from history
   const { amendments, fieldAmendments } = extractAmendments(bundle)
+  console.log('[Certificate] Extracted amendments:', JSON.stringify(amendments, null, 2))
+  console.log('[Certificate] Field amendments map:', JSON.stringify(fieldAmendments, null, 2))
 
   return {
     certificateType: eventType,
@@ -399,7 +401,12 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
   const fieldAmendments: Record<string, number> = {}
 
   // Transform each CORRECTED task into certificate-service amendment format
-  const amendments = correctedTasks.map((task: any, index: number) => {
+  // A single correction task may affect multiple sections (child, mother, father)
+  // so we create separate amendments for each section
+  let amendmentNumber = 0
+  const amendments: any[] = []
+
+  correctedTasks.forEach((task: any) => {
     const date = task.lastModified
     const reason = task.reason?.text || ''
     const otherReason = task.reason?.extension?.find((e: any) =>
@@ -445,40 +452,6 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
       }
     })
 
-    // Determine amendment type based on section and fields changed
-    const amendmentType = determineAmendmentType(
-      Array.from(changesBySection.keys())[0] || '',
-      Array.from(changesBySection.values())[0] || new Map()
-    )
-
-    // Format date as "DD MMM YYYY" (e.g., "15 Jan 2024")
-    const formattedDate = date ? formatAmendmentDate(date) : ''
-
-    // Convert section to proper case (child -> Child, mother -> Mother, father -> Father)
-    const section = Array.from(changesBySection.keys())[0] || ''
-    const sectionProper = section.charAt(0).toUpperCase() + section.slice(1).toLowerCase()
-
-    // Build fields object with new values only
-    const fields: Record<string, string> = {}
-    const sectionFields = changesBySection.get(section) || new Map()
-    const amendmentNumber = index + 1
-
-    sectionFields.forEach((value, fieldName) => {
-      // Skip internal/non-displayable fields
-      if (shouldSkipField(fieldName)) {
-        return
-      }
-
-      // Map FHIR field names to certificate field names if needed
-      const certFieldName = mapFieldName(fieldName)
-      fields[certFieldName] = String(value)
-
-      // Track this field amendment for superscript markers
-      // Format: section.fieldName (e.g., "child.surname", "father.firstName")
-      const fieldPath = `${section}.${certFieldName}`
-      fieldAmendments[fieldPath] = amendmentNumber
-    })
-
     // Build description from reason, otherReason, and note
     const descriptionParts = []
     if (reason) descriptionParts.push(reason)
@@ -486,15 +459,46 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
     if (note) descriptionParts.push(note)
     const description = descriptionParts.join(': ')
 
-    return {
-      type: amendmentType,
-      date: formattedDate,
-      section: sectionProper,
-      fields,
-      description,
-      // Amendment number for superscript (1-indexed)
-      amendmentNumber
-    }
+    // Format date as "DD MMM YYYY" (e.g., "15 Jan 2024")
+    const formattedDate = date ? formatAmendmentDate(date) : ''
+
+    // Create separate amendment for each section that has changes
+    changesBySection.forEach((sectionFields, section) => {
+      amendmentNumber++
+
+      // Determine amendment type based on section and fields changed
+      const amendmentType = determineAmendmentType(section, sectionFields)
+
+      // Convert section to proper case (child -> Child, mother -> Mother, father -> Father)
+      const sectionProper = section.charAt(0).toUpperCase() + section.slice(1).toLowerCase()
+
+      // Build fields object with new values only (PascalCase field names)
+      const fields: Record<string, string> = {}
+
+      sectionFields.forEach((value, fieldName) => {
+        // Skip internal/non-displayable fields
+        if (shouldSkipField(fieldName)) {
+          return
+        }
+
+        // Map FHIR field names to certificate field names (PascalCase)
+        const certFieldName = mapFieldNameToPascalCase(fieldName)
+        fields[certFieldName] = String(value)
+
+        // Track this field amendment for superscript markers (lowercase section, camelCase field)
+        const fieldPathCamelCase = `${section}.${mapFieldName(fieldName)}`
+        fieldAmendments[fieldPathCamelCase] = amendmentNumber
+      })
+
+      amendments.push({
+        type: amendmentType,
+        date: formattedDate,
+        section: sectionProper,
+        fields,
+        description,
+        amendmentNumber
+      })
+    })
   })
 
   return { amendments, fieldAmendments }
@@ -548,7 +552,7 @@ function shouldSkipField(fhirFieldName: string): boolean {
 }
 
 function mapFieldName(fhirFieldName: string): string {
-  // Map FHIR field names to certificate field names (camelCase)
+  // Map FHIR field names to certificate field names (camelCase) - for fieldAmendments map
   const mapping: Record<string, string> = {
     // Child fields
     'firstNamesEng': 'firstName',
@@ -567,7 +571,7 @@ function mapFieldName(fhirFieldName: string): string {
 
     // Address fields
     'countryPrimary': 'countryOfBirth',
-    'statePrimary': 'addressTwo',  // State/district part of address
+    'statePrimary': 'addressTwo',
     'districtPrimary': 'addressTwo',
     'cityPrimary': 'addressOne',
     'addressLine1': 'addressOne',
@@ -582,14 +586,47 @@ function mapFieldName(fhirFieldName: string): string {
     // Mother-specific address fields
     'countryPrimaryMother': 'countryOfBirth',
     'statePrimaryMother': 'addressTwo',
-    'districtPrimaryMother': 'addressTwo',
+    'districtPrimaryMother': 'addressTwo'
+  }
+  return mapping[fhirFieldName] || fhirFieldName
+}
 
-    // Other fields (may not need to be shown in amendments)
-    'detailsExist': 'detailsExist',
-    'exactDateOfBirthUnknown': 'exactDateOfBirthUnknown',
-    'ageOfIndividualInYears': 'ageOfIndividualInYears',
-    'fatherIdType': 'idType',
-    'motherIdType': 'idType'
+function mapFieldNameToPascalCase(fhirFieldName: string): string {
+  // Map FHIR field names to PascalCase for amendment fields display
+  const mapping: Record<string, string> = {
+    // Child fields
+    'firstNamesEng': 'FirstName',
+    'middleNameEng': 'MiddleName',
+    'familyNameEng': 'Surname',
+    'childBirthDate': 'DateOfBirth',
+    'placeOfBirth': 'PlaceOfBirth',
+    'gender': 'Sex',
+
+    // Mother/Father fields
+    'dateOfBirth': 'DateOfBirth',
+    'nationality': 'Nationality',
+    'occupation': 'Occupation',
+    'maritalStatus': 'MaritalStatus',
+    'educationalAttainment': 'EducationalAttainment',
+
+    // Address fields
+    'countryPrimary': 'CountryOfBirth',
+    'statePrimary': 'AddressTwo',
+    'districtPrimary': 'AddressTwo',
+    'cityPrimary': 'AddressOne',
+    'addressLine1': 'AddressOne',
+    'addressLine2': 'AddressTwo',
+    'postalCode': 'PostalCode',
+
+    // Father-specific address fields
+    'countryPrimaryFather': 'CountryOfBirth',
+    'statePrimaryFather': 'AddressTwo',
+    'districtPrimaryFather': 'AddressTwo',
+
+    // Mother-specific address fields
+    'countryPrimaryMother': 'CountryOfBirth',
+    'statePrimaryMother': 'AddressTwo',
+    'districtPrimaryMother': 'AddressTwo'
   }
   return mapping[fhirFieldName] || fhirFieldName
 }
