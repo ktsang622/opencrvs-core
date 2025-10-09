@@ -47,19 +47,20 @@ function isValidPdfUrl(url: string): boolean {
   if (!url || typeof url !== 'string') {
     return false
   }
-  
+
   // Allow data URLs with PDF content
   if (url.startsWith('data:application/pdf;base64,')) {
     return true
   }
-  
-  // Allow HTTP/HTTPS URLs ending with .pdf
+
+  // Allow HTTP/HTTPS URLs with .pdf in path (may have query params)
   try {
     const urlObj = new URL(url)
-    return (
-      (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') &&
-      url.toLowerCase().endsWith('.pdf')
-    )
+    if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+      return false
+    }
+    // Check if pathname ends with .pdf (ignoring query params)
+    return urlObj.pathname.toLowerCase().endsWith('.pdf')
   } catch {
     return false
   }
@@ -166,6 +167,17 @@ export const DocumentViewer = ({ id, options, children }: IProps) => {
 
   const isPdf = isPdfUrl(selectedDocument)
   const isValidPdf = isValidPdfUrl(selectedDocument)
+
+  // Debug logging
+  useEffect(() => {
+    console.log('[DocumentViewer] Debug Info:', {
+      selectedDocument,
+      isPdf,
+      isValidPdf,
+      documentOptions: options.documentOptions,
+      selectOptions: options.selectOptions
+    })
+  }, [selectedDocument, isPdf, isValidPdf, options])
 
   useEffect(() => {
     setSelectedOption(options.selectOptions[0]?.value || '')

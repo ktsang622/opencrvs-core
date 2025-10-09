@@ -123,6 +123,7 @@ services:
       - FHIR_URL=http://hearth:3447/fhir
       - REDIS_HOST=redis
       - TOPPAN_SERVICE_URL=${TOPPAN_SERVICE_URL:-http://toppan-service:3888}
+      - CERTIFICATE_SERVICE_URL=http://certificate-service:3890
 
   documents:
     ports:

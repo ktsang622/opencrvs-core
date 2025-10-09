@@ -11,14 +11,15 @@
 
 import { Request, ResponseToolkit } from '@hapi/hapi'
 import fetch from 'node-fetch'
-import { FHIR_URL } from '@gateway/constants'
-import { generateCertificate } from './service'
 
 /**
- * Generate certificate via certificate-service
+ * Generate certificate via certificate-service DIRECTLY
  *
- * This handler fetches registration data via GraphQL query to FHIR,
- * transforms it using country config, and calls the certificate-service.
+ * Flow:
+ * 1. Fetch FHIR bundle from /records/{id}/view
+ * 2. Transform FHIR to certificate DTO
+ * 3. Call certificate-service API directly
+ * 4. Return PDF
  *
  * POST /certificate/generate
  * Body: { compositionId: string, eventType: "birth" | "death" | "marriage" }
@@ -34,26 +35,73 @@ export async function generateCertificateHandler(
     }
 
     const authToken = request.headers.authorization || ''
+    const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:7070'
+    const CERTIFICATE_SERVICE_URL = process.env.CERTIFICATE_SERVICE_URL || 'http://localhost:3890'
 
-    // Fetch registration data using the GraphQL query
-    const data = await fetchRegistrationData(compositionId, eventType, authToken)
+    console.log(`[Certificate] Generating ${eventType} certificate for ${compositionId}`)
 
-    if (!data) {
+    // Step 1: Fetch FHIR bundle
+    const bundleResponse = await fetch(`${GATEWAY_URL}/records/${compositionId}/view`, {
+      method: 'POST',
+      headers: {
+        Authorization: authToken,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!bundleResponse.ok) {
+      const errorText = await bundleResponse.text()
+      console.error('[Certificate] Failed to fetch FHIR bundle:', errorText)
       return h
         .response({
-          error: 'Registration not found',
-          message: `Could not fetch registration data for ${compositionId}`
+          error: 'Failed to fetch registration data',
+          message: `Could not fetch record: ${bundleResponse.status}`
         })
-        .code(404)
+        .code(bundleResponse.status)
     }
 
-    // Generate certificate
-    const pdfBuffer = await generateCertificate(
-      data,
-      eventType,
-      compositionId,
-      authToken
-    )
+    const bundle = await bundleResponse.json()
+
+    // Step 2: Transform FHIR → Certificate DTO
+    const certificateRequest = transformBundleToCertificateDTO(bundle, eventType)
+
+    console.log(`[Certificate] Calling certificate-service with template: ${certificateRequest.templateName}`)
+
+    // Step 3: Call certificate-service API
+    const certResponse = await fetch(`${CERTIFICATE_SERVICE_URL}/api/certificates/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(certificateRequest)
+    })
+
+    if (!certResponse.ok) {
+      const errorText = await certResponse.text()
+      console.error('[Certificate] Certificate-service error:', errorText)
+      return h
+        .response({
+          error: 'Failed to generate certificate',
+          message: `Certificate-service error: ${certResponse.status}`
+        })
+        .code(certResponse.status)
+    }
+
+    const certData = await certResponse.json()
+
+    // Step 4: Extract PDF and return
+    if (!certData.pdf || !certData.pdf.base64) {
+      console.error('[Certificate] No PDF in response')
+      return h
+        .response({
+          error: 'Invalid certificate response',
+          message: 'Certificate-service did not return PDF data'
+        })
+        .code(500)
+    }
+
+    const pdfBuffer = Buffer.from(certData.pdf.base64, 'base64')
+    console.log(`[Certificate] Successfully generated PDF (${pdfBuffer.length} bytes)`)
 
     return h
       .response(pdfBuffer)
@@ -63,7 +111,7 @@ export async function generateCertificateHandler(
         `inline; filename="certificate-${compositionId}.pdf"`
       )
   } catch (error: any) {
-    console.error('[Certificate Handler] Error:', error)
+    console.error('[Certificate] Error:', error)
     return h
       .response({
         error: 'Failed to generate certificate',
@@ -74,278 +122,70 @@ export async function generateCertificateHandler(
 }
 
 /**
- * Fetch registration data using GraphQL query
- * Same query structure as the countryconfig handler
+ * Transform FHIR Bundle to Certificate DTO
  */
-async function fetchRegistrationData(
-  compositionId: string,
-  eventType: string,
-  authToken: string
-): Promise<any> {
-  const query = getGraphQLQuery(eventType)
+function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
+  const resources = bundle.entry?.map((e: any) => e.resource) || []
 
-  const response = await fetch(`${FHIR_URL.replace('/fhir', '')}/graphql`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: authToken
-    },
-    body: JSON.stringify({
-      query,
-      variables: { id: compositionId }
-    })
-  })
+  const composition = resources.find((r: any) => r.resourceType === 'Composition')
+  const patients = resources.filter((r: any) => r.resourceType === 'Patient')
+  const tasks = resources.filter((r: any) => r.resourceType === 'Task')
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(
-      `GraphQL query failed: ${response.status} ${response.statusText} - ${errorText}`
-    )
+  // Find patients by section code
+  const child = findPatientBySection(composition, patients, 'child-details')
+  const mother = findPatientBySection(composition, patients, 'mother-details')
+  const father = findPatientBySection(composition, patients, 'father-details')
+
+  // Get registration info
+  const registeredTask = tasks.find((t: any) => t.businessStatus?.coding?.[0]?.code === 'REGISTERED')
+  const registrationNumber = getTaskValue(registeredTask, 'registrationNumber') || composition?.identifier?.value
+
+  return {
+    certificateType: eventType,
+    templateName: `antigua-${eventType}-v1`,
+    registrationNumber,
+    registrationDate: registeredTask?.lastModified?.split('T')[0],
+    registrar: 'Registrar Name',
+    parish: 'St. Johns',
+    child: child ? {
+      firstName: getPatientName(child, 'given'),
+      surname: getPatientName(child, 'family'),
+      dateOfBirth: child.birthDate,
+      placeOfBirth: 'St. Johns',
+      sex: child.gender === 'male' ? 'Male' : 'Female'
+    } : undefined,
+    mother: mother ? {
+      firstName: getPatientName(mother, 'given'),
+      surname: getPatientName(mother, 'family'),
+      nationality: 'Antigua and Barbuda',
+      occupation: getExtensionValue(mother, 'occupation')
+    } : undefined,
+    father: father ? {
+      firstName: getPatientName(father, 'given'),
+      surname: getPatientName(father, 'family'),
+      nationality: 'Antigua and Barbuda',
+      occupation: getExtensionValue(father, 'occupation')
+    } : undefined
   }
-
-  const result = await response.json()
-
-  if (result.errors) {
-    throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`)
-  }
-
-  const queryName = `fetch${capitalize(eventType)}Registration`
-  return result.data?.[queryName]
 }
 
-/**
- * Get GraphQL query based on event type
- * (Same as countryconfig handler)
- */
-function getGraphQLQuery(eventType: string): string {
-  const queryName = `fetch${capitalize(eventType)}Registration`
-
-  return `
-    query ${queryName}ForCertificate($id: ID!) {
-      ${queryName}(id: $id) {
-        id
-        child {
-          id
-          name {
-            use
-            firstNames
-            middleName
-            familyName
-          }
-          birthDate
-          gender
-        }
-        mother {
-          id
-          name {
-            use
-            firstNames
-            middleName
-            familyName
-            marriedLastName
-          }
-          birthDate
-          maritalStatus
-          dateOfMarriage
-          educationalAttainment
-          nationality
-          occupation
-          detailsExist
-          reasonNotApplying
-          ageOfIndividualInYears
-          exactDateOfBirthUnknown
-          identifier {
-            id
-            type
-            otherType
-          }
-          address {
-            type
-            line
-            district
-            state
-            city
-            postalCode
-            country
-          }
-          telecom {
-            system
-            value
-          }
-        }
-        father {
-          id
-          name {
-            use
-            firstNames
-            middleName
-            familyName
-          }
-          birthDate
-          maritalStatus
-          dateOfMarriage
-          educationalAttainment
-          nationality
-          occupation
-          detailsExist
-          reasonNotApplying
-          ageOfIndividualInYears
-          exactDateOfBirthUnknown
-          identifier {
-            id
-            type
-            otherType
-          }
-          address {
-            type
-            line
-            district
-            state
-            city
-            postalCode
-            country
-          }
-          telecom {
-            system
-            value
-          }
-        }
-        informant {
-          id
-          relationship
-          otherRelationship
-          name {
-            use
-            firstNames
-            middleName
-            familyName
-          }
-          occupation
-          address {
-            type
-            line
-            district
-            state
-            city
-            postalCode
-            country
-          }
-          telecom {
-            system
-            value
-          }
-        }
-        registration {
-          id
-          type
-          trackingId
-          registrationNumber
-          assignment {
-            practitionerId
-            firstName
-            lastName
-            officeName
-          }
-          status {
-            id
-            type
-            timestamp
-          }
-        }
-        eventLocation {
-          id
-          name
-          alias
-          address {
-            line
-            city
-            district
-            state
-            postalCode
-            country
-          }
-        }
-        history {
-          date
-          action
-          regStatus
-          note
-          reason
-          otherReason
-          comments {
-            comment
-          }
-          location {
-            id
-            name
-          }
-          office {
-            id
-            name
-            alias
-            address {
-              state
-              district
-            }
-          }
-          user {
-            id
-            role {
-              id
-            }
-            name {
-              firstNames
-              familyName
-              use
-            }
-            avatar {
-              data
-              type
-            }
-            fullHonorificName
-          }
-          signature {
-            data
-            type
-          }
-          input {
-            valueCode
-            valueId
-            value
-          }
-          output {
-            valueCode
-            valueId
-            value
-          }
-          certificates {
-            hasShowedVerifiedDocument
-            certificateTemplateId
-            collector {
-              relationship
-              otherRelationship
-              name {
-                use
-                firstNames
-                familyName
-              }
-            }
-            certifier {
-              name {
-                use
-                firstNames
-                familyName
-              }
-            }
-          }
-          duplicateOf
-          potentialDuplicates
-        }
-      }
-    }
-  `
+function findPatientBySection(composition: any, patients: any[], sectionCode: string): any {
+  const section = composition?.section?.find((s: any) => s.code?.coding?.[0]?.code === sectionCode)
+  const ref = section?.entry?.[0]?.reference
+  if (!ref) return null
+  return patients.find((p: any) => ref.includes(p.id))
 }
 
-function capitalize(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1)
+function getPatientName(patient: any, part: 'given' | 'family'): string {
+  const name = patient.name?.find((n: any) => n.use === 'en') || patient.name?.[0]
+  if (part === 'given') return name?.given?.join(' ') || ''
+  return name?.family || ''
+}
+
+function getExtensionValue(resource: any, url: string): string | undefined {
+  return resource?.extension?.find((e: any) => e.url.includes(url))?.valueString
+}
+
+function getTaskValue(task: any, type: string): string | undefined {
+  return task?.input?.find((i: any) => i.type?.text === type)?.valueString
 }

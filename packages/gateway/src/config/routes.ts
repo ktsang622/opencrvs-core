@@ -95,7 +95,7 @@ export const getRoutes = () => {
         tags: ['api', 'certificate'],
         description: 'Generate certificate PDF via certificate-service',
         auth: {
-          scope: [SCOPES.CERTIFY]
+          scope: [SCOPES.RECORD_PRINT_ISSUE_CERTIFIED_COPIES]
         }
       }
     },

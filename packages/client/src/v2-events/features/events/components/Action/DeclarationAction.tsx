@@ -25,7 +25,7 @@ import { useActionAnnotation } from '@client/v2-events/features/events/useAction
 import { useDrafts } from '@client/v2-events/features/drafts/useDrafts'
 import { createTemporaryId } from '@client/v2-events/utils'
 import { useEvents } from '@client/v2-events/features/events/useEvents/useEvents'
-import { ROUTES } from '@client/v2-events/routes'
+import { ROUTES } from '@client/v2-events/routes/routes'
 import { NavigationStack } from '@client/v2-events/components/NavigationStack'
 
 type Props = PropsWithChildren<{ actionType: DeclarationUpdateActionType }>

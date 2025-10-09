@@ -30,9 +30,9 @@ import { router as workqueueRouter } from '@client/v2-events/features/workqueues
 import { EventOverviewLayout, WorkqueueLayout } from '@client/v2-events/layouts'
 import { TRPCErrorBoundary } from '@client/v2-events/routes/TRPCErrorBoundary'
 import { TRPCProvider } from '@client/v2-events/trpc'
-import { DeclarationAction } from '@client/v2-events/features/events/components/Action/DeclarationAction'
 import { NavigationHistoryProvider } from '@client/v2-events/components/NavigationStack'
 import { ReadonlyViewIndex } from '@client/v2-events/features/events/ReadOnlyView'
+import { DeclarationAction } from '@client/v2-events/features/events/components/Action/DeclarationAction'
 import { AnnotationAction } from '@client/v2-events/features/events/components/Action/AnnotationAction'
 import { ROUTES } from './routes'
 

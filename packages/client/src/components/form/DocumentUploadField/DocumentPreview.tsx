@@ -73,8 +73,23 @@ function isValidPdfData(data: string): boolean {
     return false
   }
 
-  // Only allow base64-encoded PDF data URLs
-  return data.startsWith('data:application/pdf;base64,') && data.length > 30
+  // Allow base64-encoded PDF data URLs
+  if (data.startsWith('data:application/pdf;base64,')) {
+    return data.length > 30
+  }
+
+  // Allow http(s) and blob URLs while blocking other protocols
+  const allowedProtocols = ['http:', 'https:', 'blob:']
+  try {
+    const baseOrigin =
+      typeof window !== 'undefined' && window.location
+        ? window.location.origin
+        : 'http://localhost'
+    const url = new URL(data, baseOrigin)
+    return allowedProtocols.includes(url.protocol)
+  } catch {
+    return false
+  }
 }
 
 const ViewerWrapper = styled.div`
@@ -165,6 +180,18 @@ export const DocumentPreview = ({
 
   const isPdf = isPdfFile(previewImage)
   const isValidPdf = previewImage.data ? isValidPdfData(previewImage.data) : false
+
+  // Debug logging
+  React.useEffect(() => {
+    console.log('[DocumentPreview] PDF Debug:', {
+      previewImage,
+      isPdf,
+      isValidPdf,
+      hasData: !!previewImage.data,
+      dataLength: previewImage.data?.length,
+      dataPreview: previewImage.data?.substring(0, 100)
+    })
+  }, [previewImage, isPdf, isValidPdf])
 
   const zoomIn = () => setZoom((prevState) => prevState + 0.2)
   const zoomOut = () =>
@@ -264,7 +291,7 @@ export const DocumentPreview = ({
               <PDFContainer>
                 {!isValidPdf ? (
                   <PDFError>
-                    <Icon name="AlertTriangle" size="large" color="red" />
+                    <Icon name="Warning" size="large" color="red" />
                     <div>Invalid PDF file</div>
                     <div>Please upload a valid PDF document</div>
                   </PDFError>

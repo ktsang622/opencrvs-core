@@ -71,6 +71,7 @@ export {
   User,
   UserPlus,
   Users,
+  Warning,
   WarningCircle,
   X,
   CircleWavyCheck,

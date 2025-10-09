@@ -30,4 +30,20 @@ describe('image upload component', () => {
   it('renders without crashing', () => {
     expect(testComponent).toMatchSnapshot()
   })
+
+  it('renders a PDF preview when provided with a remote PDF URL', () => {
+    const pdfComponent = createShallowRenderedComponent(
+      <DocumentPreview
+        previewImage={{
+          optionValues: [],
+          type: 'application/pdf',
+          data: 'https://example.com/test.pdf'
+        }}
+        goBack={mock}
+        onDelete={mock}
+      />
+    )
+
+    expect(pdfComponent.find('embed')).toHaveLength(1)
+  })
 })

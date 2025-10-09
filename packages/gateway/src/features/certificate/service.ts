@@ -9,6 +9,20 @@
  * Copyright (C) The OpenCRVS Authors located at https://github.com/opencrvs/opencrvs-core/blob/master/AUTHORS.
  */
 
+/**
+ * Certificate Service Integration
+ *
+ * This service integrates OpenCRVS with the Toppan Certificate Service for generating
+ * digitally signed birth/death/marriage certificates with visual digital seal.
+ *
+ * Flow:
+ * 1. Fetch registration data from FHIR via GraphQL
+ * 2. Resolve location UUIDs to human-readable names
+ * 3. Transform GraphQL data to certificate DTO format
+ * 4. Call certificate-service API to generate PDF
+ * 5. Return PDF buffer to client
+ */
+
 import fetch from 'node-fetch'
 import {
   CERTIFICATE_SERVICE_URL,
