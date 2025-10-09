@@ -683,7 +683,14 @@ function isLocationField(fieldName: string): boolean {
 }
 
 function isNationalityField(fieldName: string): boolean {
-  return fieldName === 'nationality'
+  // Check if field contains country/nationality codes that need to be resolved
+  const nationalityFields = [
+    'nationality',
+    'countryPrimary',
+    'countryPrimaryFather',
+    'countryPrimaryMother'
+  ]
+  return nationalityFields.includes(fieldName)
 }
 
 function resolveNationalityCode(code: string): string {
