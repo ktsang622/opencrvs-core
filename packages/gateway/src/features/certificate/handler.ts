@@ -452,13 +452,6 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
       }
     })
 
-    // Build description from reason, otherReason, and note
-    const descriptionParts = []
-    if (reason) descriptionParts.push(reason)
-    if (otherReason) descriptionParts.push(otherReason)
-    if (note) descriptionParts.push(note)
-    const description = descriptionParts.join(': ')
-
     // Format date as "DD MMM YYYY" (e.g., "15 Jan 2024")
     const formattedDate = date ? formatAmendmentDate(date) : ''
 
@@ -474,6 +467,7 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
 
       // Build fields object with new values only (PascalCase field names)
       const fields: Record<string, string> = {}
+      const changedFieldDescriptions: string[] = []
 
       sectionFields.forEach((value, fieldName) => {
         // Skip internal/non-displayable fields
@@ -488,7 +482,48 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
         // Track this field amendment for superscript markers (lowercase section, camelCase field)
         const fieldPathCamelCase = `${section}.${mapFieldName(fieldName)}`
         fieldAmendments[fieldPathCamelCase] = amendmentNumber
+
+        // Build description of what changed (old value -> new value)
+        const key = `${section}.${fieldName}`
+        const oldValue = inputMap.get(key)
+        const newValue = value
+
+        if (oldValue !== undefined && oldValue !== '') {
+          changedFieldDescriptions.push(
+            `${certFieldName} changed from '${oldValue}' to '${newValue}'`
+          )
+        } else {
+          changedFieldDescriptions.push(
+            `${certFieldName} set to '${newValue}'`
+          )
+        }
       })
+
+      // Build complete description
+      const descriptionParts: string[] = []
+
+      // Add field changes description
+      if (changedFieldDescriptions.length > 0) {
+        descriptionParts.push(changedFieldDescriptions.join(', '))
+      }
+
+      // Add reason (translate code to human-readable text)
+      if (reason) {
+        const reasonText = translateReasonCode(reason)
+        descriptionParts.push(`Reason: ${reasonText}`)
+      }
+
+      // Add other reason if specified
+      if (otherReason) {
+        descriptionParts.push(otherReason)
+      }
+
+      // Add note/comments
+      if (note) {
+        descriptionParts.push(note)
+      }
+
+      const description = descriptionParts.join('. ')
 
       amendments.push({
         type: amendmentType,
@@ -536,6 +571,18 @@ function formatAmendmentDate(isoDate: string): string {
   const month = months[date.getMonth()]
   const year = date.getFullYear()
   return `${day} ${month} ${year}`
+}
+
+function translateReasonCode(reasonCode: string): string {
+  // Translate OpenCRVS correction reason codes to human-readable text
+  const reasonMap: Record<string, string> = {
+    'MATERIAL_ERROR': 'Material error in registration',
+    'MATERIAL_OMISSION': 'Material omission in registration',
+    'JUDICIAL_ORDER': 'Judicial order',
+    'CLERICAL_ERROR': 'Clerical error',
+    'OTHER': 'Other reason'
+  }
+  return reasonMap[reasonCode] || reasonCode
 }
 
 function shouldSkipField(fhirFieldName: string): boolean {
