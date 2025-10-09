@@ -13,6 +13,8 @@ import { Request, ResponseToolkit } from '@hapi/hapi'
 import fetch from 'node-fetch'
 import { viewDeclaration } from '@gateway/workflow'
 import { getAuthHeader } from '@opencrvs/commons/http'
+import { findAssignment } from '@opencrvs/commons/assignment'
+import { findResourceFromBundleById, Practitioner } from '@opencrvs/commons/types'
 
 /**
  * Generate certificate via certificate-service DIRECTLY
@@ -168,26 +170,79 @@ export async function generateCertificateHandler(
 function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
   const resources = bundle.entry?.map((e: any) => e.resource) || []
 
+  // Debug: log all resource types in the bundle
+  const resourceTypes = resources.map((r: any) => r.resourceType)
+  console.log('[Certificate] Resource types in bundle:', resourceTypes)
+
   const composition = resources.find((r: any) => r.resourceType === 'Composition')
   const patients = resources.filter((r: any) => r.resourceType === 'Patient')
   const tasks = resources.filter((r: any) => r.resourceType === 'Task')
+  const relatedPersons = resources.filter((r: any) => r.resourceType === 'RelatedPerson')
 
   // Find patients by section code
   const child = findPatientBySection(composition, patients, 'child-details')
   const mother = findPatientBySection(composition, patients, 'mother-details')
   const father = findPatientBySection(composition, patients, 'father-details')
 
+  // Find informant (RelatedPerson with patient reference)
+  const informantSection = composition?.section?.find((s: any) => s.code?.coding?.[0]?.code === 'informant-details')
+  const informantRef = informantSection?.entry?.[0]?.reference
+  const informant = informantRef ? relatedPersons.find((rp: any) => informantRef.includes(rp.id)) : null
+
   // Get registration info
   const registeredTask = tasks.find((t: any) => t.businessStatus?.coding?.[0]?.code === 'REGISTERED')
   const registrationNumber = getTaskValue(registeredTask, 'registrationNumber') || composition?.identifier?.value
+
+  // Get registration date from composition.date (which is the registration timestamp)
+  const registrationDate = composition?.date
+  console.log('[Certificate] Registration date from composition:', registrationDate)
+
+  // Get registrar info using the same function as GraphQL resolvers
+  const assignment = findAssignment(bundle)
+  let registrarName = 'Unknown Registrar'
+  let officeName = ''
+
+  if (assignment) {
+    const practitioner = findResourceFromBundleById<Practitioner>(bundle, assignment.practitioner.id)
+    if (practitioner?.name?.[0]) {
+      const firstName = practitioner.name[0].given?.join(' ') || ''
+      const lastName = practitioner.name[0].family || ''
+      registrarName = `${firstName} ${lastName}`.trim()
+    }
+    officeName = assignment.office.name || ''
+  }
+
+  console.log('[Certificate] Registrar name:', registrarName)
+  console.log('[Certificate] Office name:', officeName)
+
+  // Get informant type from task input
+  const informantType = getTaskValue(registeredTask, 'informantType') || ''
+
+  // Get contact email from task input
+  const contactEmail = getTaskValue(registeredTask, 'contactEmail') || ''
+
+  // Check if late registration (birth date > 1 month before registration)
+  const birthDate = child?.birthDate ? new Date(child.birthDate) : null
+  const regDate = registrationDate ? new Date(registrationDate) : null
+  const lateRegistration = birthDate && regDate ?
+    (regDate.getTime() - birthDate.getTime()) / (1000 * 60 * 60 * 24) > 30 : false
+
+  // Check for amendments
+  const correctedTask = tasks.find((t: any) => t.businessStatus?.coding?.[0]?.code === 'CORRECTED')
+  const hasAmendments = !!correctedTask
 
   return {
     certificateType: eventType,
     templateName: `antigua-${eventType}-v1`,
     registrationNumber,
-    registrationDate: registeredTask?.lastModified?.split('T')[0],
-    registrar: 'Registrar Name',
+    registrationDate: registrationDate?.split('T')[0],
+    registrar: registrarName,
+    registrarOffice: officeName,
+    dateRegistered: registrationDate?.split('T')[0],
+    lateRegistration,
+    hasAmendments,
     parish: 'St. Johns',
+    contactEmail,
     child: child ? {
       firstName: getPatientName(child, 'given'),
       surname: getPatientName(child, 'family'),
@@ -197,16 +252,69 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
     } : undefined,
     mother: mother ? {
       firstName: getPatientName(mother, 'given'),
+      middleName: getPatientMiddleName(mother),
       surname: getPatientName(mother, 'family'),
-      nationality: 'Antigua and Barbuda',
-      occupation: getExtensionValue(mother, 'occupation')
+      dateOfBirth: mother.birthDate,
+      nationality: getNationality(mother),
+      occupation: getExtensionValue(mother, 'occupation'),
+      address: getAddress(mother)
     } : undefined,
     father: father ? {
       firstName: getPatientName(father, 'given'),
+      middleName: getPatientMiddleName(father),
       surname: getPatientName(father, 'family'),
-      nationality: 'Antigua and Barbuda',
-      occupation: getExtensionValue(father, 'occupation')
-    } : undefined
+      dateOfBirth: father.birthDate,
+      nationality: getNationality(father),
+      occupation: getExtensionValue(father, 'occupation'),
+      address: getAddress(father)
+    } : undefined,
+    informant: (() => {
+      const relationship = informant?.relationship?.coding?.[0]?.code || informantType
+      const otherRelationship = getExtensionValue(informant, 'other-relationship') || ''
+
+      // If informant is MOTHER or FATHER, use their patient data
+      let informantData
+      if (relationship === 'MOTHER' && mother) {
+        informantData = {
+          firstName: getPatientName(mother, 'given'),
+          middleName: getPatientMiddleName(mother),
+          surname: getPatientName(mother, 'family'),
+          occupation: getExtensionValue(mother, 'occupation'),
+          nationality: getNationality(mother),
+          dateOfBirth: mother.birthDate,
+          address: getAddress(mother)
+        }
+      } else if (relationship === 'FATHER' && father) {
+        informantData = {
+          firstName: getPatientName(father, 'given'),
+          middleName: getPatientMiddleName(father),
+          surname: getPatientName(father, 'family'),
+          occupation: getExtensionValue(father, 'occupation'),
+          nationality: getNationality(father),
+          dateOfBirth: father.birthDate,
+          address: getAddress(father)
+        }
+      } else if (informant) {
+        // For other relationships, use informant's own data
+        informantData = {
+          firstName: getPersonName(informant, 'given'),
+          middleName: getPersonMiddleName(informant),
+          surname: getPersonName(informant, 'family'),
+          occupation: getExtensionValue(informant, 'occupation'),
+          nationality: getNationality(informant),
+          dateOfBirth: informant.birthDate,
+          address: getAddress(informant)
+        }
+      } else {
+        return undefined
+      }
+
+      return {
+        ...informantData,
+        relationship,
+        otherRelationship
+      }
+    })()
   }
 }
 
@@ -221,6 +329,48 @@ function getPatientName(patient: any, part: 'given' | 'family'): string {
   const name = patient.name?.find((n: any) => n.use === 'en') || patient.name?.[0]
   if (part === 'given') return name?.given?.join(' ') || ''
   return name?.family || ''
+}
+
+function getPatientMiddleName(patient: any): string {
+  const name = patient.name?.find((n: any) => n.use === 'en') || patient.name?.[0]
+  return name?.given?.[1] || '' // Middle name is typically the second given name
+}
+
+function getPersonName(person: any, part: 'given' | 'family'): string {
+  // RelatedPerson names are in array format
+  const name = person.name?.find((n: any) => n.use === 'en') || person.name?.[0]
+  if (part === 'given') return name?.given?.join(' ') || ''
+  return name?.family || ''
+}
+
+function getPersonMiddleName(person: any): string {
+  const name = person.name?.find((n: any) => n.use === 'en') || person.name?.[0]
+  return name?.given?.[1] || '' // Middle name is typically the second given name
+}
+
+function getNationality(person: any): string {
+  // Extract nationality from extension
+  const nationalityExt = person.extension?.find((e: any) => e.url?.includes('nationality'))
+  const code = nationalityExt?.extension?.find((e: any) => e.url === 'code')?.valueCodeableConcept?.coding?.[0]?.code
+  return code === 'ATG' ? 'Antigua and Barbuda' : code || 'Unknown'
+}
+
+function getAddress(person: any): string {
+  const address = person.address?.find((a: any) => a.use === 'home') || person.address?.[0]
+  if (!address) return ''
+
+  // Combine address lines
+  const lines = address.line?.filter((l: any) => l && l.trim()).join(', ') || ''
+  const parts = [
+    lines,
+    address.city,
+    address.district,
+    address.state,
+    address.postalCode,
+    address.country
+  ].filter(p => p && p.trim())
+
+  return parts.join(', ')
 }
 
 function getExtensionValue(resource: any, url: string): string | undefined {
