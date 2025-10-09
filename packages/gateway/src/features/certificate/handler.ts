@@ -436,7 +436,13 @@ function getCountryOfBirth(person: any): string | undefined {
     return resolveNationalityCode(countryCode)
   }
 
-  // Fallback to nationality if no birth place
+  // Check address country field
+  const address = person.address?.find((a: any) => a.use === 'home') || person.address?.[0]
+  if (address?.country) {
+    return resolveNationalityCode(address.country)
+  }
+
+  // Fallback to nationality if no birth place or address country
   return getNationality(person)
 }
 
