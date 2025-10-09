@@ -259,7 +259,8 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
       dateOfBirth: mother.birthDate,
       nationality: getNationality(mother),
       occupation: getExtensionValue(mother, 'occupation'),
-      address: getAddress(mother)
+      ...getAddressFields(mother),
+      countryOfBirth: getCountryOfBirth(mother)
     } : undefined,
     father: father ? {
       firstName: getPatientName(father, 'given'),
@@ -268,7 +269,8 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
       dateOfBirth: father.birthDate,
       nationality: getNationality(father),
       occupation: getExtensionValue(father, 'occupation'),
-      address: getAddress(father)
+      ...getAddressFields(father),
+      countryOfBirth: getCountryOfBirth(father)
     } : undefined,
     informant: (() => {
       const relationship = informant?.relationship?.coding?.[0]?.code || informantType
@@ -373,6 +375,45 @@ function getAddress(person: any): string {
   ].filter(p => p && p.trim())
 
   return parts.join(', ')
+}
+
+function getAddressFields(person: any): { addressOne?: string, addressTwo?: string } {
+  const address = person.address?.find((a: any) => a.use === 'home') || person.address?.[0]
+  if (!address) return {}
+
+  // AddressOne: street address lines
+  const lines = address.line?.filter((l: any) => l && l.trim()).join(', ') || ''
+  const addressOne = lines || address.city || ''
+
+  // AddressTwo: city, state, country
+  const addressTwoParts = [
+    address.city,
+    address.district,
+    address.state,
+    address.country
+  ].filter(p => p && p.trim())
+
+  const addressTwo = addressTwoParts.join(', ')
+
+  return {
+    addressOne: addressOne || undefined,
+    addressTwo: addressTwo || undefined
+  }
+}
+
+function getCountryOfBirth(person: any): string | undefined {
+  // Check for birthplace extension
+  const birthPlaceExt = person.extension?.find((e: any) =>
+    e.url?.includes('patient-birthPlace')
+  )
+
+  if (birthPlaceExt?.valueAddress?.country) {
+    const countryCode = birthPlaceExt.valueAddress.country
+    return resolveNationalityCode(countryCode)
+  }
+
+  // Fallback to nationality if no birth place
+  return getNationality(person)
 }
 
 function getExtensionValue(resource: any, url: string): string | undefined {
@@ -515,12 +556,21 @@ function extractAmendments(bundle: any): { amendments: any[], fieldAmendments: R
           }
         }
 
+        // Resolve nationality codes to full country names
+        if (isNationalityField(fieldName) && typeof newValue === 'string') {
+          newValue = resolveNationalityCode(newValue)
+        }
+
         let fieldChangeDescription = ''
         if (oldValue !== undefined && oldValue !== '') {
           // Resolve old value if it's a location UUID
           let displayOldValue = oldValue
           if (isLocationField(fieldName) && typeof oldValue === 'string') {
             displayOldValue = locationMap.get(oldValue) || oldValue
+          }
+          // Resolve old nationality code
+          if (isNationalityField(fieldName) && typeof displayOldValue === 'string') {
+            displayOldValue = resolveNationalityCode(displayOldValue)
           }
           fieldChangeDescription = `${certFieldName} changed from '${displayOldValue}' to '${newValue}'`
         } else {
@@ -600,6 +650,25 @@ function isLocationField(fieldName: string): boolean {
     'countryPrimaryMother'
   ]
   return locationFields.includes(fieldName)
+}
+
+function isNationalityField(fieldName: string): boolean {
+  return fieldName === 'nationality'
+}
+
+function resolveNationalityCode(code: string): string {
+  // Map country codes to full country names
+  const countryMap: Record<string, string> = {
+    'ATG': 'Antigua and Barbuda',
+    'USA': 'United States',
+    'GBR': 'United Kingdom',
+    'CAN': 'Canada',
+    'JAM': 'Jamaica',
+    'BRB': 'Barbados',
+    'TTO': 'Trinidad and Tobago',
+    // Add more country codes as needed
+  }
+  return countryMap[code] || code
 }
 
 function translateReasonCode(reasonCode: string): string {
