@@ -75,6 +75,7 @@ services:
       - WORKFLOW_URL=http://workflow:5050/
       - APPLICATION_CONFIG_URL=http://config:2021/
       - WEBHOOKS_URL=http://webhooks:2525/
+      - CERTIFICATE_SERVICE_URL=http://certificate-service:3890
       - CHECK_INVALID_TOKEN=true
       - MINIO_BUCKET=ocrvs
       - DOCUMENTS_URL=http://documents:9050
@@ -304,3 +305,25 @@ services:
       - base
     deploy:
       replicas: 0
+
+  certificate-service:
+    build:
+      context: ./packages/toppan-certificate
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/certificate-service:${VERSION:-latest}
+    container_name: certificate-service
+    restart: unless-stopped
+    ports:
+      - '3890:3890'
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:3890
+      - CertificateService__TemplatesUrl=http://countryconfig:3040/certificates/toppan
+      - CertificateService__PdfSigningKeyPath=/app/keys/certificate-private-key.pem
+      - CertificateService__PdfVerificationKeyPath=/app/keys/certificate-public-key.pem
+    volumes:
+      - ./packages/toppan-certificate/templates:/app/templates:ro
+      - ./packages/toppan-certificate/keys:/app/keys:ro
+      - ./packages/toppan-certificate/output-debug:/app/test-output
+    depends_on:
+      - countryconfig
