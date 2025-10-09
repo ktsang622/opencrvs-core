@@ -179,6 +179,15 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
   const tasks = resources.filter((r: any) => r.resourceType === 'Task')
   const relatedPersons = resources.filter((r: any) => r.resourceType === 'RelatedPerson')
 
+  // Build location map for resolving UUIDs to names
+  const locations = resources.filter((r: any) => r.resourceType === 'Location')
+  const locationMap = new Map<string, string>()
+  locations.forEach((loc: any) => {
+    if (loc.id && loc.name) {
+      locationMap.set(loc.id, loc.name)
+    }
+  })
+
   // Find patients by section code
   const child = findPatientBySection(composition, patients, 'child-details')
   const mother = findPatientBySection(composition, patients, 'mother-details')
@@ -259,7 +268,7 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
       dateOfBirth: mother.birthDate,
       nationality: getNationality(mother),
       occupation: getExtensionValue(mother, 'occupation'),
-      ...getAddressFields(mother),
+      ...getAddressFields(mother, locationMap),
       countryOfBirth: getCountryOfBirth(mother)
     } : undefined,
     father: father ? {
@@ -269,7 +278,7 @@ function transformBundleToCertificateDTO(bundle: any, eventType: string): any {
       dateOfBirth: father.birthDate,
       nationality: getNationality(father),
       occupation: getExtensionValue(father, 'occupation'),
-      ...getAddressFields(father),
+      ...getAddressFields(father, locationMap),
       countryOfBirth: getCountryOfBirth(father)
     } : undefined,
     informant: (() => {
@@ -356,7 +365,7 @@ function getNationality(person: any): string {
   // Extract nationality from extension
   const nationalityExt = person.extension?.find((e: any) => e.url?.includes('nationality'))
   const code = nationalityExt?.extension?.find((e: any) => e.url === 'code')?.valueCodeableConcept?.coding?.[0]?.code
-  return code === 'ATG' ? 'Antigua and Barbuda' : code || 'Unknown'
+  return code ? resolveNationalityCode(code) : 'Unknown'
 }
 
 function getAddress(person: any): string {
@@ -377,7 +386,7 @@ function getAddress(person: any): string {
   return parts.join(', ')
 }
 
-function getAddressFields(person: any): { addressOne?: string, addressTwo?: string } {
+function getAddressFields(person: any, locationMap: Map<string, string>): { addressOne?: string, addressTwo?: string } {
   const address = person.address?.find((a: any) => a.use === 'home') || person.address?.[0]
   if (!address) return {}
 
@@ -385,13 +394,28 @@ function getAddressFields(person: any): { addressOne?: string, addressTwo?: stri
   const lines = address.line?.filter((l: any) => l && l.trim()).join(', ') || ''
   const addressOne = lines || address.city || ''
 
-  // AddressTwo: city, state, country
-  const addressTwoParts = [
-    address.city,
-    address.district,
-    address.state,
-    address.country
-  ].filter(p => p && p.trim())
+  // AddressTwo: city, state/district, country (resolve UUIDs to names)
+  const addressTwoParts = []
+
+  if (address.city) addressTwoParts.push(address.city)
+
+  // Resolve district UUID to name
+  if (address.district) {
+    const districtName = locationMap.get(address.district) || address.district
+    addressTwoParts.push(districtName)
+  }
+
+  // Resolve state UUID to name
+  if (address.state) {
+    const stateName = locationMap.get(address.state) || address.state
+    addressTwoParts.push(stateName)
+  }
+
+  // Resolve country code to full name
+  if (address.country) {
+    const countryName = resolveNationalityCode(address.country)
+    addressTwoParts.push(countryName)
+  }
 
   const addressTwo = addressTwoParts.join(', ')
 
