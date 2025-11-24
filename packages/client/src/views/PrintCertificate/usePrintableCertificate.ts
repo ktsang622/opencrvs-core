@@ -164,7 +164,11 @@ export const usePrintableCertificate = (declarationId?: string) => {
     ])
 
   // Check if certificate-service is enabled (from offline data application config)
-  const useCertificateService = offlineData.config?.FEATURES?.USE_CERTIFICATE_SERVICE === true
+  // For birth: use feature flag
+  // For death/marriage: always use default SVG (Toppan not implemented yet)
+  const useCertificateService =
+    declaration?.event === EventType.Birth &&
+    offlineData.config?.FEATURES?.USE_CERTIFICATE_SERVICE === true
 
   // State for PDF preview URL
   const [certificatePreview, setCertificatePreview] = useState<ICertificatePreview | null>(null)

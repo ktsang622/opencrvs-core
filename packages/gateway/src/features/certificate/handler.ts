@@ -45,6 +45,17 @@ export async function generateCertificateHandler(
 
     console.log(`[Certificate] Generating ${eventType} certificate for ${compositionId}`)
 
+    // Use default SVG approach for death and marriage certificates (not implemented in Toppan yet)
+    if (eventType === 'death' || eventType === 'marriage') {
+      console.log(`[Certificate] Using default SVG renderer for ${eventType} (Toppan not implemented)`)
+      return h
+        .response({
+          error: 'NotImplemented',
+          message: `Toppan certificate not implemented for ${eventType}, please use default SVG renderer`
+        })
+        .code(501) // 501 Not Implemented
+    }
+
     // Step 1: Fetch FHIR bundle from workflow service
     let bundle
     try {

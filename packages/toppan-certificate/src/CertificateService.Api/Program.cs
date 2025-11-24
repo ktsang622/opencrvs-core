@@ -152,6 +152,7 @@ builder.Services.AddSwaggerExamplesFromAssemblyOf<Program>();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseDefaultFiles(); // Enable default file mapping (e.g., index.html)
 app.UseStaticFiles(); // Enable serving static files from wwwroot
 
 app.UseSwagger();

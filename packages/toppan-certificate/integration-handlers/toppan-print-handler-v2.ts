@@ -236,13 +236,17 @@ async function fetchRegistrationViaGraphQL(
 function getGraphQLQuery(eventType: string): string {
   const queryName = `fetch${capitalize(eventType)}Registration`
 
+  // For death certificates, query 'deceased' instead of 'child'
+  const personField = eventType === 'death' ? 'deceased' : 'child'
+  const dateField = eventType === 'death' ? 'deathDate' : 'birthDate'
+
   // This matches the client's GET_BIRTH_REGISTRATION_FOR_CERTIFICATE query
   // See: packages/client/src/views/DataProvider/birth/queries.ts:365-655
   return `
     query ${queryName}ForCertificate($id: ID!) {
       ${queryName}(id: $id) {
         id
-        child {
+        ${personField} {
           id
           name {
             use
@@ -251,6 +255,7 @@ function getGraphQLQuery(eventType: string): string {
             familyName
           }
           birthDate
+          ${eventType === 'death' ? 'deathDate' : ''}
           gender
         }
         mother {
@@ -481,6 +486,7 @@ function transformGraphQLToCertificateRequest(
   const registrationDate = extractRegistrationDate(data.registration)
 
   const childName = getPrimaryHumanName(data.child?.name)
+  const deceasedName = getPrimaryHumanName(data.deceased?.name)
   const motherName = getPrimaryHumanName(data.mother?.name)
   const fatherName = getPrimaryHumanName(data.father?.name)
   const informantName = getPrimaryHumanName(data.informant?.name)
@@ -493,7 +499,7 @@ function transformGraphQLToCertificateRequest(
     certificateType: eventType,
     templateName: `antigua-${eventType}-v1`,
 
-    // Child section (already transformed!)
+    // Child section (for birth certificates)
     child: data.child ? {
       firstName: trimOrUndefined(childName?.firstNames),
       middleName: trimOrUndefined(childName?.middleName),
@@ -501,6 +507,16 @@ function transformGraphQLToCertificateRequest(
       sex: mapSex(data.child.gender),
       dateOfBirth: trimOrUndefined(data.child.birthDate),
       placeOfBirth: buildPlaceOfBirth(data.eventLocation)
+    } : undefined,
+
+    // Deceased section (for death certificates)
+    deceased: data.deceased ? {
+      firstName: trimOrUndefined(deceasedName?.firstNames),
+      middleName: trimOrUndefined(deceasedName?.middleName),
+      surname: trimOrUndefined(deceasedName?.familyName),
+      sex: mapSex(data.deceased.gender),
+      dateOfBirth: trimOrUndefined(data.deceased.birthDate),
+      dateOfDeath: trimOrUndefined(data.deceased.deathDate)
     } : undefined,
 
     // Mother section (already transformed!)
@@ -548,7 +564,11 @@ function transformGraphQLToCertificateRequest(
     parish,
 
     // Calculate late registration
-    lateRegistration: calculateLateRegistration(data.child?.birthDate, registrationDate, eventType),
+    lateRegistration: calculateLateRegistration(
+      eventType === 'death' ? data.deceased?.deathDate : data.child?.birthDate,
+      registrationDate,
+      eventType
+    ),
 
     // Record URL
     recordUrl: `${process.env.CLIENT_APP_URL || 'http://localhost:3000'}/record/${compositionId}`,

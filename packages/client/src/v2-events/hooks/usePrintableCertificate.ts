@@ -204,7 +204,11 @@ export const usePrintableCertificate = ({
   }
 
   // Check if certificate-service is enabled (passed as parameter or from config)
-  const shouldUseCertificateService = useCertificateService ?? config.FEATURES?.USE_CERTIFICATE_SERVICE ?? false
+  // For birth: use feature flag
+  // For death/marriage: always use default SVG (Toppan not implemented yet)
+  const shouldUseCertificateService =
+    event.event === 'birth' &&
+    (useCertificateService ?? config.FEATURES?.USE_CERTIFICATE_SERVICE ?? false)
 
   // State for PDF preview URL
   const [certificatePreview, setCertificatePreview] = useState<CertificatePreview | null>(null)
