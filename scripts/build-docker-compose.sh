@@ -26,7 +26,7 @@ NC='\033[0m' # No Color
 
 # Get version from git or use default
 VERSION=${VERSION:-"demo-1.8.0"}
-REGISTRY=${REGISTRY:-"toppan-crvs"}
+REGISTRY=${REGISTRY:-"toppancrvs"}
 BRANCH=${BRANCH:-"develop"}
 
 # Build compose files
@@ -39,6 +39,8 @@ PARALLEL=true
 NO_CACHE=false
 BUILD_ARGS=""
 MAX_PARALLEL=${MAX_PARALLEL:-0}  # 0 means unlimited
+FROM_TIER=${FROM_TIER:-1}  # Start from tier N (1-7)
+SKIP_BASE=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -67,6 +69,15 @@ while [[ $# -gt 0 ]]; do
       MAX_PARALLEL="$2"
       shift 2
       ;;
+    --from-tier)
+      FROM_TIER="$2"
+      SKIP_BASE=true
+      shift 2
+      ;;
+    --skip-base)
+      SKIP_BASE=true
+      shift
+      ;;
     --help|-h)
       echo "Usage: $0 [OPTIONS] [SERVICES...]"
       echo ""
@@ -78,6 +89,8 @@ while [[ $# -gt 0 ]]; do
       echo "  --build-arg       Pass build argument (can be used multiple times)"
       echo "  --sequential      Build services sequentially instead of parallel"
       echo "  --max-parallel N  Limit parallel builds to N services (helps with network issues)"
+      echo "  --from-tier N     Start building from tier N (1-7), skips base image"
+      echo "  --skip-base       Skip building base image (assumes it exists)"
       echo "  --help, -h        Show this help message"
       echo ""
       echo "Arguments:"
@@ -95,13 +108,23 @@ while [[ $# -gt 0 ]]; do
       echo "  • Uses existing toppan-build.yml configuration"
       echo "  • Integrates with existing compose infrastructure"
       echo ""
+      echo "Tiers:"
+      echo "  1: config, auth, notification"
+      echo "  2: user-mgnt, documents, webhooks"
+      echo "  3: search, metrics, workflow"
+      echo "  4: gateway, events"
+      echo "  5: migration, data-seeder, scheduler, dashboards"
+      echo "  6: client, login"
+      echo "  7: toppan-service, toppan, toppan-ui, toppan-certificate"
+      echo ""
       echo "Examples:"
       echo "  $0                                    # Build all services"
       echo "  $0 gateway user-mgnt                  # Build only gateway and user-mgnt"
+      echo "  $0 --from-tier 5                      # Resume from Tier 5"
+      echo "  $0 --skip-base                        # Build all but skip base image"
       echo "  $0 --status                           # Show build status"
       echo "  $0 --no-cache gateway                 # Build gateway without cache"
       echo "  $0 base                               # Force rebuild base image"
-      echo "  $0 --build-arg NODE_ENV=production    # Build with build argument"
       echo "  VERSION=1.8.0 REGISTRY=myorg $0      # Custom version and registry"
       exit 0
       ;;
@@ -163,17 +186,17 @@ create_temp_dockerfiles() {
             continue
         fi
 
-        # Check if this is a standalone service (uses node:18-slim) or OpenCRVS service
-        if grep -q "FROM node:18-slim" "$dockerfile_path"; then
-            echo -e "${BLUE}${service}: standalone service, using original Dockerfile${NC}"
-            # No modification needed for standalone services
-        else
+        # Check if this Dockerfile uses the OpenCRVS base image
+        if grep -q "ghcr.io/opencrvs/ocrvs-base" "$dockerfile_path"; then
             echo -e "${BLUE}${service}: replacing base image with ${REGISTRY}/ocrvs-base:${VERSION}${NC}"
 
             # Replace the FROM line to use our local base image
             sed "s|FROM ghcr.io/opencrvs/ocrvs-base:\${BRANCH}|FROM ${REGISTRY}/ocrvs-base:${VERSION}|g; \
                  s|FROM ghcr.io/opencrvs/ocrvs-base:.*|FROM ${REGISTRY}/ocrvs-base:${VERSION}|g" \
                 "$dockerfile_path" > "$temp_dockerfile"
+        else
+            echo -e "${BLUE}${service}: standalone service, using original Dockerfile${NC}"
+            # No modification needed - uses its own base image (node:18-slim, .NET, etc.)
         fi
     done
 }
@@ -337,81 +360,154 @@ build_base_image() {
     fi
 }
 
+# Define service tiers based on README.md architecture
+# This ensures proper build order and dependency resolution
+declare -A SERVICE_TIERS
+SERVICE_TIERS=(
+    ["tier1"]="config auth notification"
+    ["tier2"]="user-mgnt documents webhooks"
+    ["tier3"]="search metrics workflow"
+    ["tier4"]="gateway events"
+    ["tier5"]="migration data-seeder scheduler dashboards"
+    ["tier6"]="client login"
+    ["tier7"]="toppan-service toppan toppan-ui toppan-certificate"
+)
+
+TIER_NAMES=(
+    "tier1:Tier 1 - Core Infrastructure"
+    "tier2:Tier 2 - User & Documents"
+    "tier3:Tier 3 - Data Services"
+    "tier4:Tier 4 - Gateway & Events"
+    "tier5:Tier 5 - Support Services"
+    "tier6:Tier 6 - Frontend"
+    "tier7:Tier 7 - Toppan Services"
+)
+
+# Function to build a single tier of services
+build_tier() {
+    local tier_key=$1
+    local tier_name=$2
+    local tier_services=$3
+    local dynamic_compose_file=$4
+
+    # Convert space-separated string to array
+    local services_array=($tier_services)
+
+    if [ ${#services_array[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    echo ""
+    echo -e "${YELLOW}════════════════════════════════════════${NC}"
+    echo -e "${YELLOW}🔨 Building ${tier_name}${NC}"
+    echo -e "${YELLOW}════════════════════════════════════════${NC}"
+    echo -e "${BLUE}Services: ${services_array[*]}${NC}"
+    echo ""
+
+    # Build tier services (parallel within tier)
+    docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${services_array[@]}"
+
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ ${tier_name} build failed${NC}"
+        return 1
+    fi
+
+    echo -e "${GREEN}✅ ${tier_name} completed${NC}"
+    return 0
+}
+
 # Function to build core services (depends on base) with dynamic Dockerfiles
 build_core_services() {
     local services_to_build=("$@")
 
-    echo -e "${YELLOW}🚀 Building core services (depends on base)...${NC}"
+    echo -e "${YELLOW}🚀 Building core services in tiered sequence...${NC}"
     echo ""
 
-    local services_list=()
+    # Determine which services to build
+    local all_services=()
+    local filter_mode=false
+
     if [ ${#services_to_build[@]} -gt 0 ]; then
-        services_list=("${services_to_build[@]}")
-        echo -e "${BLUE}Selected services: ${services_list[*]}${NC}"
+        filter_mode=true
+        all_services=("${services_to_build[@]}")
+        echo -e "${BLUE}Selected services: ${all_services[*]}${NC}"
     else
-        # Get all services except base
-        services_list=($(docker_compose $BUILD_COMPOSE config --services | grep -v "^base$"))
-        echo -e "${BLUE}Building all core services: ${services_list[*]}${NC}"
+        # Get all services from all tiers
+        for tier_key in tier1 tier2 tier3 tier4 tier5 tier6 tier7; do
+            for svc in ${SERVICE_TIERS[$tier_key]}; do
+                all_services+=("$svc")
+            done
+        done
+        echo -e "${BLUE}Building all core services in tiered order${NC}"
     fi
 
     # Create temporary Dockerfiles for dynamic base image replacement
-    create_temp_dockerfiles "${services_list[@]}"
+    create_temp_dockerfiles "${all_services[@]}"
 
     # Create dynamic compose file that uses temp Dockerfiles
-    local dynamic_compose_file=$(create_dynamic_build_compose "${services_list[@]}")
+    local dynamic_compose_file=$(create_dynamic_build_compose "${all_services[@]}")
 
-    # Build using the dynamic compose file
-    if [ "$PARALLEL" = false ]; then
-        echo -e "${BLUE}🔨 Building services sequentially...${NC}"
-        local build_result=0
-        for service in "${services_list[@]}"; do
-            echo -e "${YELLOW}Building $service...${NC}"
-            docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "$service"
+    local build_result=0
+
+    # Build tier by tier
+    for tier_entry in "${TIER_NAMES[@]}"; do
+        local tier_key="${tier_entry%%:*}"
+        local tier_num="${tier_key#tier}"
+        local tier_name="${tier_entry#*:}"
+        local tier_services="${SERVICE_TIERS[$tier_key]}"
+
+        # Skip tiers before FROM_TIER
+        if [ "$tier_num" -lt "$FROM_TIER" ]; then
+            echo -e "${BLUE}⏭️  Skipping ${tier_name} (--from-tier ${FROM_TIER})${NC}"
+            continue
+        fi
+
+        # Filter services if specific ones were requested
+        if [ "$filter_mode" = true ]; then
+            local filtered_services=""
+            for svc in $tier_services; do
+                if [[ " ${services_to_build[*]} " =~ " ${svc} " ]]; then
+                    filtered_services="$filtered_services $svc"
+                fi
+            done
+            tier_services="${filtered_services# }"
+        fi
+
+        # Skip empty tiers
+        if [ -z "$tier_services" ]; then
+            continue
+        fi
+
+        # Build this tier
+        if [ "$PARALLEL" = false ]; then
+            # Sequential mode: build each service one by one
+            for svc in $tier_services; do
+                echo -e "${YELLOW}Building $svc (${tier_name})...${NC}"
+                docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "$svc"
+                if [ $? -ne 0 ]; then
+                    build_result=1
+                    break 2
+                fi
+            done
+        else
+            # Parallel mode: build entire tier in parallel
+            build_tier "$tier_key" "$tier_name" "$tier_services" "$dynamic_compose_file"
             if [ $? -ne 0 ]; then
                 build_result=1
                 break
             fi
-        done
-    elif [ "$MAX_PARALLEL" -gt 0 ] && [ ${#services_list[@]} -gt "$MAX_PARALLEL" ]; then
-        echo -e "${BLUE}🔨 Building services in batches of $MAX_PARALLEL...${NC}"
-        local build_result=0
-        local batch=()
-        local count=0
-
-        for service in "${services_list[@]}"; do
-            batch+=("$service")
-            count=$((count + 1))
-
-            if [ $count -eq "$MAX_PARALLEL" ] || [ $service = "${services_list[-1]}" ]; then
-                echo -e "${YELLOW}Building batch: ${batch[*]}${NC}"
-                docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${batch[@]}"
-                if [ $? -ne 0 ]; then
-                    build_result=1
-                    break
-                fi
-                batch=()
-                count=0
-                echo -e "${GREEN}Batch completed successfully${NC}"
-                sleep 2  # Brief pause between batches
-            fi
-        done
-    else
-        echo -e "${BLUE}🔨 Building all services in parallel...${NC}"
-        echo "docker compose --env-file $COMPOSE_ENV_FILE -f $dynamic_compose_file build $ALL_BUILD_ARGS ${services_list[*]}"
-        echo ""
-        docker_compose -f "$dynamic_compose_file" build $ALL_BUILD_ARGS "${services_list[@]}"
-        local build_result=$?
-    fi
+        fi
+    done
 
     # Cleanup temporary files
-    cleanup_temp_dockerfiles "${services_list[@]}"
+    cleanup_temp_dockerfiles "${all_services[@]}"
     rm -f "$dynamic_compose_file"
 
     if [ $build_result -eq 0 ]; then
         # Tag all built services with latest
         echo -e "${BLUE}🏷️  Tagging core services with 'latest'...${NC}"
-        tag_services_with_latest "${services_list[@]}"
-        echo -e "${GREEN}✅ Core services built and tagged successfully${NC}"
+        tag_services_with_latest "${all_services[@]}"
+        echo -e "${GREEN}✅ All core services built and tagged successfully${NC}"
     else
         echo -e "${RED}❌ Core services build failed${NC}"
         exit 1
@@ -479,10 +575,15 @@ if [ ${#SERVICES[@]} -gt 0 ]; then
 else
     # Build all services in proper sequence
     echo -e "${YELLOW}🚀 Building all services in optimized sequence...${NC}"
+    echo -e "${BLUE}Starting from Tier: ${FROM_TIER}${NC}"
     echo ""
 
     # 1. Build base image first (contains commons/components) - only if needed
-    build_base_image false
+    if [ "$SKIP_BASE" = true ]; then
+        echo -e "${BLUE}⏭️  Skipping base image (--skip-base or --from-tier)${NC}"
+    else
+        build_base_image false
+    fi
 
     # 2. Build all core services in parallel (they depend on base)
     build_core_services

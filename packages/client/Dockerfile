@@ -1,5 +1,6 @@
-ARG  BRANCH=develop
-FROM ghcr.io/opencrvs/ocrvs-base:${BRANCH}
+ARG DOCKER_REGISTRY=ghcr.io/opencrvs
+ARG VERSION=develop
+FROM ${DOCKER_REGISTRY}/ocrvs-base:${VERSION}
 
 USER node
 

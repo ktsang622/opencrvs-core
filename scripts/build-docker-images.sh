@@ -325,6 +325,42 @@ build_countryconfig() {
     fi
 }
 
+# Function to build countryconfig-atg from sibling directory
+build_countryconfig_atg() {
+    local countryconfig_dir="../opencrvs-countryconfig-atg"
+
+    if [ -d "$countryconfig_dir" ]; then
+        echo ""
+        echo -e "${YELLOW}🌍 Building countryconfig-atg from ${countryconfig_dir}...${NC}"
+
+        pushd "$countryconfig_dir" > /dev/null
+
+        # Check if Dockerfile exists
+        if [ ! -f "Dockerfile" ]; then
+            echo -e "${RED}❌ No Dockerfile found in ${countryconfig_dir}${NC}"
+            popd > /dev/null
+            return 1
+        fi
+
+        # Build countryconfig-atg with same version and registry
+        echo -e "${BLUE}🔨 Building countryconfig-atg with version ${VERSION}...${NC}"
+        docker build -t "${REGISTRY}/countryconfig-atg:${VERSION}" \
+                     -t "${REGISTRY}/countryconfig-atg:latest" .
+
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}✅ countryconfig-atg built successfully${NC}"
+        else
+            echo -e "${RED}❌ countryconfig-atg build failed${NC}"
+            popd > /dev/null
+            return 1
+        fi
+
+        popd > /dev/null
+    else
+        echo -e "${YELLOW}⚠️  Countryconfig-atg directory ${countryconfig_dir} not found, skipping...${NC}"
+    fi
+}
+
 # Main build process
 main() {
     local services_to_build=("$@")
@@ -352,6 +388,9 @@ main() {
 
         # Build countryconfig if directory exists
         build_countryconfig
+
+        # Build countryconfig-atg if directory exists
+        build_countryconfig_atg
 
         echo -e "${GREEN}🎉 All Docker images built successfully!${NC}"
         echo ""

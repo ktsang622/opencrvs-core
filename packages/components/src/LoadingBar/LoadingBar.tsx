@@ -54,7 +54,7 @@ export const LoadingBar = () => (
   <ProgressBackground>
     <img
       src="/images/logo-90x90.svg"
-      alt="OpenCRVS Logo"
+      alt="ToppanCRVS Logo"
       width={90}
       height={90}
     />

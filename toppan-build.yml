@@ -109,6 +109,9 @@ services:
     build:
       context: .
       dockerfile: packages/client/Dockerfile
+      args:
+        DOCKER_REGISTRY: ${DOCKER_REGISTRY:-toppan-crvs}
+        VERSION: ${VERSION:-demo-1.8.0}
     image: ${DOCKER_REGISTRY:-toppan-crvs}/client:${VERSION:-demo-1.8.0}
     depends_on:
       - base
@@ -138,6 +141,22 @@ services:
     depends_on:
       - base
 
+  scheduler:
+    build:
+      context: .
+      dockerfile: packages/scheduler/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/scheduler:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  dashboards:
+    build:
+      context: .
+      dockerfile: packages/dashboards/Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/dashboards:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
   # Toppan Services
   toppan:
     build:
@@ -160,5 +179,13 @@ services:
       context: .
       dockerfile: packages/toppan-ui/Dockerfile
     image: ${DOCKER_REGISTRY:-toppan-crvs}/toppan-ui:${VERSION:-demo-1.8.0}
+    depends_on:
+      - base
+
+  toppan-certificate:
+    build:
+      context: packages/toppan-certificate
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/toppan-certificate:${VERSION:-demo-1.8.0}
     depends_on:
       - base

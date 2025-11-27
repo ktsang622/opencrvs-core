@@ -53,14 +53,26 @@ function isValidPdfUrl(url: string): boolean {
     return true
   }
 
-  // Allow HTTP/HTTPS URLs with .pdf in path (may have query params)
+  // Allow HTTP/HTTPS URLs
   try {
     const urlObj = new URL(url)
     if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
       return false
     }
     // Check if pathname ends with .pdf (ignoring query params)
-    return urlObj.pathname.toLowerCase().endsWith('.pdf')
+    if (urlObj.pathname.toLowerCase().endsWith('.pdf')) {
+      return true
+    }
+    // Also allow URLs that contain application/pdf (e.g., presigned URLs with content-type)
+    // or URLs from documents service (Minio/S3 stores files without extensions)
+    if (url.includes('application/pdf') || url.includes('response-content-type')) {
+      return true
+    }
+    // Allow URLs from known document storage paths (Minio presigned URLs)
+    if (urlObj.pathname.includes('/ocrvs/')) {
+      return true
+    }
+    return false
   } catch {
     return false
   }

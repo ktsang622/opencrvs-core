@@ -9,6 +9,13 @@ services:
       dockerfile: Dockerfile
     image: ${DOCKER_REGISTRY:-toppan-crvs}/countryconfig:${VERSION:-demo-1.8.0}
 
+  # CountryConfig ATG (from sibling directory)
+  countryconfig-atg:
+    build:
+      context: ../opencrvs-countryconfig-atg
+      dockerfile: Dockerfile
+    image: ${DOCKER_REGISTRY:-toppan-crvs}/countryconfig-atg:${VERSION:-demo-1.8.0}
+
   # OpenSearch Services (from ../opensearch)
   opensearch:
     build:
