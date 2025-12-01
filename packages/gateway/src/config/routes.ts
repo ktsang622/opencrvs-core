@@ -25,6 +25,7 @@ import { trpcProxy } from '@gateway/v2-events/event-config/routes'
 import { DOCUMENTS_URL, MINIO_BUCKET } from '@gateway/constants'
 import { personSearchRoutes } from '@gateway/features/person-search'
 import { generateCertificateHandler } from '@gateway/features/certificate/handler'
+import { goidRoutes } from '@gateway/features/goid'
 
 export const getRoutes = () => {
   const routes: ServerRoute[] = [
@@ -153,7 +154,8 @@ export const getRoutes = () => {
     rateLimitedAuthProxy.authenticateSuperUser,
     rateLimitedAuthProxy.verifyUser,
     ...trpcProxy,
-    ...personSearchRoutes
+    ...personSearchRoutes,
+    ...goidRoutes
   ]
 
   return routes

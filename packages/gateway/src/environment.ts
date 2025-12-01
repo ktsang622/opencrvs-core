@@ -37,6 +37,7 @@ export const env = cleanEnv(process.env, {
   TOPPAN_SERVICE_URL: url({ devDefault: 'http://localhost:3888' }),
   TOPPAN_FAMILY_TREE_URL: url({ devDefault: 'http://localhost:3889' }),
   CERTIFICATE_SERVICE_URL: url({ devDefault: 'http://localhost:3890' }),
+  GOID_SERVICE_URL: url({ devDefault: 'http://localhost:3999' }),
   DISABLE_RATE_LIMIT: bool({
     devDefault: true,
     default: false,
