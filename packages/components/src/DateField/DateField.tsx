@@ -107,7 +107,15 @@ export const DateField = ({
       const updatedValue = { ...date, [segmentType]: val }
       setDate(updatedValue)
 
-      onChange(`${updatedValue.yyyy}-${updatedValue.mm}-${updatedValue.dd}`)
+      // Pad month and day with leading zeros for consistent YYYY-MM-DD format
+      // This ensures cross-browser compatibility (Safari is strict about date formats)
+      // Only pad non-empty values to avoid creating invalid dates like '-00-00'
+      const padded = {
+        yyyy: updatedValue.yyyy,
+        mm: updatedValue.mm ? updatedValue.mm.padStart(2, '0') : '',
+        dd: updatedValue.dd ? updatedValue.dd.padStart(2, '0') : ''
+      }
+      onChange(`${padded.yyyy}-${padded.mm}-${padded.dd}`)
     }
   }
 
