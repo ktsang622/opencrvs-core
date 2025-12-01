@@ -24,6 +24,7 @@ export const goidRoutes: ServerRoute[] = [
     path: '/api/goid/verify',
     handler: goidVerifyHandler,
     options: {
+      auth: false,
       tags: ['api'],
       description: 'Verify identity via goID service',
       validate: {

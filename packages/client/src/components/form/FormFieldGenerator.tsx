@@ -98,9 +98,12 @@ import {
   ILocationSearchInputFormField,
   LOADER,
   EXT_LOOKUP_BUTTON,
-  IPersonPicker
+  IPersonPicker,
+  GOID_VERIFY_BUTTON,
+  IGoIDVerifyButton
 } from '@client/forms'
 import { ExtLookupButtonField } from '@client/components/form/PersonPicker'
+import { GoIDVerifyButtonField } from '@client/components/form/GoIDVerifyButton'
 import { UnlinkButton } from '@client/components/form/UnlinkButton'
 import { getValidationErrorsForForm, Errors } from '@client/forms/validation'
 import { InputField } from '@client/components/form/InputField'
@@ -751,6 +754,40 @@ const GeneratedInputField = React.memo<GeneratedInputFieldProps>(
               : intl.formatMessage(personSearchField.modalTitle)
           }
           onPersonSelect={personSearchField.onPersonSelect}
+          isDisabled={disabled}
+        />
+      )
+    }
+
+    if (fieldDefinition.type === GOID_VERIFY_BUTTON) {
+      const goidField = fieldDefinition as IGoIDVerifyButton
+      return (
+        <GoIDVerifyButtonField
+          id={goidField.name}
+          label={
+            typeof goidField.label === 'string'
+              ? goidField.label
+              : intl.formatMessage(goidField.label)
+          }
+          modalTitle={
+            typeof goidField.modalTitle === 'string'
+              ? goidField.modalTitle
+              : intl.formatMessage(goidField.modalTitle)
+          }
+          successTitle={
+            goidField.successTitle
+              ? typeof goidField.successTitle === 'string'
+                ? goidField.successTitle
+                : intl.formatMessage(goidField.successTitle)
+              : undefined
+          }
+          errorTitle={
+            goidField.errorTitle
+              ? typeof goidField.errorTitle === 'string'
+                ? goidField.errorTitle
+                : intl.formatMessage(goidField.errorTitle)
+              : undefined
+          }
           isDisabled={disabled}
         />
       )

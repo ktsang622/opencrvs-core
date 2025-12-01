@@ -116,6 +116,9 @@ const LoaderField = base.extend({ type: z.literal('LOADER') })
 const ExtLookupButtonField = base.extend({
   type: z.literal('EXT_LOOKUP_BUTTON')
 })
+const GoIDVerifyButtonField = base.extend({
+  type: z.literal('GOID_VERIFY_BUTTON')
+})
 
 // completed types
 const HttpField = base.extend({
@@ -177,7 +180,8 @@ export const field = z.discriminatedUnion('type', [
   IDReaderField,
   BannerField,
   LoaderField,
-  ExtLookupButtonField
+  ExtLookupButtonField,
+  GoIDVerifyButtonField
 ])
 
 type Field = z.infer<typeof field>

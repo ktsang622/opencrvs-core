@@ -82,6 +82,7 @@ export const ID_READER = 'ID_READER'
 export const ID_VERIFICATION_BANNER = 'ID_VERIFICATION_BANNER'
 export const LOADER = 'LOADER'
 export const EXT_LOOKUP_BUTTON = 'EXT_LOOKUP_BUTTON'
+export const GOID_VERIFY_BUTTON = 'GOID_VERIFY_BUTTON'
 
 export enum SubmissionAction {
   SUBMIT_FOR_REVIEW = 'submit for review',
@@ -713,6 +714,15 @@ export interface IPersonPicker extends IFormFieldBase {
   onPersonSelect?: (person: any) => void
 }
 
+export interface IGoIDVerifyButton extends IFormFieldBase {
+  type: typeof GOID_VERIFY_BUTTON
+  modalTitle: MessageDescriptor
+  successTitle?: MessageDescriptor
+  errorTitle?: MessageDescriptor
+  queryMap?: any
+  querySelectorInput?: any
+}
+
 interface ITimeFormFIeld extends IFormFieldBase {
   type: typeof TIME
   ignorePlaceHolder?: boolean
@@ -829,6 +839,7 @@ export type IFormField =
   | IDynamicListFormField
   | ILoaderButton
   | IPersonPicker
+  | IGoIDVerifyButton
   | ISimpleDocumentUploaderFormField
   | ILocationSearchInputFormField
   | IDateRangePickerFormField
@@ -1272,6 +1283,13 @@ interface Ii18nPersonPickerField extends Ii18nFormFieldBase {
   onPersonSelect?: (person: any) => void
 }
 
+interface Ii18nGoIDVerifyButtonField extends Ii18nFormFieldBase {
+  type: typeof GOID_VERIFY_BUTTON
+  modalTitle: string
+  successTitle?: string
+  errorTitle?: string
+}
+
 interface I18nDividerField extends Ii18nFormFieldBase {
   type: typeof DIVIDER
 }
@@ -1374,6 +1392,7 @@ export type Ii18nFormField =
   | Ii18nLinkField
   | Ii18nLoaderButtonField
   | Ii18nPersonPickerField
+  | Ii18nGoIDVerifyButtonField
   | Ii18nSimpleDocumentUploaderFormField
   | Ii18nLocationSearchInputFormField
   | Ii18nDateRangePickerFormField

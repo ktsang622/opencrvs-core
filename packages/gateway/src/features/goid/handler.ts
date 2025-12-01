@@ -26,7 +26,8 @@ interface GoIDVerifyResponse {
     gender: string
     birthDate: string
     nationality: string
-    nationalId: string
+    idType: string
+    idNumber: string
   }
   error?: string
 }
