@@ -8,8 +8,12 @@ pipeline {
     }
 
     environment {
-        // Version (git hash or custom)
+        // Version (auto-derived or custom)
         VERSION = ""
+
+        // Base version for auto-increment (e.g., "demo-1.8.0" → "demo-1.8.0.42")
+        // Set this in Jenkins job config or leave empty to use git hash
+        BASE_VERSION = "${env.BASE_VERSION ?: ''}"
 
         // Registry settings
         LOCAL_REGISTRY = "toppancrvs"
@@ -70,20 +74,48 @@ pipeline {
             defaultValue: '',
             description: 'Custom version tag (leave empty for git hash)'
         )
+        booleanParam(
+            name: 'PER_MODULE_VERSION',
+            defaultValue: true,
+            description: 'Each module gets its own build number (e.g., gateway:demo-1.8.0.3, client:demo-1.8.0.5)'
+        )
     }
 
     stages {
         stage('Initialize') {
             steps {
                 script {
-                    // Set version from git hash or custom parameter
+                    // Version strategy:
+                    // 1. CUSTOM_VERSION parameter: Use exactly as provided (e.g., "v1.8.0-rc1")
+                    // 2. Git tag on current commit: Use tag name (e.g., "v1.8.0")
+                    // 3. BASE_VERSION + BUILD_NUMBER: Auto-increment (e.g., "demo-1.8.0.42")
+                    // 4. Fallback: git hash (e.g., "a1b2c3d")
+
                     if (params.CUSTOM_VERSION) {
                         env.VERSION = params.CUSTOM_VERSION
+                        env.VERSION_SOURCE = 'custom'
                     } else {
-                        env.VERSION = sh(
-                            script: 'git log -1 --pretty=format:%h',
+                        // Check for git tag on current commit
+                        def gitTag = sh(
+                            script: 'git describe --tags --exact-match 2>/dev/null || echo ""',
                             returnStdout: true
                         ).trim()
+
+                        if (gitTag) {
+                            env.VERSION = gitTag
+                            env.VERSION_SOURCE = 'git-tag'
+                        } else if (env.BASE_VERSION) {
+                            // Use BASE_VERSION + BUILD_NUMBER for auto-increment
+                            env.VERSION = "${env.BASE_VERSION}.${env.BUILD_NUMBER}"
+                            env.VERSION_SOURCE = 'build-number'
+                        } else {
+                            // Fallback to git hash
+                            env.VERSION = sh(
+                                script: 'git log -1 --pretty=format:%h',
+                                returnStdout: true
+                            ).trim()
+                            env.VERSION_SOURCE = 'git-hash'
+                        }
                     }
 
                     // Update docker.env with VERSION
@@ -94,7 +126,8 @@ pipeline {
                     echo "========================================"
                     echo "OpenCRVS Build Pipeline"
                     echo "========================================"
-                    echo "Version:        ${env.VERSION}"
+                    echo "Version:        ${env.VERSION} (${env.VERSION_SOURCE})"
+                    echo "Build Number:   ${env.BUILD_NUMBER}"
                     echo "Local Registry: ${env.LOCAL_REGISTRY}"
                     echo "ECR Registry:   ${env.ECR_REGISTRY}/${env.ECR_REPO_PREFIX}"
                     echo "AWS Region:     ${env.AWS_REGION}"
@@ -135,29 +168,28 @@ pipeline {
                         env.SELECTED_SERVICES = params.MANUAL_SERVICES
                         echo "Build Plan: SELECTIVE - ${params.MANUAL_SERVICES}"
                     } else {
-                        // Smart mode - detect changes
-                        def changedServices = sh(
+                        // Smart mode - detect changes using improved detection script
+                        // Capture output and exit code in single call
+                        def detectOutput = sh(
                             script: '''
-                                if [ -f ".last_build_commit" ]; then
-                                    LAST=$(cat .last_build_commit)
-                                    git diff --name-only $LAST...HEAD 2>/dev/null | \
-                                        grep "^packages/" | \
-                                        cut -d'/' -f2 | \
-                                        sort -u | \
-                                        tr '\\n' ','
-                                else
-                                    echo "all"
-                                fi
+                                set +e
+                                OUTPUT=$(./scripts/detect-changes.sh 2>/dev/null)
+                                EXIT_CODE=$?
+                                echo "${EXIT_CODE}:${OUTPUT}"
                             ''',
                             returnStdout: true
                         ).trim()
 
-                        if (changedServices == 'all' || changedServices.contains('commons') || changedServices.contains('components')) {
+                        def parts = detectOutput.split(':', 2)
+                        def exitCode = parts[0].toInteger()
+                        def changedServices = parts.length > 1 ? parts[1] : ''
+
+                        if (exitCode == 2 || changedServices == 'all') {
                             env.BUILD_PLAN = 'all'
-                            echo "Build Plan: ALL (first build or commons/components changed)"
-                        } else if (changedServices) {
+                            echo "Build Plan: ALL (shared dependencies or root config changed)"
+                        } else if (exitCode == 0 && changedServices) {
                             env.BUILD_PLAN = 'selective'
-                            env.SELECTED_SERVICES = changedServices.replaceAll(',\$', '')
+                            env.SELECTED_SERVICES = changedServices
                             echo "Build Plan: SMART detected changes in: ${env.SELECTED_SERVICES}"
                         } else {
                             env.BUILD_PLAN = 'none'
@@ -394,17 +426,36 @@ def buildTier(String tierName, List<String> services, boolean isExternal = false
         return
     }
 
-    echo "Building ${tierName}: ${servicesToBuild.join(', ')}"
-
     def buildArgs = params.NO_CACHE ? '--no-cache' : ''
-    def seqArgs = params.SEQUENTIAL_BUILD ? '--sequential' : ''
-    def serviceList = servicesToBuild.join(' ')
 
-    sh """
-        export VERSION=${env.VERSION}
-        export REGISTRY=${env.LOCAL_REGISTRY}
-        ./scripts/build-docker-compose.sh ${buildArgs} ${seqArgs} ${serviceList}
-    """
+    // Build each service sequentially with per-module versioning
+    echo "Building ${tierName} SEQUENTIALLY: ${servicesToBuild.join(', ')}"
+    for (service in servicesToBuild) {
+        // Get next version for this specific module
+        def moduleVersion = env.VERSION  // Default to global version
 
-    echo "${tierName} built successfully"
+        if (env.BASE_VERSION && params.PER_MODULE_VERSION) {
+            // Per-module versioning: query ECR for next build number
+            moduleVersion = sh(
+                script: """
+                    ./scripts/get-next-version.sh ${service} ${env.BASE_VERSION} 2>/dev/null || echo "${env.VERSION}"
+                """,
+                returnStdout: true
+            ).trim()
+        }
+
+        echo "  → Building: ${service} (version: ${moduleVersion})"
+        sh """
+            export VERSION=${moduleVersion}
+            export REGISTRY=${env.LOCAL_REGISTRY}
+            ./scripts/build-docker-compose.sh ${buildArgs} --sequential ${service}
+        """
+
+        // Track module version for push stage
+        env."MODULE_VERSION_${service.toUpperCase().replace('-', '_')}" = moduleVersion
+
+        echo "  ✓ ${service}:${moduleVersion} built"
+    }
+
+    echo "${tierName} completed successfully"
 }
