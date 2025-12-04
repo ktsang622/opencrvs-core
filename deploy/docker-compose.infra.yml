@@ -1,0 +1,183 @@
+# Infrastructure Services - Country-specific data volumes
+# Start after proxy, before cloud services
+#
+# Usage:
+#   COUNTRY=atg docker compose -f docker-compose.infra.yml up -d
+#   docker compose -f docker-compose.infra.yml up -d  # Default (toppan)
+#
+# Data path resolves to:
+#   COUNTRY not set  -> ./data/
+#   COUNTRY=atg      -> ./data-atg/
+#   COUNTRY=mdv      -> ./data-mdv/
+
+networks:
+  default:
+    name: opencrvs-network
+
+services:
+  # ============================================
+  # MongoDB (Primary Database)
+  # ============================================
+  mongo1:
+    image: mongo:4.4
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/mongo:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=hearth-dev
+    ports:
+      - "27017:27017"
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo mongo1:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # Redis (Cache & Session Store)
+  # ============================================
+  redis:
+    image: docker.io/bitnami/redis:8.0
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/redis:/bitnami/redis/data
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # OpenSearch (Search Engine)
+  # ============================================
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/opensearch:/usr/share/opensearch/data
+    environment:
+      - cluster.name=opencrvs-cluster
+      - node.name=opensearch-node1
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - plugins.security.disabled=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -q '\"status\":\"green\"\\|\"status\":\"yellow\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # OpenSearch Init (runs once after opensearch is healthy)
+  opensearch-init:
+    image: curlimages/curl:latest
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    volumes:
+      - ./init/opensearch:/init:ro
+    entrypoint: ["/bin/sh", "/init/init-opensearch.sh"]
+    restart: "no"
+
+  # ============================================
+  # PostgreSQL (Events V2, Person Registry, GoID)
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/postgres:/var/lib/postgresql/data
+      - ./init/pgsql:/docker-entrypoint-initdb.d:ro
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-opencrvs}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # InfluxDB (Time Series Metrics)
+  # ============================================
+  influxdb:
+    image: influxdb:1.8.10
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/influxdb:/var/lib/influxdb
+    environment:
+      - INFLUXDB_DB=ocrvs
+      - INFLUXDB_ADMIN_USER=admin
+      - INFLUXDB_ADMIN_PASSWORD=admin
+    ports:
+      - "8086:8086"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # MinIO (Object Storage - S3 Compatible)
+  # ============================================
+  minio:
+    image: quay.io/minio/minio:RELEASE.2023-09-16T01-01-47Z.fips
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/minio:/data
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ============================================
+  # Hearth (FHIR Server)
+  # ============================================
+  hearth:
+    image: opencrvs/hearth:1.1.0
+    restart: unless-stopped
+    environment:
+      - mongodb__url=mongodb://mongo1/hearth-dev
+      - logger__level=warn
+      - authentication__type=disabled
+      - idGenerator=uuidv4
+      - server__fhirVersion=stu3
+    depends_on:
+      mongo1:
+        condition: service_healthy
+    ports:
+      - "3447:3447"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3447/fhir/Patient"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s

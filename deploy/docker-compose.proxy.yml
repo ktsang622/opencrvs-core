@@ -1,0 +1,36 @@
+# Traefik Reverse Proxy - Shared across all countries
+# Start once, never restart when switching countries
+#
+# Usage:
+#   docker compose -f docker-compose.proxy.yml up -d
+
+networks:
+  default:
+    name: opencrvs-network
+
+services:
+  traefik:
+    image: traefik:v2.11
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=opencrvs-network"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.httpchallenge.acme.httpchallenge=true"
+      - "--certificatesresolvers.httpchallenge.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.httpchallenge.acme.email=${ACME_EMAIL:-admin@example.com}"
+      - "--certificatesresolvers.httpchallenge.acme.storage=/letsencrypt/acme.json"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"  # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/letsencrypt:/letsencrypt
+    labels:
+      - "traefik.enable=true"

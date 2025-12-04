@@ -1,0 +1,370 @@
+# Application Services - Country-specific configuration
+# Start after infra services are healthy
+#
+# Usage:
+#   COUNTRY=atg docker compose -f docker-compose.cloud.yml up -d
+#   docker compose -f docker-compose.cloud.yml up -d  # Default (toppan)
+#
+# Image/data path resolves based on COUNTRY:
+#   COUNTRY not set  -> countryconfig:v1, ./data/
+#   COUNTRY=atg      -> countryconfig-atg:v1, ./data-atg/
+#   COUNTRY=mdv      -> countryconfig-mdv:v1, ./data-mdv/
+
+x-common-labels: &common-labels
+  traefik.enable: "true"
+  traefik.docker.network: "opencrvs-network"
+
+x-domain-env: &domain-env
+  DOMAIN: ${DOMAIN:-opencrvs.ktsang.com}
+  CLIENT_APP_URL: https://register.${DOMAIN:-opencrvs.ktsang.com}
+  LOGIN_URL: https://login.${DOMAIN:-opencrvs.ktsang.com}
+  COUNTRY_CONFIG_URL: http://countryconfig:3040
+  COUNTRY: ${COUNTRY_CODE:-FAR}
+  LANGUAGES: ${LANGUAGES:-en}
+
+networks:
+  default:
+    name: opencrvs-network
+
+services:
+  # ============================================
+  # Tier 1 - Base Services
+  # ============================================
+
+  countryconfig:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/countryconfig${COUNTRY:+-$COUNTRY}:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    volumes:
+      # Optional: mount local config for quick testing
+      # - ./data${COUNTRY:+-$COUNTRY}/countryconfig/src:/usr/src/app/src:ro
+      - ./secrets:/secrets:ro
+    environment:
+      NODE_ENV: production
+      QA_ENV: "true"
+      HOST: 0.0.0.0
+      DOMAIN: ${DOMAIN:-opencrvs.ktsang.com}
+      COUNTRY: ${COUNTRY_CODE:-FAR}
+      LANGUAGES: ${LANGUAGES:-en}
+      COUNTRY_CONFIG_URL: http://countryconfig:3040
+      CLIENT_APP_URL: https://register.${DOMAIN:-opencrvs.ktsang.com}
+      LOGIN_URL: https://login.${DOMAIN:-opencrvs.ktsang.com}
+      FHIR_URL: http://hearth:3447/fhir
+      AUTH_URL: http://auth:4040
+      APPLICATION_CONFIG_URL: http://config:2021
+      GATEWAY_URL: http://gateway:7070
+      CONFIRM_REGISTRATION_URL: https://login.${DOMAIN:-opencrvs.ktsang.com}
+      CERTIFICATE_SERVICE_URL: http://toppan-certificate:3890
+    labels:
+      <<: *common-labels
+      traefik.http.routers.countryconfig.rule: Host(`countryconfig.${DOMAIN:-opencrvs.ktsang.com}`)
+      traefik.http.routers.countryconfig.entrypoints: websecure
+      traefik.http.routers.countryconfig.tls: "true"
+      traefik.http.routers.countryconfig.tls.certresolver: httpchallenge
+      traefik.http.services.countryconfig.loadbalancer.server.port: "3040"
+
+  auth:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/auth:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      QA_ENV: "true"
+      REDIS_HOST: redis
+      USER_MANAGEMENT_URL: http://user-mgnt:3030/
+      CONFIG_TOKEN_EXPIRY_SECONDS: "604800"
+      CONFIG_SMS_CODE_EXPIRY_SECONDS: "600"
+      NOTIFICATION_SERVICE_URL: http://notification:2020/
+      METRICS_URL: http://metrics:1050
+      COUNTRY_CONFIG_URL_INTERNAL: http://countryconfig:3040
+      CERT_PRIVATE_KEY_PATH: /secrets/private-key.pem
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+    labels:
+      <<: *common-labels
+      traefik.http.routers.auth.rule: Host(`auth.${DOMAIN:-opencrvs.ktsang.com}`)
+      traefik.http.routers.auth.entrypoints: websecure
+      traefik.http.routers.auth.tls: "true"
+      traefik.http.routers.auth.tls.certresolver: httpchallenge
+      traefik.http.services.auth.loadbalancer.server.port: "4040"
+
+  # ============================================
+  # Tier 2 - Core Services
+  # ============================================
+
+  notification:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/notification:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      USER_MANAGEMENT_URL: http://user-mgnt:3030/
+      MONGO_URL: mongodb://mongo1/notification
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+
+  user-mgnt:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/user-mgnt:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+      - auth
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      MONGO_URL: mongodb://mongo1/user-mgnt
+      NOTIFICATION_SERVICE_URL: http://notification:2020/
+      HOST: 0.0.0.0
+      METRICS_URL: http://metrics:1050
+      FHIR_URL: http://hearth:3447/fhir
+      APPLICATION_CONFIG_URL: http://config:2021/
+      DOCUMENTS_URL: http://documents:9050
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+
+  documents:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/documents:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+      MINIO_HOST: minio
+      MINIO_PORT: "9000"
+      MINIO_URL: minio.${DOMAIN:-opencrvs.ktsang.com}
+      MINIO_PROTOCOL: "https:"
+      MINIO_BUCKET: ocrvs
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - ./secrets:/secrets:ro
+
+  # ============================================
+  # Tier 3 - Business Services
+  # ============================================
+
+  config:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/config:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      MONGO_URL: mongodb://mongo1/application-config
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+
+  workflow:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/workflow:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+      - auth
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+      NOTIFICATION_SERVICE_URL: http://notification:2020/
+      COUNTRY_CONFIG_URL_INTERNAL: http://countryconfig:3040
+      APPLICATION_CONFIG_URL: http://config:2021
+      HEARTH_URL: http://hearth:3447/fhir
+      OPENHIM_URL: http://openhim-core:5001/fhir
+      VALIDATING_URL: http://events:3535/events
+      SEARCH_URL: http://search:9090/
+      METRICS_URL: http://metrics:1050
+    volumes:
+      - ./secrets:/secrets:ro
+
+  search:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/search:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      ES_HOST: opensearch:9200
+      HEARTH_URL: http://hearth:3447/fhir
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+
+  metrics:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/metrics:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      INFLUX_HOST: influxdb
+      INFLUX_PORT: "8086"
+      INFLUX_DB: ocrvs
+      HEARTH_URL: http://hearth:3447/fhir
+      SEARCH_URL: http://search:9090/
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+      COUNTRY_CONFIG_URL_INTERNAL: http://countryconfig:3040
+    volumes:
+      - ./secrets:/secrets:ro
+
+  webhooks:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/webhooks:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+      - auth
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      REDIS_HOST: redis
+      MONGO_URL: mongodb://mongo1/webhooks
+      AUTH_URL: http://auth:4040
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+
+  scheduler:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/scheduler:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      OPENHIM_URL: http://openhim-core:5001
+    volumes:
+      - ./secrets:/secrets:ro
+
+  events:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/events:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/events
+      ES_HOST: opensearch:9200
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+    volumes:
+      - ./secrets:/secrets:ro
+
+  # ============================================
+  # Tier 4 - API Gateway
+  # ============================================
+
+  gateway:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/gateway:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+      - auth
+      - user-mgnt
+      - workflow
+    environment:
+      <<: *domain-env
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      CERT_PUBLIC_KEY_PATH: /secrets/public-key.pem
+      AUTH_URL: http://auth:4040
+      USER_MANAGEMENT_URL: http://user-mgnt:3030/
+      NOTIFICATION_URL: http://notification:2020/
+      WORKFLOW_URL: http://workflow:5050/
+      SEARCH_URL: http://search:9090/
+      METRICS_URL: http://metrics:1050/
+      HEARTH_URL: http://hearth:3447/fhir
+      CONFIG_URL: http://config:2021/
+      DOCUMENTS_URL: http://documents:9050/
+      WEBHOOKS_URL: http://webhooks:2525/
+      COUNTRY_CONFIG_URL_INTERNAL: http://countryconfig:3040
+      GOID_URL: http://goid-service:3999
+    volumes:
+      - ./secrets:/secrets:ro
+    labels:
+      <<: *common-labels
+      traefik.http.routers.gateway.rule: Host(`gateway.${DOMAIN:-opencrvs.ktsang.com}`)
+      traefik.http.routers.gateway.entrypoints: websecure
+      traefik.http.routers.gateway.tls: "true"
+      traefik.http.routers.gateway.tls.certresolver: httpchallenge
+      traefik.http.services.gateway.loadbalancer.server.port: "7070"
+
+  # ============================================
+  # Tier 5 - Frontend
+  # ============================================
+
+  client:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/client:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+      - gateway
+    environment:
+      NODE_ENV: production
+      COUNTRY_CONFIG_URL_INTERNAL: http://countryconfig:3040
+      GATEWAY_URL_INTERNAL: http://gateway:7070
+      CONTENT_SECURITY_POLICY_WILDCARD: "*.${DOMAIN:-opencrvs.ktsang.com}"
+    labels:
+      <<: *common-labels
+      traefik.http.routers.client.rule: Host(`register.${DOMAIN:-opencrvs.ktsang.com}`)
+      traefik.http.routers.client.entrypoints: websecure
+      traefik.http.routers.client.tls: "true"
+      traefik.http.routers.client.tls.certresolver: httpchallenge
+      traefik.http.services.client.loadbalancer.server.port: "80"
+
+  login:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/login:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    depends_on:
+      - countryconfig
+    environment:
+      NODE_ENV: production
+      COUNTRY_CONFIG_URL_INTERNAL: http://countryconfig:3040
+    labels:
+      <<: *common-labels
+      traefik.http.routers.login.rule: Host(`login.${DOMAIN:-opencrvs.ktsang.com}`)
+      traefik.http.routers.login.entrypoints: websecure
+      traefik.http.routers.login.tls: "true"
+      traefik.http.routers.login.tls.certresolver: httpchallenge
+      traefik.http.services.login.loadbalancer.server.port: "80"
+
+  # ============================================
+  # Dashboards (Metabase)
+  # ============================================
+
+  dashboards:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/dashboards:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    volumes:
+      - ./data${COUNTRY:+-$COUNTRY}/dashboards:/data/metabase
+    environment:
+      MB_DB_FILE: /data/metabase/metabase.db
+    labels:
+      <<: *common-labels
+      traefik.http.routers.dashboards.rule: Host(`dashboard.${DOMAIN:-opencrvs.ktsang.com}`)
+      traefik.http.routers.dashboards.entrypoints: websecure
+      traefik.http.routers.dashboards.tls: "true"
+      traefik.http.routers.dashboards.tls.certresolver: httpchallenge
+      traefik.http.services.dashboards.loadbalancer.server.port: "4444"
+
+  # ============================================
+  # GoID Service (Optional)
+  # ============================================
+
+  goid-service:
+    image: ${ECR_REGISTRY:-695491315778.dkr.ecr.ap-east-1.amazonaws.com/toppancrvs}/goid-service:${VERSION:-demo-1.8.0}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://registry_user:registry_pass@postgres:5432/goid
+      PORT: "3999"
+      CORS_ORIGIN: "https://register.${DOMAIN:-opencrvs.ktsang.com}"
