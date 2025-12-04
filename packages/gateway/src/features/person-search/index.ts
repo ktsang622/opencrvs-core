@@ -22,7 +22,6 @@ export const personSearchRoutes: ServerRoute[] = [
     path: '/person-search',
     handler: searchPersonHandler,
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Search for persons via family-tree API'
     }
@@ -32,7 +31,6 @@ export const personSearchRoutes: ServerRoute[] = [
     path: '/person-search/detailed',
     handler: detailedPersonSearchHandler,
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Search for persons with detailed data via family-tree API'
     }
@@ -46,7 +44,6 @@ export const personSearchRoutes: ServerRoute[] = [
         passThrough: true
       }),
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Get person events via family-tree API'
     }
@@ -60,7 +57,6 @@ export const personSearchRoutes: ServerRoute[] = [
         passThrough: true
       }),
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Get person relationships via family-tree API'
     }
@@ -74,7 +70,6 @@ export const personSearchRoutes: ServerRoute[] = [
         passThrough: true
       }),
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Get event participants via family-tree API'
     }
@@ -88,7 +83,6 @@ export const personSearchRoutes: ServerRoute[] = [
         passThrough: true
       }),
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Initialize family tree'
     }
@@ -102,7 +96,6 @@ export const personSearchRoutes: ServerRoute[] = [
         passThrough: true
       }),
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Expand family tree node',
       payload: {
@@ -120,7 +113,6 @@ export const personSearchRoutes: ServerRoute[] = [
         passThrough: true
       }),
     options: {
-      auth: false as const,
       tags: ['api'],
       description: 'Get person ID from event ID and role'
     }

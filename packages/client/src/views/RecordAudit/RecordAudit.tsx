@@ -290,8 +290,8 @@ function RecordAuditBody({
     draft?.downloadStatus === DOWNLOAD_STATUS.DOWNLOADED ||
     draft?.submissionStatus === SUBMISSION_STATUS.DRAFT
 
-  // Only show View Person button if event is registered
-  if (declaration.status === SUBMISSION_STATUS.REGISTERED) {
+  // Only show View Person button if event is registered AND record is downloaded/assigned
+  if (isDownloaded && declaration.status === SUBMISSION_STATUS.REGISTERED) {
     actions.push(
       <ViewPersonButton key="view-person" declaration={declaration} />
     )
