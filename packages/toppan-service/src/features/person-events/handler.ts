@@ -8,6 +8,14 @@ const pool = new Pool({
   database: TOPPAN_DB_NAME,
   password: TOPPAN_DB_PASSWORD,
   port: TOPPAN_DB_PORT,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+// Handle pool errors to prevent crashes
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err);
 });
 
 export const personEventsHandler = async (request: Request, h: ResponseToolkit) => {

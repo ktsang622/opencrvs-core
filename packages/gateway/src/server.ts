@@ -21,7 +21,8 @@ import {
   HOST,
   HOSTNAME,
   LOGIN_URL,
-  PORT
+  PORT,
+  TOPPAN_APP_URL
 } from '@gateway/constants'
 import * as Hapi from '@hapi/hapi'
 import { logger, validateFunc } from '@opencrvs/commons'
@@ -40,7 +41,7 @@ const publicCert = readFileSync(CERT_PUBLIC_KEY_PATH)
 export async function createServer() {
   let whitelist: string[] = [HOSTNAME]
   if (HOSTNAME[0] !== '*') {
-    whitelist = [LOGIN_URL, CLIENT_APP_URL]
+    whitelist = [LOGIN_URL, CLIENT_APP_URL, TOPPAN_APP_URL]
   }
   logger.info(`Whitelist: ${JSON.stringify(whitelist)}`)
   const app = new Hapi.Server({

@@ -53,6 +53,20 @@ export const personSearchRoutes: ServerRoute[] = [
   },
   {
     method: 'GET',
+    path: '/person/{personId}/relationships',
+    handler: async (req, h) =>
+      h.proxy({
+        uri: `${TOPPAN_SERVICE_URL}/person/${req.params.personId}/relationships`,
+        passThrough: true
+      }),
+    options: {
+      auth: false as const,
+      tags: ['api'],
+      description: 'Get person relationships via family-tree API'
+    }
+  },
+  {
+    method: 'GET',
     path: '/event/{eventId}/participants',
     handler: async (req, h) =>
       h.proxy({
