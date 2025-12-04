@@ -18,12 +18,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_ENV_FILE="${COMPOSE_ENV_FILE:-${PROJECT_ROOT}/docker.env}"
 
+# Save exported VERSION before loading env file (exported values take precedence)
+_SAVED_VERSION="${VERSION:-}"
+
 if [ -f "$COMPOSE_ENV_FILE" ]; then
     echo -e "${BLUE}📄 Loading environment from: ${COMPOSE_ENV_FILE}${NC}"
     # Export variables from env file (skip comments and empty lines)
     set -a
     source "$COMPOSE_ENV_FILE"
     set +a
+fi
+
+# Restore exported VERSION if it was set (takes precedence over docker.env)
+if [ -n "$_SAVED_VERSION" ]; then
+    VERSION="$_SAVED_VERSION"
 fi
 
 # AWS CLI path
@@ -39,7 +47,7 @@ ECR_REGISTRY="${ECR_REGISTRY:-${AWS_ACCOUNT}.dkr.ecr.${AWS_REGION}.amazonaws.com
 ECR_REPO_PREFIX="${ECR_REPO_PREFIX:-toppancrvs}"
 
 # Version and registry settings (from docker.env or defaults)
-VERSION="${VERSION:-demo-1.8.0}"
+VERSION="${VERSION:-demo-1.8.0.1}"
 LOCAL_REGISTRY="${DOCKER_REGISTRY:-${REGISTRY:-toppancrvs}}"
 
 # All available services (in push order)

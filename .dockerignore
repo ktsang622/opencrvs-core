@@ -8,3 +8,4 @@ data
 data-*
 grafana
 .git
+logs/

@@ -47,4 +47,9 @@ archive
 *.csv
 *.pid
 logs/test-output/
-logs/
+logs/**/
+
+.agent/**
+.amazonq/**
+.claude/**
+.gemini/**
