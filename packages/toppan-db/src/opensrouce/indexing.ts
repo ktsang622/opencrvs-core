@@ -10,16 +10,21 @@ const opensearchClient = new Client({
   auth: {
     username: 'admin',
     password: process.env.OPENSEARCH_ADMIN_PASSWORD || 'WelcomeDemo1.23@'
-  }
+  },
+  requestTimeout: 60000, // 60 seconds timeout for bulk operations
+  maxRetries: 3
 })
 
-const pool = new Pool({
-  host: process.env.TOPPAN_DB_HOST || 'localhost',
-  port: parseInt(process.env.TOPPAN_DB_PORT || '5432'),
-  database: process.env.TOPPAN_DB_NAME || 'person_registry',
-  user: process.env.TOPPAN_DB_USER || 'registry_user',
-  password: process.env.TOPPAN_DB_PASSWORD || 'registry_pass'
-})
+// Support DATABASE_URL (Docker/production) or individual env vars (development)
+const pool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  : new Pool({
+      host: process.env.TOPPAN_DB_HOST || 'localhost',
+      port: parseInt(process.env.TOPPAN_DB_PORT || '5432'),
+      database: process.env.TOPPAN_DB_NAME || 'person_registry',
+      user: process.env.TOPPAN_DB_USER || 'registry_user',
+      password: process.env.TOPPAN_DB_PASSWORD || 'registry_pass'
+    })
 
 function calculateAge(dob: string): number {
   const birth = new Date(dob)
@@ -59,6 +64,10 @@ export async function indexPersonDb(): Promise<{ success: boolean; indexed: numb
 
       if (persons.length > 0) {
         const bulkOps = persons.flatMap((person) => {
+          // Parse identifiers JSON
+          // NOTE: Identifiers may contain a "_source" field with value "external" to indicate
+          // entries managed by the person_external_id table (GoID, NID, Passport integrations).
+          // This field is safe to ignore in search queries and UI display.
           let identifiers = []
           try {
             if (person.identifiers && typeof person.identifiers === 'string') {

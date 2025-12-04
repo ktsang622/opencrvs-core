@@ -107,15 +107,25 @@ export const DateField = ({
       const updatedValue = { ...date, [segmentType]: val }
       setDate(updatedValue)
 
-      // Pad month and day with leading zeros for consistent YYYY-MM-DD format
-      // This ensures cross-browser compatibility (Safari is strict about date formats)
-      // Only pad non-empty values to avoid creating invalid dates like '-00-00'
-      const padded = {
-        yyyy: updatedValue.yyyy,
-        mm: updatedValue.mm ? updatedValue.mm.padStart(2, '0') : '',
-        dd: updatedValue.dd ? updatedValue.dd.padStart(2, '0') : ''
+      // Pass raw values during typing - padding happens on blur
+      onChange(`${updatedValue.yyyy}-${updatedValue.mm}-${updatedValue.dd}`)
+    }
+  }
+
+  // Pad values with leading zeros on blur for Safari compatibility
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    const segmentType = String(event.target.id.split('-').pop()) as keyof IState
+    if (!['dd', 'mm', 'yyyy'].includes(segmentType)) return
+
+    const val = date[segmentType]
+    // Only pad if there's a valid non-zero value
+    if (val && val !== '0' && (segmentType === 'dd' || segmentType === 'mm')) {
+      const paddedVal = val.padStart(2, '0')
+      if (paddedVal !== val) {
+        const updatedDate = { ...date, [segmentType]: paddedVal }
+        setDate(updatedDate)
+        onChange(`${updatedDate.yyyy}-${updatedDate.mm}-${updatedDate.dd}`)
       }
-      onChange(`${padded.yyyy}-${padded.mm}-${padded.dd}`)
     }
   }
 
@@ -142,6 +152,7 @@ export const DateField = ({
           max={31}
           value={dd}
           onChange={change}
+          onBlur={handleBlur}
           onWheel={(event: React.WheelEvent<HTMLInputElement>) => {
             event.currentTarget.blur()
           }}
@@ -162,6 +173,7 @@ export const DateField = ({
           max={12}
           value={mm}
           onChange={change}
+          onBlur={handleBlur}
           onWheel={(event: React.WheelEvent<HTMLInputElement>) => {
             event.currentTarget.blur()
           }}
@@ -180,6 +192,7 @@ export const DateField = ({
           maxLength={4}
           value={yyyy}
           onChange={change}
+          onBlur={handleBlur}
           onWheel={(event: React.WheelEvent<HTMLInputElement>) => {
             event.currentTarget.blur()
           }}

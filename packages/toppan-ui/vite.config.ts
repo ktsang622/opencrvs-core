@@ -12,5 +12,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src')
     }
-  }
+  },
+  // Expose all env vars (not just VITE_ prefixed) to the client
+  envPrefix: ['VITE_', 'TOPPAN_', 'APPLICATION_']
 })
