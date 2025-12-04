@@ -15,6 +15,11 @@ import {
   clearSyncRequestPayload,
 } from '../../database'
 import { indexPersonDb } from '@opencrvs/toppan-db'
+import {
+  parseExternalIdentifier,
+  findOrCreatePersonByExternalId,
+  isValidUuid
+} from '../external-id'
 
 /**
  * This handler mirrors the mapping used in your webhook.
@@ -97,13 +102,141 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
       // Serialize by event to prevent conflicts
       await acquireEventAdvisoryLock(mapped.eventPayload.crvs_event_uuid, tx)
 
+      // 0) Resolve external IDs (GoID, NID, etc.) - must happen first in transaction
+      let resolvedMotherPersonId = mapped.personIds.mother
+      let resolvedFatherPersonId = mapped.personIds.father
+      let shouldInsertMother = mapped.insertFlags.mother
+      let shouldInsertFather = mapped.insertFlags.father
+
+      // Resolve mother via external ID if present
+      if (mapped.externalIds.mother && mapped.parentData.mother) {
+        console.log(`🔗 Resolving mother via external ID: ${mapped.externalIds.mother.origin}:${mapped.externalIds.mother.externalId}`)
+        try {
+          const result = await findOrCreatePersonByExternalId(tx, {
+            origin: mapped.externalIds.mother.origin,
+            externalId: mapped.externalIds.mother.externalId,
+            legacyType: 'EXTERNAL_PERSON_ID',
+            isVerified: true,
+            verificationMethod: `${mapped.externalIds.mother.origin}_api`,
+            createdBy: 'toppan-birth-sync'
+          }, {
+            givenName: mapped.parentData.mother.givenName,
+            familyName: mapped.parentData.mother.familyName,
+            gender: mapped.parentData.mother.gender,
+            dob: mapped.parentData.mother.dob,
+            status: 'active',
+            // Pass FHIR identifiers (CRVS ID, NATIONAL_ID, etc.) to preserve them
+            additionalIdentifiers: mapped.parentData.mother.additionalIdentifiers
+          })
+          resolvedMotherPersonId = result.personId
+          shouldInsertMother = false // Person already exists or was created by findOrCreatePersonByExternalId
+          console.log(`   ✅ Mother resolved: personId=${result.personId}, created=${result.created}`)
+        } catch (err) {
+          console.error(`   ❌ Failed to resolve mother external ID:`, err)
+          // Fall back to regular insertion
+        }
+      }
+
+      // Resolve father via external ID if present
+      if (mapped.externalIds.father && mapped.parentData.father) {
+        console.log(`🔗 Resolving father via external ID: ${mapped.externalIds.father.origin}:${mapped.externalIds.father.externalId}`)
+        try {
+          const result = await findOrCreatePersonByExternalId(tx, {
+            origin: mapped.externalIds.father.origin,
+            externalId: mapped.externalIds.father.externalId,
+            legacyType: 'EXTERNAL_PERSON_ID',
+            isVerified: true,
+            verificationMethod: `${mapped.externalIds.father.origin}_api`,
+            createdBy: 'toppan-birth-sync'
+          }, {
+            givenName: mapped.parentData.father.givenName,
+            familyName: mapped.parentData.father.familyName,
+            gender: mapped.parentData.father.gender,
+            dob: mapped.parentData.father.dob,
+            status: 'active',
+            // Pass FHIR identifiers (CRVS ID, NATIONAL_ID, etc.) to preserve them
+            additionalIdentifiers: mapped.parentData.father.additionalIdentifiers
+          })
+          resolvedFatherPersonId = result.personId
+          shouldInsertFather = false
+          console.log(`   ✅ Father resolved: personId=${result.personId}, created=${result.created}`)
+        } catch (err) {
+          console.error(`   ❌ Failed to resolve father external ID:`, err)
+        }
+      }
+
+      // Determine which parent roles should be skipped (resolved via external ID)
+      const skipParentRoles: string[] = []
+      if (mapped.externalIds.mother && !shouldInsertMother) {
+        skipParentRoles.push('mother')
+      }
+      if (mapped.externalIds.father && !shouldInsertFather) {
+        skipParentRoles.push('father')
+      }
+
+      // Update newPersons to use resolved IDs and skip if already created
+      const filteredNewPersons = mapped.newPersons.filter((p: any) => {
+        // Skip if this person's parent role was resolved via external ID
+        if (p._parentRole && skipParentRoles.includes(p._parentRole)) {
+          console.log(`   • Skipping ${p._parentRole} person insertion (resolved via external ID)`)
+          return false
+        }
+        return true
+      }).map((p: any) => {
+        // Remove tracking field before insert
+        const { _parentRole, ...cleanPerson } = p
+        // Update person IDs if they were resolved differently
+        if (p.id === mapped.personIds.mother) {
+          return { ...cleanPerson, id: resolvedMotherPersonId }
+        }
+        if (p.id === mapped.personIds.father && resolvedFatherPersonId) {
+          return { ...cleanPerson, id: resolvedFatherPersonId }
+        }
+        return cleanPerson
+      })
+
+      // Filter newEvents - skip provisional events for externally-resolved parents
+      const filteredNewEvents = mapped.newEvents.filter((e: any) => {
+        if (e._parentRole && skipParentRoles.includes(e._parentRole)) {
+          console.log(`   • Skipping ${e._parentRole} provisional event (resolved via external ID)`)
+          return false
+        }
+        return true
+      }).map((e: any) => {
+        const { _parentRole, ...cleanEvent } = e
+        return cleanEvent
+      })
+
+      // Filter newParticipants - skip provisional participants for externally-resolved parents
+      const filteredNewParticipants = mapped.newParticipants.filter((ep: any) => {
+        if (ep._parentRole && skipParentRoles.includes(ep._parentRole)) {
+          console.log(`   • Skipping ${ep._parentRole} provisional participant (resolved via external ID)`)
+          return false
+        }
+        return true
+      }).map((ep: any) => {
+        const { _parentRole, ...cleanParticipant } = ep
+        return cleanParticipant
+      })
+
+      // Update participant payloads to use resolved person IDs
+      const participantPayloadsWithResolvedIds = mapped.participantPayloads.map(p => {
+        if (p.person_id === mapped.personIds.mother) {
+          return { ...p, person_id: resolvedMotherPersonId }
+        }
+        if (p.person_id === mapped.personIds.father && resolvedFatherPersonId) {
+          return { ...p, person_id: resolvedFatherPersonId }
+        }
+        return p
+      })
+
       // 1) Insert any provisional persons/events/participants (e.g., informant when not mother/father)
-      console.log(`📝 Inserting ${mapped.newPersons.length} provisional persons...`)
-      for (const p of mapped.newPersons) await insertPerson(p, tx)
-      console.log(`📝 Inserting ${mapped.newEvents.length} provisional events...`)
-      for (const e of mapped.newEvents) await insertEvent(e, tx)
-      console.log(`📝 Inserting ${mapped.newParticipants.length} provisional participants...`)
-      for (const ep of mapped.newParticipants) {
+      console.log(`📝 Inserting ${filteredNewPersons.length} provisional persons...`)
+      for (const p of filteredNewPersons) await insertPerson(p, tx)
+      console.log(`📝 Inserting ${filteredNewEvents.length} provisional events...`)
+      for (const e of filteredNewEvents) await insertEvent(e, tx)
+      console.log(`📝 Inserting ${filteredNewParticipants.length} provisional participants...`)
+      for (const ep of filteredNewParticipants) {
         // Idempotency: skip if this participant was already created in a previous run for the same event/person.
         if (await eventParticipantExists(ep.event_id, ep.crvs_person_id, ep.role, tx)) {
           console.log(`   • Skipping existing provisional participant (${ep.role}/${ep.crvs_person_id})`)
@@ -124,8 +257,8 @@ export async function createPersonHandler(request: Hapi.Request, h: Hapi.Respons
         throw new Error('Failed to get event database ID after insertion')
       }
 
-      // Update participant payloads with correct event_id
-      const updatedParticipants = mapped.participantPayloads.map(p => ({
+      // Update participant payloads with correct event_id (using resolved person IDs from external ID lookup)
+      const updatedParticipants = participantPayloadsWithResolvedIds.map(p => ({
         ...p,
         event_id: actualEventId
       }))
@@ -276,21 +409,68 @@ function mapBundleToSql(record: any) {
   const localChildId = randomUUID()
   const localEventId = randomUUID()
 
-  const motherExternalUuid = mother?.identifier?.find((id: any) =>
+  // Extract external person IDs from FHIR identifiers
+  const motherExternalIdRaw = mother?.identifier?.find((id: any) =>
     id.type?.coding?.some((c: any) => c.code === 'EXTERNAL_PERSON_ID')
   )?.value
 
-  const localMotherId = motherExternalUuid || randomUUID()
-  const shouldInsertMother = !motherExternalUuid
+  // Parse external ID - could be:
+  // 1. A valid UUID (legacy behavior - use directly as person ID)
+  // 2. A prefixed string like "goid:1234567890" (new behavior - lookup/create via external_id table)
+  // 3. Undefined/invalid (generate new UUID)
+  let motherExternalId: { origin: string; externalId: string } | null = null
+  let localMotherId: string
+  let shouldInsertMother: boolean
+
+  if (isValidUuid(motherExternalIdRaw)) {
+    // Legacy: external ID is a valid UUID, use it directly
+    localMotherId = motherExternalIdRaw
+    shouldInsertMother = false
+  } else if (motherExternalIdRaw) {
+    // Try to parse as prefixed external ID (e.g., "goid:1234567890")
+    const parsed = parseExternalIdentifier(motherExternalIdRaw)
+    if (parsed) {
+      motherExternalId = parsed
+      // Will be resolved in transaction via findOrCreatePersonByExternalId
+      localMotherId = randomUUID() // Placeholder - will be overwritten in transaction
+      shouldInsertMother = true // Will be determined in transaction
+    } else {
+      // Unparseable format - treat as new person
+      localMotherId = randomUUID()
+      shouldInsertMother = true
+    }
+  } else {
+    // No external ID - new person
+    localMotherId = randomUUID()
+    shouldInsertMother = true
+  }
 
   let localFatherId: string | null = null
   let shouldInsertFather = false
+  let fatherExternalId: { origin: string; externalId: string } | null = null
+
   if (hasFather) {
-    const fatherExternalUuid = father?.identifier?.find((id: any) =>
+    const fatherExternalIdRaw = father?.identifier?.find((id: any) =>
       id.type?.coding?.some((c: any) => c.code === 'EXTERNAL_PERSON_ID')
     )?.value
-    localFatherId = fatherExternalUuid || randomUUID()
-    shouldInsertFather = !fatherExternalUuid
+
+    if (isValidUuid(fatherExternalIdRaw)) {
+      localFatherId = fatherExternalIdRaw
+      shouldInsertFather = false
+    } else if (fatherExternalIdRaw) {
+      const parsed = parseExternalIdentifier(fatherExternalIdRaw)
+      if (parsed) {
+        fatherExternalId = parsed
+        localFatherId = randomUUID() // Placeholder
+        shouldInsertFather = true
+      } else {
+        localFatherId = randomUUID()
+        shouldInsertFather = true
+      }
+    } else {
+      localFatherId = randomUUID()
+      shouldInsertFather = true
+    }
   }
 
   // Generate National ID for child (10 digits)
@@ -490,7 +670,8 @@ function mapBundleToSql(record: any) {
       ]),
       status: 'review',
       created_at: now,
-      updated_at: now
+      updated_at: now,
+      _parentRole: 'mother' // Track for filtering
     })
 
     newEvents.push({
@@ -505,7 +686,8 @@ function mapBundleToSql(record: any) {
       status: null,
       last_update_at: null,
       remarks: 'Mocked event: Invalid crvs_event_uuid',
-      created_at: now
+      created_at: now,
+      _parentRole: 'mother' // Track for filtering
     })
 
     newParticipants.push({
@@ -516,7 +698,8 @@ function mapBundleToSql(record: any) {
       relationship_details: JSON.stringify({ import: 'crvs' }),
       crvs_person_id: mother.id,
       status: 'active',
-      created_at: now
+      created_at: now,
+      _parentRole: 'mother' // Track for filtering
     })
   }
 
@@ -539,7 +722,8 @@ function mapBundleToSql(record: any) {
       ]),
       status: 'review',
       created_at: now,
-      updated_at: now
+      updated_at: now,
+      _parentRole: 'father' // Track for filtering
     })
 
     newEvents.push({
@@ -554,7 +738,8 @@ function mapBundleToSql(record: any) {
       status: null,
       last_update_at: null,
       remarks: 'Mocked event: Invalid crvs_event_uuid',
-      created_at: now
+      created_at: now,
+      _parentRole: 'father' // Track for filtering
     })
 
     newParticipants.push({
@@ -565,7 +750,8 @@ function mapBundleToSql(record: any) {
       relationship_details: JSON.stringify({ import: 'crvs' }),
       crvs_person_id: father?.id || 'unknown-father-crvs-id',
       status: 'active',
-      created_at: now
+      created_at: now,
+      _parentRole: 'father' // Track for filtering
     })
   }
 
@@ -575,7 +761,57 @@ function mapBundleToSql(record: any) {
     participantPayloads,
     newPersons,
     newEvents,
-    newParticipants
+    newParticipants,
+    // External ID info for GoID/NID integration
+    externalIds: {
+      mother: motherExternalId,
+      father: fatherExternalId
+    },
+    // Parent FHIR data needed for creating persons via external ID
+    parentData: {
+      mother: mother ? {
+        givenName: (mother.name?.[0]?.given || []).filter(Boolean).join(' ') || '',
+        familyName: mother.name?.[0]?.family || '',
+        gender: 'female' as const,
+        dob: mother.birthDate || null,
+        crvsId: mother.id,
+        // Include all FHIR identifiers so they're preserved when creating via external ID
+        additionalIdentifiers: [
+          { type: 'crvs', value: mother.id, event: 'birth' },
+          ...(mother.identifier || [])
+            .filter((i: any) => i.value?.trim())
+            .filter((i: any) => i.type?.coding?.[0]?.code !== 'EXTERNAL_PERSON_ID') // Don't duplicate external ID
+            .map((i: any) => ({ type: i.type?.coding?.[0]?.code || 'UNKNOWN', value: i.value }))
+        ]
+      } : null,
+      father: father ? {
+        givenName: (father.name?.[0]?.given || []).filter(Boolean).join(' ') || 'Unknown',
+        familyName: father.name?.[0]?.family || 'Father',
+        gender: 'male' as const,
+        dob: father.birthDate || null,
+        crvsId: father.id,
+        // Include all FHIR identifiers so they're preserved when creating via external ID
+        additionalIdentifiers: [
+          { type: 'crvs', value: father.id, event: 'birth' },
+          ...(father.identifier || [])
+            .filter((i: any) => i.value?.trim())
+            .filter((i: any) => i.type?.coding?.[0]?.code !== 'EXTERNAL_PERSON_ID') // Don't duplicate external ID
+            .map((i: any) => ({ type: i.type?.coding?.[0]?.code || 'UNKNOWN', value: i.value }))
+        ]
+      } : null
+    },
+    // Track which persons need to be inserted (may be overridden by external ID lookup)
+    insertFlags: {
+      mother: shouldInsertMother,
+      father: shouldInsertFather
+    },
+    // Person IDs (may be overridden by external ID lookup)
+    personIds: {
+      child: localChildId,
+      mother: localMotherId,
+      father: localFatherId,
+      event: localEventId
+    }
   }
 }
 

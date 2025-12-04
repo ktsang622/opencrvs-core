@@ -4,19 +4,17 @@ import { Pool, PoolClient } from 'pg'
 // ───────────────────────────────────────────────────────────────────────────────
 // Connection
 // ───────────────────────────────────────────────────────────────────────────────
-const dbHost = process.env.DB_HOST || process.env.TOPPAN_DB_HOST || 'localhost'
-const dbPort = parseInt(process.env.DB_PORT || process.env.TOPPAN_DB_PORT || '5432', 10)
-const dbName = process.env.DB_NAME || process.env.TOPPAN_DB_NAME || 'person_registry'
-const dbUser = process.env.DB_USER || process.env.TOPPAN_DB_USER || 'registry_user'
-const dbPassword = process.env.DB_PASSWORD || process.env.TOPPAN_DB_PASSWORD || 'registry_pass'
 
-const pool = new Pool({
-  host: dbHost,
-  port: dbPort,
-  database: dbName,
-  user: dbUser,
-  password: dbPassword
-})
+// Support DATABASE_URL (Docker/production) or individual env vars (development)
+const pool = process.env.DATABASE_URL
+  ? new Pool({ connectionString: process.env.DATABASE_URL })
+  : new Pool({
+      host: process.env.DB_HOST || process.env.TOPPAN_DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || process.env.TOPPAN_DB_PORT || '5432', 10),
+      database: process.env.DB_NAME || process.env.TOPPAN_DB_NAME || 'person_registry',
+      user: process.env.DB_USER || process.env.TOPPAN_DB_USER || 'registry_user',
+      password: process.env.DB_PASSWORD || process.env.TOPPAN_DB_PASSWORD || 'registry_pass'
+    })
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Transaction helper
@@ -463,7 +461,7 @@ export async function clearSyncRequestPayload(id: string): Promise<void> {
   )
 }
 
-// Update family_link when event_participant is deactivated
+// Update family_links_forward when event_participant is deactivated
 export async function updateFamilyLinkOnParticipantChange(
   eventId: string,
   personId: string,
@@ -473,23 +471,23 @@ export async function updateFamilyLinkOnParticipantChange(
   tx?: PoolClient
 ): Promise<void> {
   if (role !== 'father' && role !== 'mother') return
-  
+
   // Get child from this event
   const { rows: childRows } = await (tx ?? pool).query(
-    `SELECT person_id FROM event_participant 
+    `SELECT person_id FROM event_participant
      WHERE event_id = $1 AND role = 'subject' AND status = 'active'`,
     [eventId]
   )
-  
+
   if (!childRows[0]) return
   const childId = childRows[0].person_id
-  
+
   if (status === 'inactive' && endedAt) {
     // End the family relationship - child is person_id, parent is related_person_id
     await (tx ?? pool).query(
-      `UPDATE family_link 
-       SET end_date = $1::date 
-       WHERE person_id = $2 AND related_person_id = $3 AND relationship_type = $4 
+      `UPDATE family_links_forward
+       SET end_date = $1::date
+       WHERE person_id = $2 AND related_person_id = $3 AND relationship_type = $4
          AND source_event_id = $5 AND end_date IS NULL`,
       [endedAt.split('T')[0], childId, personId, role, eventId]
     )

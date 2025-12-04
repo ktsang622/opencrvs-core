@@ -117,27 +117,6 @@ CREATE INDEX IF NOT EXISTS ix_flnew_related ON family_links_forward USING btree 
 CREATE INDEX IF NOT EXISTS ix_flnew_no_overlap ON family_links_forward USING gist (person_id, relationship_type, source_event_id, period);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_flnew_spouse_unordered ON family_links_forward USING btree (source_event_id, LEAST(person_id, related_person_id), GREATEST(person_id, related_person_id)) WHERE ((relationship_type = 'spouse'::relationship_type_enum) AND (end_date IS NULL));
 
--- Family link table (legacy compatibility)
-CREATE TABLE IF NOT EXISTS family_link (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    person_id uuid NOT NULL,
-    related_person_id uuid NOT NULL,
-    relationship_type relationship_type_enum NOT NULL,
-    relationship_subtype text,
-    source_event_id uuid,
-    start_date date,
-    end_date date,
-    source text DEFAULT 'OpenCRVS',
-    notes text,
-    CONSTRAINT family_link_pkey PRIMARY KEY (id),
-    CONSTRAINT family_link_check CHECK (person_id <> related_person_id)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS unique_family_link ON family_link USING btree (person_id, related_person_id, relationship_type, source_event_id);
-CREATE INDEX IF NOT EXISTS idx_family_link_event ON family_link USING btree (source_event_id);
-CREATE INDEX IF NOT EXISTS idx_family_link_person_id ON family_link USING btree (person_id);
-CREATE INDEX IF NOT EXISTS idx_family_link_related_person_id ON family_link USING btree (related_person_id);
-
 -- Person name history table
 CREATE TABLE IF NOT EXISTS person_name_history (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -154,6 +133,35 @@ CREATE TABLE IF NOT EXISTS person_name_history (
 
 CREATE INDEX IF NOT EXISTS idx_name_history_full_name ON person_name_history USING btree (full_name);
 CREATE INDEX IF NOT EXISTS idx_name_history_valid_from ON person_name_history USING btree (valid_from);
+
+-- Person external ID table (for GoID, NID, etc. integration)
+CREATE TABLE IF NOT EXISTS person_external_id (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    person_id UUID NOT NULL REFERENCES person(id) ON DELETE CASCADE,
+    origin VARCHAR(50) NOT NULL,
+    external_id VARCHAR(255) NOT NULL,
+    external_id_lower VARCHAR(255) NOT NULL,
+    legacy_type VARCHAR(100),
+    is_verified BOOLEAN NOT NULL DEFAULT false,
+    verified_at TIMESTAMPTZ,
+    verified_by VARCHAR(255),
+    verification_method VARCHAR(100),
+    metadata JSONB,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    removed_at TIMESTAMPTZ,
+    removed_by VARCHAR(255),
+    removal_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_by VARCHAR(255),
+    CONSTRAINT chk_external_id_lower CHECK (external_id_lower = LOWER(external_id)),
+    CONSTRAINT chk_origin_lower CHECK (origin = LOWER(origin)),
+    CONSTRAINT chk_status CHECK (status IN ('active', 'removed'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_origin_external_id_active ON person_external_id(origin, external_id_lower) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_person_external_id_person ON person_external_id(person_id);
+CREATE INDEX IF NOT EXISTS idx_person_external_id_lookup ON person_external_id(origin, external_id_lower) WHERE status = 'active';
 
 -- Relationship role map table
 CREATE SEQUENCE IF NOT EXISTS relationship_role_map_id_seq INCREMENT 1 MINVALUE 1 MAXVALUE 2147483647 CACHE 1;
@@ -240,19 +248,6 @@ BEGIN
     
     IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'event_participant_person_id_fkey') THEN
         ALTER TABLE event_participant ADD CONSTRAINT event_participant_person_id_fkey FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE CASCADE;
-    END IF;
-
-    -- Family link foreign keys
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'family_link_person_id_fkey') THEN
-        ALTER TABLE family_link ADD CONSTRAINT family_link_person_id_fkey FOREIGN KEY (person_id) REFERENCES person(id) ON DELETE CASCADE;
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'family_link_related_person_id_fkey') THEN
-        ALTER TABLE family_link ADD CONSTRAINT family_link_related_person_id_fkey FOREIGN KEY (related_person_id) REFERENCES person(id) ON DELETE CASCADE;
-    END IF;
-    
-    IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_name = 'family_link_source_event_id_fkey') THEN
-        ALTER TABLE family_link ADD CONSTRAINT family_link_source_event_id_fkey FOREIGN KEY (source_event_id) REFERENCES event(id) ON DELETE SET NULL;
     END IF;
 
     -- Person name history foreign key
@@ -518,197 +513,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Backfill family links from events function
-CREATE OR REPLACE FUNCTION backfill_family_links_from_events()
-RETURNS void AS $$
-BEGIN
-  -- 👶 Birth: child → mother/father
-  INSERT INTO family_link (
-    person_id,
-    related_person_id,
-    relationship_type,
-    source_event_id,
-    source,
-    notes
-  )
-  SELECT DISTINCT ON (
-    child.person_id, parent.person_id, parent.role, e.id
-  )
-    child.person_id,
-    parent.person_id,
-    CASE parent.role
-      WHEN 'mother' THEN 'mother'
-      WHEN 'father' THEN 'father'
-    END::relationship_type_enum,
-    e.id,
-    'OpenCRVS',
-    'Backfilled from birth event'
-  FROM event e
-  JOIN (
-    SELECT DISTINCT event_id, person_id, role
-    FROM event_participant
-    WHERE role = 'subject'
-  ) child ON child.event_id = e.id
-  JOIN (
-    SELECT DISTINCT event_id, person_id, role
-    FROM event_participant
-    WHERE role IN ('mother', 'father')
-  ) parent ON parent.event_id = e.id
-  LEFT JOIN family_link existing ON
-    existing.person_id = child.person_id AND
-    existing.related_person_id = parent.person_id AND
-    existing.relationship_type = CASE parent.role
-      WHEN 'mother' THEN 'mother'
-      WHEN 'father' THEN 'father'
-    END::relationship_type_enum AND
-    existing.source_event_id = e.id
-  WHERE e.event_type = 'birth'
-    AND existing.id IS NULL
-    AND parent.person_id IS NOT NULL
-    AND child.person_id IS NOT NULL
-    AND child.person_id != parent.person_id;
-
-  -- 💍 Marriage: spouse ↔ spouse
-  INSERT INTO family_link (
-    person_id,
-    related_person_id,
-    relationship_type,
-    source_event_id,
-    source,
-    notes
-  )
-  SELECT DISTINCT ON (a.person_id, b.person_id, e.id)
-    a.person_id,
-    b.person_id,
-    'spouse'::relationship_type_enum,
-    e.id,
-    'OpenCRVS',
-    'Backfilled from marriage event'
-  FROM event e
-  JOIN (
-    SELECT DISTINCT event_id, person_id FROM event_participant WHERE role = 'groom'
-  ) a ON a.event_id = e.id
-  JOIN (
-    SELECT DISTINCT event_id, person_id FROM event_participant WHERE role = 'bride'
-  ) b ON b.event_id = e.id
-  LEFT JOIN family_link existing ON
-    existing.person_id = a.person_id AND
-    existing.related_person_id = b.person_id AND
-    existing.relationship_type = 'spouse' AND
-    existing.source_event_id = e.id
-  WHERE e.event_type = 'marriage'
-    AND existing.id IS NULL
-    AND a.person_id IS NOT NULL
-    AND b.person_id IS NOT NULL
-    AND a.person_id != b.person_id;
-
-  RAISE NOTICE '✅ Family link backfill complete.';
-END;
-$$ LANGUAGE plpgsql;
-
--- Create family link from event function
-CREATE OR REPLACE FUNCTION create_family_link_from_event()
-RETURNS trigger AS $$
-DECLARE
-  child_id UUID;
-BEGIN
-  IF NEW.role IN ('mother', 'father') THEN
-    -- Look for the child (role='subject' and type='child')
-    SELECT person_id INTO child_id
-    FROM event_participant
-    WHERE event_id = NEW.event_id
-      AND relationship_details->>'type' = 'child'
-    LIMIT 1;
-
-    IF child_id IS NOT NULL THEN
-      -- Insert child → parent with correct direction
-      IF NOT EXISTS (
-        SELECT 1 FROM family_link
-        WHERE person_id = child_id
-          AND related_person_id = NEW.person_id
-          AND relationship_type = NEW.role::relationship_type_enum
-          AND source_event_id = NEW.event_id
-      ) THEN
-        INSERT INTO family_link (
-          person_id,               -- child
-          related_person_id,       -- mother or father
-          relationship_type,
-          source_event_id,
-          start_date,
-          end_date,
-          source,
-          notes
-        )
-        VALUES (
-          child_id,
-          NEW.person_id,
-          NEW.role::relationship_type_enum,
-          NEW.event_id,
-          NULL, NULL,
-          'event_participant',
-          'Auto-linked from event'
-        );
-      END IF;
-    END IF;
-  END IF;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create reverse family link function
-CREATE OR REPLACE FUNCTION create_reverse_family_link()
-RETURNS trigger AS $$
-DECLARE
-  reverse_type relationship_type_enum;
-BEGIN
-  CASE NEW.relationship_type
-    WHEN 'mother' THEN reverse_type := 'child';
-    WHEN 'father' THEN reverse_type := 'child';
-    WHEN 'spouse' THEN reverse_type := 'spouse';
-    WHEN 'sibling' THEN reverse_type := 'sibling';
-    WHEN 'partner' THEN reverse_type := 'partner';
-    ELSE
-      -- Skip reverse creation for 'child' or undefined relationships
-      RETURN NEW;
-  END CASE;
-
-  -- Check for duplicates
-  IF NOT EXISTS (
-    SELECT 1 FROM family_link
-    WHERE person_id = NEW.related_person_id
-      AND related_person_id = NEW.person_id
-      AND relationship_type = reverse_type
-      AND source_event_id = NEW.source_event_id
-  ) THEN
-    INSERT INTO family_link (
-      person_id,
-      related_person_id,
-      relationship_type,
-      relationship_subtype,
-      source_event_id,
-      start_date,
-      end_date,
-      source,
-      notes
-    )
-    VALUES (
-      NEW.related_person_id,
-      NEW.person_id,
-      reverse_type,
-      NEW.relationship_subtype,
-      NEW.source_event_id,
-      NEW.start_date,
-      NEW.end_date,
-      NEW.source,
-      'Auto-created reverse link'
-    );
-  END IF;
-
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 -- Trigger call apply ep change shadow function
 CREATE OR REPLACE FUNCTION trg_call_apply_ep_change_shadow()
 RETURNS trigger AS $$
@@ -812,24 +616,12 @@ GROUP BY f.person_id, f.relationship_type;
 
 -- Drop existing triggers to avoid conflicts
 DROP TRIGGER IF EXISTS trg_apply_ep_change_shadow ON event_participant;
-DROP TRIGGER IF EXISTS trg_create_family_link_from_event ON event_participant;
-DROP TRIGGER IF EXISTS trg_create_reverse_family_link ON family_link;
 
--- Create triggers
+-- Create shadow sync trigger (handles family_links_forward via apply_event_participant_change_shadow)
 CREATE TRIGGER trg_apply_ep_change_shadow
     AFTER INSERT OR UPDATE ON event_participant
     FOR EACH ROW
     EXECUTE FUNCTION trg_call_apply_ep_change_shadow();
-
-CREATE TRIGGER trg_create_family_link_from_event
-    AFTER INSERT OR UPDATE ON event_participant
-    FOR EACH ROW
-    EXECUTE FUNCTION create_family_link_from_event();
-
-CREATE TRIGGER trg_create_reverse_family_link
-    AFTER INSERT ON family_link
-    FOR EACH ROW
-    EXECUTE FUNCTION create_reverse_family_link();
 
 -- btree_gist extension provides all necessary functions
 
